@@ -76,9 +76,23 @@ local function startMatch(player, againstAI)
 	})
 end
 
+local function getAttackAnimation(actionType)
+	if actionType == "kick" or actionType == "knee" then
+		return "front_flip_knockout"
+	elseif actionType == "punch" then
+		return "jab"
+	elseif actionType == "combo" then
+		return "quick_combo"
+	elseif actionType == "block" then
+		return "guard"
+	end
+	return "standard_hit"
+end
+
 local function resolveAttack(player, actionType)
 	local data = getPlayerData(player)
 	local enemy = getAIEnemy()
+	local animationType = getAttackAnimation(actionType)
 
 	if actionType == "punch" then
 		data.strength = math.min(1000000000000, data.strength + 1)
@@ -102,6 +116,8 @@ local function resolveAttack(player, actionType)
 			type = "win",
 			moneyAward = 100,
 			remainingHealth = data.health,
+			animation = animationType,
+			impact = "front_flip_land_back",
 		})
 		data.bodyStage = FighterStats.GetStageFromStrength(data.strength)
 		sendPlayerStats(player)
@@ -115,6 +131,8 @@ local function resolveAttack(player, actionType)
 		matchResultEvent:FireClient(player, {
 			type = "lose",
 			remainingHealth = 0,
+			animation = animationType,
+			impact = "front_flip_land_back",
 		})
 		sendPlayerStats(player)
 		return
@@ -126,6 +144,8 @@ local function resolveAttack(player, actionType)
 		opponentHealth = currentEnemyHealth,
 		damageDealt = damage,
 		damageTaken = enemyDamage,
+		animation = animationType,
+		impact = (actionType == "kick" or actionType == "knee") and "front_flip_land_back" or "standard_body_impact",
 	})
 
 	data.bodyStage = FighterStats.GetStageFromStrength(data.strength)
@@ -165,6 +185,7 @@ local function handleCombatAction(player, actionType)
 		matchResultEvent:FireClient(player, {
 			type = "block",
 			message = "Blocked the incoming hit.",
+			animation = "guard",
 		})
 		return
 	end
