@@ -338,6 +338,7 @@ local function createArenaButton(name, text, position, action)
 	return btn
 end
 
+createArenaButton("StartBtn", "START MATCH", UDim2.new(0.38, 0, 0.32, 0), "start_match")
 createArenaButton("PunchBtn", "PUNCH", UDim2.new(0.08, 0, 0.45, 0), "punch")
 createArenaButton("KickBtn", "KICK", UDim2.new(0.28, 0, 0.45, 0), "kick")
 createArenaButton("ComboBtn", "COMBO", UDim2.new(0.48, 0, 0.45, 0), "combo")
