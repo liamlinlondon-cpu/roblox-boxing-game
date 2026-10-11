@@ -1,6 +1,10 @@
 local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local WorldConfig = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("WorldConfig"))
 
 local ARENA_NAME = "BoxingArena"
+local ARENA = WorldConfig.Arena
 
 local function makePart(parent, name, size, cframe, material, color)
 	local part = Instance.new("Part")
@@ -17,21 +21,6 @@ local function makePart(parent, name, size, cframe, material, color)
 	return part
 end
 
-local function makeSpawn(parent, name, position, teamColor)
-	local spawn = Instance.new("SpawnLocation")
-	spawn.Name = name
-	spawn.Position = position
-	spawn.Size = Vector3.new(1, 1, 1)
-	spawn.Anchored = true
-	spawn.Transparency = 0.3
-	spawn.CanCollide = false
-	spawn.Material = Enum.Material.SmoothPlastic
-	spawn.Color = teamColor
-	spawn.Neutral = false
-	spawn.Parent = parent
-	return spawn
-end
-
 local function clearArena()
 	local existing = Workspace:FindFirstChild(ARENA_NAME)
 	if existing then
@@ -46,58 +35,140 @@ local function buildArena()
 	arena.Name = ARENA_NAME
 	arena.Parent = Workspace
 
-	-- Main floor platform (2x2 arena)
-	local platform = makePart(
+	local center = ARENA.Center
+	local half = ARENA.RingSize / 2
+	local canvasTop = ARENA.RingHeight
+	local platformHalf = half + 3
+
+	-- Raised ring base with the canvas on top
+	makePart(
 		arena,
 		"Platform",
-		Vector3.new(2.8, 0.5, 2.8),
-		CFrame.new(0, -0.25, 0),
-		Enum.Material.SmoothPlastic,
+		Vector3.new(platformHalf * 2, canvasTop - 0.4, platformHalf * 2),
+		CFrame.new(center + Vector3.new(0, (canvasTop - 0.4) / 2, 0)),
+		Enum.Material.Concrete,
 		Color3.fromRGB(45, 45, 45)
 	)
-
-	-- Fight floor
-	local ringFloor = makePart(
+	makePart(
 		arena,
 		"RingFloor",
-		Vector3.new(2.2, 0.2, 2.2),
-		CFrame.new(0, 0.1, 0),
-		Enum.Material.SmoothPlastic,
-		Color3.fromRGB(25, 25, 25)
+		Vector3.new(ARENA.RingSize + 2, 0.4, ARENA.RingSize + 2),
+		CFrame.new(center + Vector3.new(0, canvasTop - 0.2, 0)),
+		Enum.Material.Fabric,
+		Color3.fromRGB(30, 60, 140)
 	)
 
-	-- Corner posts
-	local cornerPositions = {
-		Vector3.new(-1.1, 1.5, -1.1),
-		Vector3.new(1.1, 1.5, -1.1),
-		Vector3.new(-1.1, 1.5, 1.1),
-		Vector3.new(1.1, 1.5, 1.1),
+	-- Corner posts: red corner at (-x, +z), blue corner at (+x, -z)
+	local corners = {
+		{ name = "RedPost", offset = Vector3.new(-half, 0, half), color = Color3.fromRGB(220, 40, 40) },
+		{ name = "BluePost", offset = Vector3.new(half, 0, -half), color = Color3.fromRGB(40, 70, 220) },
+		{ name = "NeutralPost1", offset = Vector3.new(half, 0, half), color = Color3.fromRGB(240, 240, 240) },
+		{ name = "NeutralPost2", offset = Vector3.new(-half, 0, -half), color = Color3.fromRGB(240, 240, 240) },
 	}
-
-	for i, pos in ipairs(cornerPositions) do
-		makePart(arena, "Post" .. i, Vector3.new(0.2, 3, 0.2), CFrame.new(pos), Enum.Material.Metal, Color3.fromRGB(255, 255, 255))
+	for _, corner in ipairs(corners) do
+		makePart(
+			arena,
+			corner.name,
+			Vector3.new(1, ARENA.PostHeight, 1),
+			CFrame.new(center + corner.offset + Vector3.new(0, canvasTop + ARENA.PostHeight / 2, 0)),
+			Enum.Material.Metal,
+			corner.color
+		)
 	end
 
-	-- Ropes around the ring
-	local ropeColor = Color3.fromRGB(255, 255, 255)
-	local topRope = makePart(arena, "TopRope", Vector3.new(2.2, 0.1, 0.1), CFrame.new(0, 2.4, -1.1), Enum.Material.SmoothPlastic, ropeColor)
-	local bottomRope = makePart(arena, "BottomRope", Vector3.new(2.2, 0.1, 0.1), CFrame.new(0, 2.4, 1.1), Enum.Material.SmoothPlastic, ropeColor)
-	local leftRope = makePart(arena, "LeftRope", Vector3.new(0.1, 0.1, 2.2), CFrame.new(-1.1, 2.4, 0), Enum.Material.SmoothPlastic, ropeColor)
-	local rightRope = makePart(arena, "RightRope", Vector3.new(0.1, 0.1, 2.2), CFrame.new(1.1, 2.4, 0), Enum.Material.SmoothPlastic, ropeColor)
+	-- Three rope levels. Ropes don't collide so players can climb in and out through them.
+	local ropeLevels = {
+		{ height = 2, color = Color3.fromRGB(220, 40, 40) },
+		{ height = 3.5, color = Color3.fromRGB(245, 245, 245) },
+		{ height = 5, color = Color3.fromRGB(40, 70, 220) },
+	}
+	for level, rope in ipairs(ropeLevels) do
+		local y = canvasTop + rope.height
+		local sides = {
+			{ "North", Vector3.new(ARENA.RingSize, 0.3, 0.3), Vector3.new(0, y, -half) },
+			{ "South", Vector3.new(ARENA.RingSize, 0.3, 0.3), Vector3.new(0, y, half) },
+			{ "West", Vector3.new(0.3, 0.3, ARENA.RingSize), Vector3.new(-half, y, 0) },
+			{ "East", Vector3.new(0.3, 0.3, ARENA.RingSize), Vector3.new(half, y, 0) },
+		}
+		for _, side in ipairs(sides) do
+			local part = makePart(arena, "Rope" .. level .. side[1], side[2], CFrame.new(center + side[3]), Enum.Material.Fabric, rope.color)
+			part.CanCollide = false
+		end
+	end
 
-	-- Ring corners for red and blue fighters
-	local redSpawn = makeSpawn(arena, "RedSpawn", Vector3.new(-0.6, 1.5, 0.7), Color3.fromRGB(255, 60, 60))
-	local blueSpawn = makeSpawn(arena, "BlueSpawn", Vector3.new(0.6, 1.5, -0.7), Color3.fromRGB(60, 60, 255))
+	-- Steps up to the ring on the north and south sides
+	for _, direction in ipairs({ 1, -1 }) do
+		for step = 1, 3 do
+			local height = (canvasTop - 0.4) * step / 4
+			local z = direction * (platformHalf + (4 - step) * 2 - 1)
+			makePart(
+				arena,
+				"Step" .. step,
+				Vector3.new(6, height, 2),
+				CFrame.new(center + Vector3.new(0, height / 2, z)),
+				Enum.Material.Concrete,
+				Color3.fromRGB(70, 70, 70)
+			)
+		end
+	end
 
-	-- Center marker
-	local centerMarker = makePart(arena, "CenterMarker", Vector3.new(0.15, 0.1, 0.15), CFrame.new(0, 0.2, 0), Enum.Material.SmoothPlastic, Color3.fromRGB(255, 215, 0))
+	-- Fighter spawn points used by CharacterAnimationService. These are plain parts (not SpawnLocations)
+	-- so players joining the server don't spawn inside the ring.
+	local redSpawn = makePart(arena, "RedSpawn", Vector3.new(2, 0.2, 2), CFrame.new(center + Vector3.new(-half + 4, canvasTop + 1.3, half - 4)))
+	local blueSpawn = makePart(arena, "BlueSpawn", Vector3.new(2, 0.2, 2), CFrame.new(center + Vector3.new(half - 4, canvasTop + 1.3, -half + 4)))
+	for _, spawnPart in ipairs({ redSpawn, blueSpawn }) do
+		spawnPart.Transparency = 1
+		spawnPart.CanCollide = false
+	end
+
+	-- Center marker and corner pads on the canvas
+	local centerMarker = makePart(arena, "CenterMarker", Vector3.new(2, 0.1, 2), CFrame.new(center + Vector3.new(0, canvasTop + 0.05, 0)), Enum.Material.Neon, Color3.fromRGB(255, 215, 0))
 	centerMarker.CanCollide = false
-
-	-- Red and blue corner pads
-	local redPad = makePart(arena, "RedPad", Vector3.new(0.5, 0.1, 0.5), CFrame.new(-1, 0.2, 1), Enum.Material.SmoothPlastic, Color3.fromRGB(255, 100, 100))
+	local redPad = makePart(arena, "RedPad", Vector3.new(4, 0.1, 4), CFrame.new(center + Vector3.new(-half + 3, canvasTop + 0.05, half - 3)), Enum.Material.SmoothPlastic, Color3.fromRGB(255, 100, 100))
 	redPad.CanCollide = false
-	local bluePad = makePart(arena, "BluePad", Vector3.new(0.5, 0.1, 0.5), CFrame.new(1, 0.2, -1), Enum.Material.SmoothPlastic, Color3.fromRGB(100, 100, 255))
+	local bluePad = makePart(arena, "BluePad", Vector3.new(4, 0.1, 4), CFrame.new(center + Vector3.new(half - 3, canvasTop + 0.05, -half + 3)), Enum.Material.SmoothPlastic, Color3.fromRGB(100, 100, 255))
 	bluePad.CanCollide = false
+
+	-- Spectator bleachers between the six gym paths, each facing the ring
+	local gymCount = WorldConfig.Gyms.Count
+	for i = 1, gymCount do
+		local angle = (i - 0.5) * (2 * math.pi / gymCount)
+		local direction = Vector3.new(math.sin(angle), 0, math.cos(angle))
+		for tier = 1, 4 do
+			local height = tier * 1.5
+			local position = center + direction * (26 + (tier - 0.5) * 3.5) + Vector3.new(0, height / 2, 0)
+			makePart(
+				arena,
+				"Bleacher" .. i .. "_" .. tier,
+				Vector3.new(16 + tier * 3, height, 3.5),
+				CFrame.lookAt(position, Vector3.new(center.X, position.Y, center.Z)),
+				Enum.Material.WoodPlanks,
+				Color3.fromRGB(110, 80, 55)
+			)
+		end
+	end
+
+	-- Light towers aimed at the ring
+	for i = 1, 4 do
+		local angle = (i - 0.5) * (math.pi / 2)
+		local base = center + Vector3.new(math.sin(angle), 0, math.cos(angle)) * 44
+		makePart(arena, "LightPole" .. i, Vector3.new(1.5, 24, 1.5), CFrame.new(base + Vector3.new(0, 12, 0)), Enum.Material.Metal, Color3.fromRGB(90, 90, 90))
+		local headPosition = base + Vector3.new(0, 24.5, 0)
+		local head = makePart(
+			arena,
+			"LightHead" .. i,
+			Vector3.new(4, 2, 1),
+			CFrame.lookAt(headPosition, center + Vector3.new(0, canvasTop, 0)),
+			Enum.Material.Neon,
+			Color3.fromRGB(255, 250, 220)
+		)
+		local spot = Instance.new("SpotLight")
+		spot.Face = Enum.NormalId.Front
+		spot.Angle = 50
+		spot.Range = 60
+		spot.Brightness = 5
+		spot.Parent = head
+	end
 
 	-- Lighting for arena atmosphere
 	local lighting = game:GetService("Lighting")
