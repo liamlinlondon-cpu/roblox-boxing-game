@@ -57,11 +57,15 @@ local function sendPlayerStats(player)
 end
 
 local function handleGym(player)
+	setLocation(player, "gym")
+end
+
+local function handleTrainStrength(player)
 	local data = getPlayerData(player)
 	FighterStats.TrainStrength(data, 50)
 	data.health = 100
 	data.bodyStage = FighterStats.GetStageFromStrength(data.strength)
-	setLocation(player, "home")
+	setLocation(player, "gym")
 	sendPlayerStats(player)
 end
 
@@ -99,6 +103,8 @@ flowEvent.OnServerEvent:Connect(function(player, action)
 		handleHome(player)
 	elseif action == "gym" then
 		handleGym(player)
+	elseif action == "train_strength" then
+		handleTrainStrength(player)
 	elseif type(action) == "string" and action:sub(1, 10) == "treadmill_" then
 		handleTreadmill(player, action:sub(11))
 	elseif action == "shop" then

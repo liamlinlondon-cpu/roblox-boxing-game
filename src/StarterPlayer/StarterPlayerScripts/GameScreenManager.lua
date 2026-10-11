@@ -177,7 +177,7 @@ gymTrainBtn.Font = Enum.Font.GothamBlack
 gymTrainBtn.TextScaled = true
 gymTrainBtn.Parent = gymFrame
 gymTrainBtn.MouseButton1Click:Connect(function()
-	flowEvent:FireServer("gym")
+	flowEvent:FireServer("train_strength")
 end)
 
 local gymStatus = Instance.new("TextLabel")
