@@ -1,5 +1,24 @@
 local FighterStats = {}
 
+FighterStats.BASE_STAMINA = 100
+
+FighterStats.TreadmillTiers = {
+	regular = { name = "Regular Treadmill", multiplier = 1, gain = 50 },
+	hacker = { name = "Hacker's Treadmill", multiplier = 1000, gain = 50000 },
+	admin = { name = "Admin Treadmill", multiplier = 10000000, gain = 50000000 },
+	owner = { name = "Owner's Treadmill", multiplier = 100000000000, gain = 5000000000000 },
+}
+
+FighterStats.StaminaCosts = {
+	punch = 10,
+	kick = 15,
+	combo = 25,
+	knee = 20,
+	block = 5,
+}
+
+local sharedPlayerData = {}
+
 function FighterStats.CreatePlayerData()
 	return {
 		strength = 10,
@@ -8,10 +27,20 @@ function FighterStats.CreatePlayerData()
 		money = 0,
 		bodyStage = "Skinny Bones",
 		health = 100,
+		stamina = FighterStats.BASE_STAMINA,
+		maxStamina = FighterStats.BASE_STAMINA,
 		arenaWins = 0,
 		arenaLosses = 0,
 		isInMatch = false,
 	}
+end
+
+-- Server-side player data shared between all services
+function FighterStats.GetPlayerData(player)
+	if not sharedPlayerData[player] then
+		sharedPlayerData[player] = FighterStats.CreatePlayerData()
+	end
+	return sharedPlayerData[player]
 end
 
 function FighterStats.GetStageFromStrength(strength)
@@ -36,6 +65,32 @@ function FighterStats.TrainStrength(data, amount)
 	data.strength = data.strength + amount
 	data.bodyStage = FighterStats.GetStageFromStrength(data.strength)
 	data.health = 100
+end
+
+function FighterStats.TrainStamina(data, tierKey)
+	local tier = FighterStats.TreadmillTiers[tierKey]
+	if not tier then
+		return false
+	end
+
+	data.maxStamina = data.maxStamina + tier.gain
+	data.stamina = data.maxStamina
+	return true, tier
+end
+
+function FighterStats.ResetStamina(data)
+	data.stamina = data.maxStamina
+end
+
+-- Returns true and spends stamina if the player can afford the action
+function FighterStats.ConsumeStamina(data, actionType)
+	local cost = FighterStats.StaminaCosts[actionType] or 0
+	if data.stamina < cost or (cost > 0 and data.stamina <= 0) then
+		return false
+	end
+
+	data.stamina = data.stamina - cost
+	return true
 end
 
 function FighterStats.CalculateDamage(data, actionType)

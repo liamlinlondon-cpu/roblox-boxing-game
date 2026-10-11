@@ -8,13 +8,8 @@ local shopActionEvent = ReplicatedStorage:WaitForChild("Events"):WaitForChild("S
 local matchResultEvent = ReplicatedStorage:WaitForChild("Events"):WaitForChild("MatchResult")
 local arenaEvent = ReplicatedStorage:WaitForChild("Events"):WaitForChild("ArenaAction")
 
-local playerDataMap = {}
-
 local function getPlayerData(player)
-    if not playerDataMap[player] then
-        playerDataMap[player] = FighterStats.CreatePlayerData()
-    end
-    return playerDataMap[player]
+    return FighterStats.GetPlayerData(player)
 end
 
 local function sendPlayerStats(player)
@@ -27,6 +22,8 @@ local function sendPlayerStats(player)
         luck = data.luck,
         bodyStage = data.bodyStage,
         health = data.health,
+        stamina = data.stamina,
+        maxStamina = data.maxStamina,
     })
 end
 
@@ -75,6 +72,7 @@ local function startArenaCountdown(player)
     local data = getPlayerData(player)
     data.isInMatch = true
     data.health = 100
+    FighterStats.ResetStamina(data)
 
     -- Send countdown to client
     for countdown = 3, 1, -1 do
@@ -90,6 +88,8 @@ local function startArenaCountdown(player)
         type = "match_started",
         opponentName = "Bot Boxer",
         opponentHealth = 100,
+        stamina = data.stamina,
+        maxStamina = data.maxStamina,
     })
 end
 
@@ -168,6 +168,8 @@ local function resolveAttack(player, actionType)
         opponentHealth = currentEnemyHealth,
         damageDealt = damage,
         damageTaken = enemyDamage,
+        stamina = data.stamina,
+        maxStamina = data.maxStamina,
     })
 
     data.bodyStage = FighterStats.GetStageFromStrength(data.strength)
@@ -181,10 +183,23 @@ local function handleArenaAction(player, actionType)
     end
 
     if actionType == "punch" or actionType == "kick" or actionType == "combo" or actionType == "knee" or actionType == "block" then
+        local data = getPlayerData(player)
+        if not FighterStats.ConsumeStamina(data, actionType) then
+            matchResultEvent:FireClient(player, {
+                type = "no_stamina",
+                message = "Not enough stamina to " .. actionType .. "!",
+                stamina = data.stamina,
+                maxStamina = data.maxStamina,
+            })
+            return
+        end
+
         if actionType == "block" then
             matchResultEvent:FireClient(player, {
                 type = "block",
                 message = "Blocked the incoming hit.",
+                stamina = data.stamina,
+                maxStamina = data.maxStamina,
             })
             return
         end

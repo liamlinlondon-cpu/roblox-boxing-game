@@ -25,13 +25,8 @@ if not stateEvent then
 	stateEvent.Parent = eventsFolder
 end
 
-local playerDataMap = {}
-
 local function getPlayerData(player)
-	if not playerDataMap[player] then
-		playerDataMap[player] = FighterStats.CreatePlayerData()
-	end
-	return playerDataMap[player]
+	return FighterStats.GetPlayerData(player)
 end
 
 local function setLocation(player, location)
@@ -55,6 +50,8 @@ local function sendPlayerStats(player)
 			luck = data.luck,
 			bodyStage = data.bodyStage,
 			health = data.health,
+			stamina = data.stamina,
+			maxStamina = data.maxStamina,
 		})
 	end
 end
@@ -65,6 +62,23 @@ local function handleGym(player)
 	data.health = 100
 	data.bodyStage = FighterStats.GetStageFromStrength(data.strength)
 	setLocation(player, "home")
+	sendPlayerStats(player)
+end
+
+local function handleTreadmill(player, tierKey)
+	local data = getPlayerData(player)
+	local success, tier = FighterStats.TrainStamina(data, tierKey)
+	if not success then
+		return
+	end
+
+	local resultEvent = eventsFolder:FindFirstChild("MatchResult")
+	if resultEvent then
+		resultEvent:FireClient(player, {
+			type = "treadmill_result",
+			message = string.format("%s complete! +%.0f max stamina.", tier.name, tier.gain),
+		})
+	end
 	sendPlayerStats(player)
 end
 
@@ -85,6 +99,8 @@ flowEvent.OnServerEvent:Connect(function(player, action)
 		handleHome(player)
 	elseif action == "gym" then
 		handleGym(player)
+	elseif type(action) == "string" and action:sub(1, 10) == "treadmill_" then
+		handleTreadmill(player, action:sub(11))
 	elseif action == "shop" then
 		handleShop(player)
 	elseif action == "arena" then
