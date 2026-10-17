@@ -1,8 +1,10 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local CollectionService = game:GetService("CollectionService")
 
 local FighterStats = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("FighterStats"))
 local Shop = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("Shop"))
+local WorldConfig = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("WorldConfig"))
 
 local eventsFolder = ReplicatedStorage:FindFirstChild("Events")
 if not eventsFolder then
@@ -23,6 +25,15 @@ if not stateEvent then
 	stateEvent = Instance.new("RemoteEvent")
 	stateEvent.Name = "StateUpdate"
 	stateEvent.Parent = eventsFolder
+end
+
+-- Other scripts WaitForChild these, so they must exist even though they're used elsewhere
+for _, eventName in ipairs({ "MatchResult", "ShopAction", "ArenaAction", "CombatAction", "VipAuction" }) do
+	if not eventsFolder:FindFirstChild(eventName) then
+		local remote = Instance.new("RemoteEvent")
+		remote.Name = eventName
+		remote.Parent = eventsFolder
+	end
 end
 
 local function getPlayerData(player)
@@ -97,6 +108,43 @@ end
 local function handleArena(player)
 	setLocation(player, "arena")
 end
+
+-- Punching bag stations inside the gyms (built by WorldBuilder)
+local lastTrainTime = {}
+
+local function onStationTriggered(prompt, player)
+	local clock = os.clock()
+	if lastTrainTime[player] and clock - lastTrainTime[player] < WorldConfig.Gyms.TrainCooldown then
+		return
+	end
+
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	local pad = prompt.Parent
+	if not root or (root.Position - pad.Position).Magnitude > 12 then
+		return
+	end
+	lastTrainTime[player] = clock
+
+	local amount = prompt:GetAttribute("Vip") and WorldConfig.Gyms.VipTrainAmount or WorldConfig.Gyms.FreeTrainAmount
+	FighterStats.TrainStrength(getPlayerData(player), amount)
+	sendPlayerStats(player)
+end
+
+local function hookStation(prompt)
+	prompt.Triggered:Connect(function(player)
+		onStationTriggered(prompt, player)
+	end)
+end
+
+for _, prompt in ipairs(CollectionService:GetTagged("GymStation")) do
+	hookStation(prompt)
+end
+CollectionService:GetInstanceAddedSignal("GymStation"):Connect(hookStation)
+
+Players.PlayerRemoving:Connect(function(player)
+	lastTrainTime[player] = nil
+end)
 
 flowEvent.OnServerEvent:Connect(function(player, action)
 	if action == "home" then
