@@ -9,6 +9,10 @@ local matchResultEvent = events:WaitForChild("MatchResult")
 local shopActionEvent = events:WaitForChild("ShopAction")
 local arenaEvent = events:WaitForChild("ArenaAction")
 
+local function formatNumber(value)
+	return string.format("%.0f", value)
+end
+
 -- Create main GUI
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "GameScreenGui"
@@ -43,7 +47,7 @@ homeStatFrame.BorderColor3 = Color3.fromRGB(255, 255, 255)
 homeStatFrame.Parent = homeFrame
 
 local homeMoneyLabel = Instance.new("TextLabel")
-homeMoneyLabel.Size = UDim2.new(1, 0, 0.2, 0)
+homeMoneyLabel.Size = UDim2.new(1, 0, 0.1667, 0)
 homeMoneyLabel.BackgroundTransparency = 1
 homeMoneyLabel.Text = "Robux: 0"
 homeMoneyLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -52,8 +56,8 @@ homeMoneyLabel.TextScaled = true
 homeMoneyLabel.Parent = homeStatFrame
 
 local homeStrengthLabel = Instance.new("TextLabel")
-homeStrengthLabel.Size = UDim2.new(1, 0, 0.2, 0)
-homeStrengthLabel.Position = UDim2.new(0, 0, 0.2, 0)
+homeStrengthLabel.Size = UDim2.new(1, 0, 0.1667, 0)
+homeStrengthLabel.Position = UDim2.new(0, 0, 0.1667, 0)
 homeStrengthLabel.BackgroundTransparency = 1
 homeStrengthLabel.Text = "Strength: 0"
 homeStrengthLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -62,8 +66,8 @@ homeStrengthLabel.TextScaled = true
 homeStrengthLabel.Parent = homeStatFrame
 
 local homeKickLabel = Instance.new("TextLabel")
-homeKickLabel.Size = UDim2.new(1, 0, 0.2, 0)
-homeKickLabel.Position = UDim2.new(0, 0, 0.4, 0)
+homeKickLabel.Size = UDim2.new(1, 0, 0.1667, 0)
+homeKickLabel.Position = UDim2.new(0, 0, 0.3333, 0)
 homeKickLabel.BackgroundTransparency = 1
 homeKickLabel.Text = "Kick: 0"
 homeKickLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -72,8 +76,8 @@ homeKickLabel.TextScaled = true
 homeKickLabel.Parent = homeStatFrame
 
 local homeLuckLabel = Instance.new("TextLabel")
-homeLuckLabel.Size = UDim2.new(1, 0, 0.2, 0)
-homeLuckLabel.Position = UDim2.new(0, 0, 0.6, 0)
+homeLuckLabel.Size = UDim2.new(1, 0, 0.1667, 0)
+homeLuckLabel.Position = UDim2.new(0, 0, 0.5, 0)
 homeLuckLabel.BackgroundTransparency = 1
 homeLuckLabel.Text = "Luck: 1"
 homeLuckLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -82,14 +86,24 @@ homeLuckLabel.TextScaled = true
 homeLuckLabel.Parent = homeStatFrame
 
 local homeStageLabel = Instance.new("TextLabel")
-homeStageLabel.Size = UDim2.new(1, 0, 0.2, 0)
-homeStageLabel.Position = UDim2.new(0, 0, 0.8, 0)
+homeStageLabel.Size = UDim2.new(1, 0, 0.1667, 0)
+homeStageLabel.Position = UDim2.new(0, 0, 0.6667, 0)
 homeStageLabel.BackgroundTransparency = 1
 homeStageLabel.Text = "Stage: Skinny Bones"
 homeStageLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 homeStageLabel.Font = Enum.Font.GothamBold
 homeStageLabel.TextScaled = true
 homeStageLabel.Parent = homeStatFrame
+
+local homeStaminaLabel = Instance.new("TextLabel")
+homeStaminaLabel.Size = UDim2.new(1, 0, 0.1667, 0)
+homeStaminaLabel.Position = UDim2.new(0, 0, 0.8333, 0)
+homeStaminaLabel.BackgroundTransparency = 1
+homeStaminaLabel.Text = "Max Stamina: 100"
+homeStaminaLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+homeStaminaLabel.Font = Enum.Font.GothamBold
+homeStaminaLabel.TextScaled = true
+homeStaminaLabel.Parent = homeStatFrame
 
 local function createMainButton(parent, name, text, position, callback)
 	local btn = Instance.new("TextButton")
@@ -108,15 +122,15 @@ local function createMainButton(parent, name, text, position, callback)
 	return btn
 end
 
-createMainButton(homeFrame, "GymBtn", "GYM", UDim2.new(0.08, 0, 0.58, 0), function()
+createMainButton(homeFrame, "GymBtn", "GYM", UDim2.new(0.08, 0, 0.63, 0), function()
 	flowEvent:FireServer("gym")
 end)
 
-createMainButton(homeFrame, "ShopBtn", "SHOP", UDim2.new(0.38, 0, 0.58, 0), function()
+createMainButton(homeFrame, "ShopBtn", "SHOP", UDim2.new(0.38, 0, 0.63, 0), function()
 	flowEvent:FireServer("shop")
 end)
 
-createMainButton(homeFrame, "ArenaBtn", "ARENA", UDim2.new(0.68, 0, 0.58, 0), function()
+createMainButton(homeFrame, "ArenaBtn", "ARENA", UDim2.new(0.68, 0, 0.63, 0), function()
 	flowEvent:FireServer("arena")
 end)
 
@@ -141,10 +155,10 @@ gymTitle.TextScaled = true
 gymTitle.Parent = gymFrame
 
 local gymInfo = Instance.new("TextLabel")
-gymInfo.Size = UDim2.new(0.9, 0, 0.25, 0)
+gymInfo.Size = UDim2.new(0.9, 0, 0.2, 0)
 gymInfo.Position = UDim2.new(0.05, 0, 0.18, 0)
 gymInfo.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-gymInfo.Text = "Each training session adds +50 strength.\nYour health will be restored to 100.\nTrain hard and prepare for the arena!"
+gymInfo.Text = "Each training session adds +50 strength.\nYour health will be restored to 100.\nPick a treadmill to train max stamina!"
 gymInfo.TextColor3 = Color3.fromRGB(255, 255, 255)
 gymInfo.Font = Enum.Font.GothamBold
 gymInfo.TextScaled = true
@@ -152,8 +166,8 @@ gymInfo.TextWrapped = true
 gymInfo.Parent = gymFrame
 
 local gymTrainBtn = Instance.new("TextButton")
-gymTrainBtn.Size = UDim2.new(0.45, 0, 0.15, 0)
-gymTrainBtn.Position = UDim2.new(0.275, 0, 0.52, 0)
+gymTrainBtn.Size = UDim2.new(0.45, 0, 0.12, 0)
+gymTrainBtn.Position = UDim2.new(0.275, 0, 0.4, 0)
 gymTrainBtn.Text = "TRAIN (+50 STR)"
 gymTrainBtn.BackgroundColor3 = Color3.fromRGB(75, 110, 180)
 gymTrainBtn.BorderSizePixel = 2
@@ -163,12 +177,46 @@ gymTrainBtn.Font = Enum.Font.GothamBlack
 gymTrainBtn.TextScaled = true
 gymTrainBtn.Parent = gymFrame
 gymTrainBtn.MouseButton1Click:Connect(function()
-	flowEvent:FireServer("gym")
+	flowEvent:FireServer("train_strength")
 end)
 
+local gymStatus = Instance.new("TextLabel")
+gymStatus.Size = UDim2.new(0.9, 0, 0.08, 0)
+gymStatus.Position = UDim2.new(0.05, 0, 0.78, 0)
+gymStatus.BackgroundColor3 = Color3.fromRGB(52, 52, 52)
+gymStatus.Text = "Choose a treadmill to train stamina"
+gymStatus.TextColor3 = Color3.fromRGB(255, 255, 255)
+gymStatus.Font = Enum.Font.GothamBold
+gymStatus.TextScaled = true
+gymStatus.Parent = gymFrame
+
+local function createTreadmillButton(name, text, position, action)
+	local btn = Instance.new("TextButton")
+	btn.Name = name
+	btn.Size = UDim2.new(0.42, 0, 0.12, 0)
+	btn.Position = position
+	btn.Text = text
+	btn.BackgroundColor3 = Color3.fromRGB(70, 140, 90)
+	btn.BorderSizePixel = 2
+	btn.BorderColor3 = Color3.fromRGB(255, 215, 0)
+	btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	btn.Font = Enum.Font.GothamBold
+	btn.TextScaled = true
+	btn.Parent = gymFrame
+	btn.MouseButton1Click:Connect(function()
+		flowEvent:FireServer(action)
+	end)
+	return btn
+end
+
+createTreadmillButton("RegularTreadmillBtn", "REGULAR TREADMILL\n+50 STAMINA", UDim2.new(0.05, 0, 0.54, 0), "treadmill_regular")
+createTreadmillButton("HackerTreadmillBtn", "HACKER'S TREADMILL (x1,000)\n+50,000 STAMINA", UDim2.new(0.53, 0, 0.54, 0), "treadmill_hacker")
+createTreadmillButton("AdminTreadmillBtn", "ADMIN TREADMILL (x10,000,000)\n+50,000,000 STAMINA", UDim2.new(0.05, 0, 0.67, 0), "treadmill_admin")
+createTreadmillButton("OwnerTreadmillBtn", "OWNER'S TREADMILL (x100,000,000,000)\n+5,000,000,000,000 STAMINA", UDim2.new(0.53, 0, 0.67, 0), "treadmill_owner")
+
 local gymBackBtn = Instance.new("TextButton")
-gymBackBtn.Size = UDim2.new(0.45, 0, 0.15, 0)
-gymBackBtn.Position = UDim2.new(0.275, 0, 0.72, 0)
+gymBackBtn.Size = UDim2.new(0.45, 0, 0.1, 0)
+gymBackBtn.Position = UDim2.new(0.275, 0, 0.87, 0)
 gymBackBtn.Text = "BACK"
 gymBackBtn.BackgroundColor3 = Color3.fromRGB(110, 70, 70)
 gymBackBtn.BorderSizePixel = 2
@@ -309,6 +357,22 @@ arenaEnemyHealth.Font = Enum.Font.GothamBold
 arenaEnemyHealth.TextScaled = true
 arenaEnemyHealth.Parent = arenaFrame
 
+local arenaStamina = Instance.new("TextLabel")
+arenaStamina.Size = UDim2.new(0.84, 0, 0.07, 0)
+arenaStamina.Position = UDim2.new(0.08, 0, 0.39, 0)
+arenaStamina.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+arenaStamina.Text = "Stamina: 100 / 100 | Max Stamina: 100"
+arenaStamina.TextColor3 = Color3.fromRGB(255, 200, 0)
+arenaStamina.Font = Enum.Font.GothamBold
+arenaStamina.TextScaled = true
+arenaStamina.Parent = arenaFrame
+
+local function setArenaStamina(stamina, maxStamina)
+	if stamina and maxStamina then
+		arenaStamina.Text = "Stamina: " .. formatNumber(stamina) .. " / " .. formatNumber(maxStamina) .. " | Max Stamina: " .. formatNumber(maxStamina)
+	end
+end
+
 local arenaMessage = Instance.new("TextLabel")
 arenaMessage.Size = UDim2.new(0.9, 0, 0.1, 0)
 arenaMessage.Position = UDim2.new(0.05, 0, 0.28, 0)
@@ -339,13 +403,13 @@ local function createArenaButton(name, text, position, action)
 end
 
 createArenaButton("StartBtn", "START MATCH", UDim2.new(0.38, 0, 0.32, 0), "start_match")
-createArenaButton("PunchBtn", "PUNCH", UDim2.new(0.08, 0, 0.45, 0), "punch")
-createArenaButton("KickBtn", "KICK", UDim2.new(0.28, 0, 0.45, 0), "kick")
-createArenaButton("ComboBtn", "COMBO", UDim2.new(0.48, 0, 0.45, 0), "combo")
-createArenaButton("BlockBtn", "BLOCK", UDim2.new(0.68, 0, 0.45, 0), "block")
+createArenaButton("PunchBtn", "PUNCH", UDim2.new(0.08, 0, 0.5, 0), "punch")
+createArenaButton("KickBtn", "KICK", UDim2.new(0.28, 0, 0.5, 0), "kick")
+createArenaButton("ComboBtn", "COMBO", UDim2.new(0.48, 0, 0.5, 0), "combo")
+createArenaButton("BlockBtn", "BLOCK", UDim2.new(0.68, 0, 0.5, 0), "block")
 
-createArenaButton("KneeBtn", "KNEE", UDim2.new(0.18, 0, 0.58, 0), "knee")
-createArenaButton("HomeBtn", "HOME", UDim2.new(0.55, 0, 0.58, 0), "go_home")
+createArenaButton("KneeBtn", "KNEE", UDim2.new(0.18, 0, 0.63, 0), "knee")
+createArenaButton("HomeBtn", "HOME", UDim2.new(0.55, 0, 0.63, 0), "go_home")
 
 -- ==================== RESULT SCREEN ====================
 local resultFrame = Instance.new("Frame")
@@ -414,6 +478,15 @@ matchResultEvent.OnClientEvent:Connect(function(data)
 		homeKickLabel.Text = "Kick: " .. tostring(data.kick)
 		homeLuckLabel.Text = "Luck: " .. tostring(data.luck)
 		homeStageLabel.Text = "Stage: " .. tostring(data.bodyStage)
+		if data.maxStamina then
+			homeStaminaLabel.Text = "Max Stamina: " .. formatNumber(data.maxStamina)
+		end
+	elseif data.type == "treadmill_result" then
+		gymStatus.Text = data.message
+		gymStatus.TextColor3 = Color3.fromRGB(0, 255, 0)
+	elseif data.type == "no_stamina" then
+		arenaMessage.Text = data.message
+		setArenaStamina(data.stamina, data.maxStamina)
 	elseif data.type == "shop_result" then
 		shopStatus.Text = data.message
 		shopStatus.TextColor3 = data.success and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
@@ -424,8 +497,10 @@ matchResultEvent.OnClientEvent:Connect(function(data)
 		countdownLabel.Visible = false
 		arenaMessage.Text = "Fight: " .. data.opponentName
 		arenaYourHealth.Text = "Your Health: 100"
+		setArenaStamina(data.stamina, data.maxStamina)
 		arenaEnemyHealth.Text = "Opponent: " .. tostring(data.opponentHealth)
 	elseif data.type == "fight_update" then
+		setArenaStamina(data.stamina, data.maxStamina)
 		arenaYourHealth.Text = "Your Health: " .. tostring(data.playerHealth)
 		arenaEnemyHealth.Text = "Opponent: " .. tostring(data.opponentHealth)
 		arenaMessage.Text = "Hit for " .. tostring(math.floor(data.damageDealt)) .. " dmg. Took " .. tostring(math.floor(data.damageTaken)) .. "."
@@ -440,6 +515,7 @@ matchResultEvent.OnClientEvent:Connect(function(data)
 		resultLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
 		rewardLabel.Text = "Try again next time!"
 	elseif data.type == "block" then
+		setArenaStamina(data.stamina, data.maxStamina)
 		arenaMessage.Text = data.message
 	elseif data.type == "go_home" then
 		resultFrame.Visible = false
