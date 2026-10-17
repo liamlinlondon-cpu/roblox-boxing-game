@@ -28,7 +28,7 @@ if not stateEvent then
 end
 
 -- Other scripts WaitForChild these, so they must exist even though they're used elsewhere
-for _, eventName in ipairs({ "MatchResult", "ShopAction", "ArenaAction", "CombatAction", "VipAuction" }) do
+for _, eventName in ipairs({ "MatchResult", "ShopAction", "ArenaAction", "VipAuction" }) do
 	if not eventsFolder:FindFirstChild(eventName) then
 		local remote = Instance.new("RemoteEvent")
 		remote.Name = eventName
@@ -84,7 +84,7 @@ local function handleTreadmill(player, tierKey)
 	local data = getPlayerData(player)
 	local success, tier = FighterStats.TrainStamina(data, tierKey)
 	if not success then
-		return
+		return false
 	end
 
 	local resultEvent = eventsFolder:FindFirstChild("MatchResult")
@@ -95,6 +95,7 @@ local function handleTreadmill(player, tierKey)
 		})
 	end
 	sendPlayerStats(player)
+	return true
 end
 
 local function handleHome(player)
@@ -142,7 +143,35 @@ for _, prompt in ipairs(CollectionService:GetTagged("GymStation")) do
 end
 CollectionService:GetInstanceAddedSignal("GymStation"):Connect(hookStation)
 
+-- Treadmill stations inside the gyms (built by WorldBuilder)
+local lastTreadmillTime = {}
+
+local function hookTreadmill(prompt)
+	prompt.Triggered:Connect(function(player)
+		local clock = os.clock()
+		if lastTreadmillTime[player] and clock - lastTreadmillTime[player] < WorldConfig.Gyms.TrainCooldown then
+			return
+		end
+
+		local character = player.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart")
+		if not root or (root.Position - prompt.Parent.Position).Magnitude > 12 then
+			return
+		end
+
+		if handleTreadmill(player, prompt:GetAttribute("Tier")) then
+			lastTreadmillTime[player] = clock
+		end
+	end)
+end
+
+for _, prompt in ipairs(CollectionService:GetTagged("TreadmillStation")) do
+	hookTreadmill(prompt)
+end
+CollectionService:GetInstanceAddedSignal("TreadmillStation"):Connect(hookTreadmill)
+
 Players.PlayerRemoving:Connect(function(player)
+	lastTreadmillTime[player] = nil
 	lastTrainTime[player] = nil
 end)
 

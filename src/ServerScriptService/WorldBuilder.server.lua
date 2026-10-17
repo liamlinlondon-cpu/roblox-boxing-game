@@ -7,6 +7,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local CollectionService = game:GetService("CollectionService")
 
 local WorldConfig = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("WorldConfig"))
+local FighterStats = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("FighterStats"))
 
 local WORLD_NAME = "BoxingWorld"
 local ARENA = WorldConfig.Arena
@@ -99,6 +100,26 @@ local function buildStation(model, gymCFrame, gymIndex, name, x, floorTop, z, is
 	})
 end
 
+local TREADMILL_COLORS = {
+	regular = Color3.fromRGB(90, 90, 90),
+	hacker = Color3.fromRGB(0, 200, 80),
+	admin = Color3.fromRGB(60, 120, 255),
+	owner = Color3.fromRGB(255, 200, 0),
+}
+
+-- Stamina treadmill (ground floor). FlowService handles the training.
+local function buildTreadmill(model, gymCFrame, gymIndex, tierKey, x, z)
+	local tier = FighterStats.TreadmillTiers[tierKey]
+	local color = TREADMILL_COLORS[tierKey]
+	local belt = makePart(model, tierKey .. "Treadmill", Vector3.new(3, 0.6, 6), gymCFrame * CFrame.new(x, 1.3, z), Enum.Material.Metal, color)
+	makePart(model, tierKey .. "TreadmillConsole", Vector3.new(3, 3, 0.5), gymCFrame * CFrame.new(x, 2.8, z + 3), Enum.Material.SmoothPlastic, Color3.fromRGB(25, 25, 25))
+	addSign(belt, Enum.NormalId.Top, tier.name, color)
+	addPrompt(belt, "Run (+" .. string.format("%.0f", tier.gain) .. " stamina)", tier.name, "TreadmillStation", {
+		GymId = gymIndex,
+		Tier = tierKey,
+	})
+end
+
 local function buildGym(world, index)
 	local info = GYM.List[index]
 	local gymCFrame = WorldConfig.GetGymCFrame(index)
@@ -164,6 +185,11 @@ local function buildGym(world, index)
 				buildStation(model, gymCFrame, index, "Station" .. stationCount, x, 1, z, false)
 			end
 		end
+	end
+
+	-- Ground floor: one treadmill per tier along the side of the bidding board
+	for i, tierKey in ipairs({ "regular", "hacker", "admin", "owner" }) do
+		buildTreadmill(model, gymCFrame, index, tierKey, -27 + (i - 1) * 8, 17)
 	end
 
 	-- VIP floor: gold carpet and one row of VIP stations
