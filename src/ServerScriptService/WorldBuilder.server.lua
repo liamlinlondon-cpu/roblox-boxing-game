@@ -189,7 +189,7 @@ local function buildGym(world, index)
 
 	-- Ground floor: one treadmill per tier along the side of the bidding board
 	for i, tierKey in ipairs({ "regular", "hacker", "admin", "owner" }) do
-		buildTreadmill(model, gymCFrame, index, tierKey, -27 + (i - 1) * 8, 17)
+		buildTreadmill(model, gymCFrame, index, tierKey, -27 + (i - 1) * 8, -17)
 	end
 
 	-- VIP floor: gold carpet and one row of VIP stations
