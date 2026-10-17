@@ -28,7 +28,7 @@ if not stateEvent then
 end
 
 -- Other scripts WaitForChild these, so they must exist even though they're used elsewhere
-for _, eventName in ipairs({ "MatchResult", "ShopAction", "ArenaAction", "CombatAction", "VipAuction" }) do
+for _, eventName in ipairs({ "MatchResult", "ShopAction", "ArenaAction", "VipAuction" }) do
 	if not eventsFolder:FindFirstChild(eventName) then
 		local remote = Instance.new("RemoteEvent")
 		remote.Name = eventName
@@ -36,13 +36,8 @@ for _, eventName in ipairs({ "MatchResult", "ShopAction", "ArenaAction", "Combat
 	end
 end
 
-local playerDataMap = {}
-
 local function getPlayerData(player)
-	if not playerDataMap[player] then
-		playerDataMap[player] = FighterStats.CreatePlayerData()
-	end
-	return playerDataMap[player]
+	return FighterStats.GetPlayerData(player)
 end
 
 local function setLocation(player, location)
@@ -66,17 +61,41 @@ local function sendPlayerStats(player)
 			luck = data.luck,
 			bodyStage = data.bodyStage,
 			health = data.health,
+			stamina = data.stamina,
+			maxStamina = data.maxStamina,
 		})
 	end
 end
 
 local function handleGym(player)
+	setLocation(player, "gym")
+end
+
+local function handleTrainStrength(player)
 	local data = getPlayerData(player)
 	FighterStats.TrainStrength(data, 50)
 	data.health = 100
 	data.bodyStage = FighterStats.GetStageFromStrength(data.strength)
-	setLocation(player, "home")
+	setLocation(player, "gym")
 	sendPlayerStats(player)
+end
+
+local function handleTreadmill(player, tierKey)
+	local data = getPlayerData(player)
+	local success, tier = FighterStats.TrainStamina(data, tierKey)
+	if not success then
+		return false
+	end
+
+	local resultEvent = eventsFolder:FindFirstChild("MatchResult")
+	if resultEvent then
+		resultEvent:FireClient(player, {
+			type = "treadmill_result",
+			message = string.format("%s complete! +%.0f max stamina.", tier.name, tier.gain),
+		})
+	end
+	sendPlayerStats(player)
+	return true
 end
 
 local function handleHome(player)
@@ -124,7 +143,35 @@ for _, prompt in ipairs(CollectionService:GetTagged("GymStation")) do
 end
 CollectionService:GetInstanceAddedSignal("GymStation"):Connect(hookStation)
 
+-- Treadmill stations inside the gyms (built by WorldBuilder)
+local lastTreadmillTime = {}
+
+local function hookTreadmill(prompt)
+	prompt.Triggered:Connect(function(player)
+		local clock = os.clock()
+		if lastTreadmillTime[player] and clock - lastTreadmillTime[player] < WorldConfig.Gyms.TrainCooldown then
+			return
+		end
+
+		local character = player.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart")
+		if not root or (root.Position - prompt.Parent.Position).Magnitude > 12 then
+			return
+		end
+
+		if handleTreadmill(player, prompt:GetAttribute("Tier")) then
+			lastTreadmillTime[player] = clock
+		end
+	end)
+end
+
+for _, prompt in ipairs(CollectionService:GetTagged("TreadmillStation")) do
+	hookTreadmill(prompt)
+end
+CollectionService:GetInstanceAddedSignal("TreadmillStation"):Connect(hookTreadmill)
+
 Players.PlayerRemoving:Connect(function(player)
+	lastTreadmillTime[player] = nil
 	lastTrainTime[player] = nil
 end)
 
@@ -133,6 +180,10 @@ flowEvent.OnServerEvent:Connect(function(player, action)
 		handleHome(player)
 	elseif action == "gym" then
 		handleGym(player)
+	elseif action == "train_strength" then
+		handleTrainStrength(player)
+	elseif type(action) == "string" and action:sub(1, 10) == "treadmill_" then
+		handleTreadmill(player, action:sub(11))
 	elseif action == "shop" then
 		handleShop(player)
 	elseif action == "arena" then
