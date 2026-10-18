@@ -203,10 +203,8 @@ ReceiptRouter.Register(function(receipt)
 	end
 	local ok, message = grant(player, itemId)
 	processedReceipts[receipt.PurchaseId] = true
-	if ok then
-		sendStats(player)
-		notify(player, message, true)
-	end
+	sendStats(player)
+	notify(player, ok and message or (message .. " Contact the owner for a refund."), ok)
 	return Enum.ProductPurchaseDecision.PurchaseGranted
 end)
 

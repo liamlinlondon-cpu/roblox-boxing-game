@@ -198,7 +198,7 @@ local function runOnTreadmill(player, deck, tierKey)
 		animator.Parent = humanoid
 	end
 	local animation = Instance.new("Animation")
-	animation.AnimationId = RUN_ANIMATIONS[humanoid.RigType]
+	animation.AnimationId = RUN_ANIMATIONS[humanoid.RigType] or RUN_ANIMATIONS[Enum.HumanoidRigType.R15]
 	local track = animator:LoadAnimation(animation)
 	track.Looped = true
 	track:Play(0.2)
@@ -270,8 +270,6 @@ flowEvent.OnServerEvent:Connect(function(player, action)
 		handleGym(player)
 	elseif action == "train_strength" then
 		handleTrainStrength(player)
-	elseif type(action) == "string" and action:sub(1, 10) == "treadmill_" then
-		handleTreadmill(player, action:sub(11))
 	elseif type(action) == "string" and action:sub(1, 5) == "goto_" then
 		handleGoto(player, action:sub(6))
 	elseif action == "shop" then

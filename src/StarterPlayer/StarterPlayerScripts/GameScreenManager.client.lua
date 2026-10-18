@@ -9,6 +9,8 @@ local matchResultEvent = events:WaitForChild("MatchResult")
 local shopActionEvent = events:WaitForChild("ShopAction")
 local arenaEvent = events:WaitForChild("ArenaAction")
 
+local Catalog = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("Catalog"))
+
 local function formatNumber(value)
 	return string.format("%.0f", value)
 end
@@ -473,7 +475,7 @@ end)
 -- Listen for match events
 matchResultEvent.OnClientEvent:Connect(function(data)
 	if data.type == "stats" then
-		homeMoneyLabel.Text = "Money: " .. (data.money == math.huge and "Infinite" or (data.money >= 1e15 and string.format("%.3e", data.money) or formatNumber(data.money)))
+		homeMoneyLabel.Text = "Money: " .. Catalog.FormatNumber(data.money)
 		homeStrengthLabel.Text = "Strength: " .. tostring(data.strength)
 		homeKickLabel.Text = "Kick: " .. tostring(data.kick)
 		homeLuckLabel.Text = "Luck: " .. tostring(data.luck)
