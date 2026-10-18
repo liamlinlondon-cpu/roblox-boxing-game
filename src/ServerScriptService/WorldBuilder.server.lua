@@ -93,8 +93,8 @@ local function buildStation(model, gymCFrame, gymIndex, name, x, floorTop, z, is
 	)
 	chain.CanCollide = false
 
-	local amount = isVip and GYM.VipTrainAmount or GYM.FreeTrainAmount
-	addPrompt(pad, "Train (+" .. amount .. " strength)", isVip and "VIP Punching Bag" or "Punching Bag", "GymStation", {
+	local objectText = isVip and ("VIP Punching Bag (" .. WorldConfig.Training.VipMultiplier .. "x power)") or "Punching Bag"
+	addPrompt(pad, "Train", objectText, "GymStation", {
 		GymId = gymIndex,
 		Vip = isVip,
 	})

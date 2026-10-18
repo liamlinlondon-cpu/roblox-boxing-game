@@ -28,7 +28,7 @@ if not stateEvent then
 end
 
 -- Other scripts WaitForChild these, so they must exist even though they're used elsewhere
-for _, eventName in ipairs({ "MatchResult", "ShopAction", "ArenaAction", "VipAuction" }) do
+for _, eventName in ipairs({ "MatchResult", "ShopAction", "ArenaAction", "CombatAction", "VipAuction", "GymTraining" }) do
 	if not eventsFolder:FindFirstChild(eventName) then
 		local remote = Instance.new("RemoteEvent")
 		remote.Name = eventName
@@ -136,31 +136,168 @@ local function handleGoto(player, place)
 	end
 end
 
--- Punching bag stations inside the gyms (built by WorldBuilder)
-local lastTrainTime = {}
+-- ==================== GYM TRAINING ====================
+-- Punching bag stations are built by WorldBuilder. A player takes a station, picks a punch count
+-- and weight in GymTrainingClient, and the server runs the punches and awards power per hit.
 
-local function onStationTriggered(prompt, player)
-	local clock = os.clock()
-	if lastTrainTime[player] and clock - lastTrainTime[player] < WorldConfig.Gyms.TrainCooldown then
+local TRAINING = WorldConfig.Training
+local PUNCH_BROADCAST_RADIUS = 150
+
+local trainingEvent = eventsFolder:WaitForChild("GymTraining")
+local trainingSessions = {} -- [player] = { pad, prompt, bag, isVip, token, running, diedConnection }
+local stationOwners = {} -- [pad] = player
+
+local function getRoot(player)
+	local character = player.Character
+	return character and character:FindFirstChild("HumanoidRootPart")
+end
+
+local function releaseStation(player)
+	local session = trainingSessions[player]
+	if not session then
+		return
+	end
+	trainingSessions[player] = nil
+	session.token += 1 -- cancels any running set
+	stationOwners[session.pad] = nil
+	session.prompt.Enabled = true
+	if session.diedConnection then
+		session.diedConnection:Disconnect()
+	end
+
+	local root = getRoot(player)
+	if root then
+		root.Anchored = false
+	end
+	if player.Parent then
+		trainingEvent:FireClient(player, "close")
+	end
+end
+
+local function claimStation(prompt, player)
+	local pad = prompt.Parent
+	if trainingSessions[player] or stationOwners[pad] or running[player] then
 		return
 	end
 
 	local character = player.Character
-	local root = character and character:FindFirstChild("HumanoidRootPart")
-	local pad = prompt.Parent
-	if not root or (root.Position - pad.Position).Magnitude > 12 then
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	local root = getRoot(player)
+	local bag = pad.Parent:FindFirstChild(pad.Name .. "Bag")
+	if not humanoid or humanoid.Health <= 0 or not root or not bag or (root.Position - pad.Position).Magnitude > 12 then
 		return
 	end
-	lastTrainTime[player] = clock
 
-	local amount = prompt:GetAttribute("Vip") and WorldConfig.Gyms.VipTrainAmount or WorldConfig.Gyms.FreeTrainAmount
-	FighterStats.TrainStrength(getPlayerData(player), amount)
-	sendPlayerStats(player)
+	-- Plant the player on the pad, facing the bag
+	local toBag = (bag.Position - pad.Position) * Vector3.new(1, 0, 1)
+	local hipOffset = humanoid.RigType == Enum.HumanoidRigType.R6 and 3 or humanoid.HipHeight + root.Size.Y / 2
+	local standPosition = pad.Position + toBag.Unit * 1.5 + Vector3.new(0, pad.Size.Y / 2 + hipOffset, 0)
+	character:PivotTo(CFrame.lookAt(standPosition, Vector3.new(bag.Position.X, standPosition.Y, bag.Position.Z)))
+	root.Anchored = true
+
+	local session = {
+		pad = pad,
+		prompt = prompt,
+		bag = bag,
+		isVip = prompt:GetAttribute("Vip") == true,
+		token = 0,
+		running = false,
+	}
+	session.diedConnection = humanoid.Died:Connect(function()
+		releaseStation(player)
+	end)
+	trainingSessions[player] = session
+	stationOwners[pad] = player
+	prompt.Enabled = false
+
+	trainingEvent:FireClient(player, "open", {
+		isVip = session.isVip,
+		strength = getPlayerData(player).strength,
+	})
 end
+
+local function broadcastPunch(player, bag, side, lbs)
+	local character = player.Character
+	for _, other in ipairs(Players:GetPlayers()) do
+		local otherRoot = getRoot(other)
+		if other == player or (otherRoot and (otherRoot.Position - bag.Position).Magnitude < PUNCH_BROADCAST_RADIUS) then
+			trainingEvent:FireClient(other, "punch", character, bag, side, lbs)
+		end
+	end
+end
+
+local function startTraining(player, punchCount, weightIndex, auto)
+	local session = trainingSessions[player]
+	local weight = TRAINING.Weights[weightIndex]
+	if not session or not weight or not table.find(TRAINING.PunchCounts, punchCount) then
+		return
+	end
+
+	local data = getPlayerData(player)
+	if data.strength < weight.requiredStrength then
+		trainingEvent:FireClient(player, "notice", string.format("%d lbs punches unlock at %d strength.", weight.lbs, weight.requiredStrength))
+		return
+	end
+
+	session.token += 1
+	local token = session.token
+	session.running = true
+	local gainPerPunch = weight.power * (session.isVip and TRAINING.VipMultiplier or 1)
+
+	local function isActive()
+		return trainingSessions[player] == session and session.token == token
+	end
+
+	task.spawn(function()
+		repeat
+			local gained = 0
+			for punch = 1, punchCount do
+				task.wait(weight.interval)
+				if not isActive() then
+					return
+				end
+				FighterStats.TrainStrength(data, gainPerPunch)
+				gained += gainPerPunch
+				broadcastPunch(player, session.bag, punch % 2 == 1 and "Right" or "Left", weight.lbs)
+				trainingEvent:FireClient(player, "progress", {
+					punch = punch,
+					total = punchCount,
+					gain = gainPerPunch,
+					gained = gained,
+					strength = data.strength,
+				})
+				sendPlayerStats(player)
+			end
+			trainingEvent:FireClient(player, "setComplete", { gained = gained, strength = data.strength, auto = auto })
+			if auto then
+				task.wait(TRAINING.AutoRestSeconds)
+			end
+		until not auto or not isActive()
+
+		if isActive() then
+			session.running = false
+		end
+	end)
+end
+
+trainingEvent.OnServerEvent:Connect(function(player, action, punchCount, weightIndex, auto)
+	if action == "start" then
+		startTraining(player, punchCount, weightIndex, auto == true)
+	elseif action == "stop" then
+		local session = trainingSessions[player]
+		if session then
+			session.token += 1
+			session.running = false
+			trainingEvent:FireClient(player, "stopped")
+		end
+	elseif action == "leave" then
+		releaseStation(player)
+	end
+end)
 
 local function hookStation(prompt)
 	prompt.Triggered:Connect(function(player)
-		onStationTriggered(prompt, player)
+		claimStation(prompt, player)
 	end)
 end
 
@@ -260,7 +397,20 @@ CollectionService:GetInstanceAddedSignal("TreadmillStation"):Connect(hookTreadmi
 
 Players.PlayerRemoving:Connect(function(player)
 	running[player] = nil
-	lastTrainTime[player] = nil
+	releaseStation(player)
+end)
+
+-- Free stations whose player was moved away (e.g. teleported off the VIP floor when their session ended)
+task.spawn(function()
+	while true do
+		task.wait(1)
+		for player, session in pairs(trainingSessions) do
+			local root = getRoot(player)
+			if not root or (root.Position - session.pad.Position).Magnitude > 10 then
+				releaseStation(player)
+			end
+		end
+	end
 end)
 
 flowEvent.OnServerEvent:Connect(function(player, action)

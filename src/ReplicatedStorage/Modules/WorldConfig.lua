@@ -26,9 +26,6 @@ WorldConfig.Gyms = {
 	DoorHeight = 11,
 	FreeStations = 5, -- ground floor, open to everyone (one row of punch bags; the other row is treadmills)
 	VipStations = 5, -- second floor, auction winners only
-	FreeTrainAmount = 50,
-	VipTrainAmount = 100,
-	TrainCooldown = 3, -- seconds between training reps per player
 	List = {
 		{ name = "Iron Den", color = Color3.fromRGB(200, 60, 60) },
 		{ name = "Titan Gym", color = Color3.fromRGB(60, 120, 220) },
@@ -57,6 +54,20 @@ WorldConfig.ArenaEntrance = Vector3.new(0, 4, 24)
 
 WorldConfig.WallHeight = 60
 WorldConfig.WallThickness = 4
+
+-- Punching bag training. Each punch adds `power` strength; heavier punches are slower
+-- and unlock once the player is strong enough.
+WorldConfig.Training = {
+	PunchCounts = { 5, 10, 20, 50 },
+	Weights = {
+		{ lbs = 10, power = 1, interval = 0.45, requiredStrength = 0 },
+		{ lbs = 20, power = 2, interval = 0.55, requiredStrength = 30 },
+		{ lbs = 50, power = 5, interval = 0.7, requiredStrength = 100 },
+		{ lbs = 100, power = 10, interval = 0.9, requiredStrength = 250 },
+	},
+	VipMultiplier = 2, -- VIP floor bags give double power per punch
+	AutoRestSeconds = 1.5, -- pause between sets when auto-training
+}
 
 WorldConfig.Vip = {
 	SlotsPerGym = 5,

@@ -22,18 +22,27 @@ screenGui.ResetOnSpawn = false
 screenGui.Parent = player:WaitForChild("PlayerGui")
 
 -- ==================== HOME SCREEN ====================
+-- Compact side panel so the world stays visible while players walk around
 local homeFrame = Instance.new("Frame")
 homeFrame.Name = "HomeFrame"
-homeFrame.Size = UDim2.new(0.85, 0, 0.85, 0)
-homeFrame.Position = UDim2.new(0.075, 0, 0.075, 0)
+homeFrame.AnchorPoint = Vector2.new(0, 0.5)
+homeFrame.Size = UDim2.new(0.18, 0, 0.36, 0)
+homeFrame.Position = UDim2.new(0, 12, 0.5, 0)
 homeFrame.BackgroundColor3 = Color3.fromRGB(24, 24, 24)
+homeFrame.BackgroundTransparency = 0.35
 homeFrame.BorderSizePixel = 2
 homeFrame.BorderColor3 = Color3.fromRGB(255, 215, 0)
 homeFrame.Parent = screenGui
 
+local homeSizeConstraint = Instance.new("UISizeConstraint")
+homeSizeConstraint.MinSize = Vector2.new(190, 220)
+homeSizeConstraint.MaxSize = Vector2.new(280, 320)
+homeSizeConstraint.Parent = homeFrame
+
 local homeTitle = Instance.new("TextLabel")
-homeTitle.Size = UDim2.new(1, 0, 0.12, 0)
+homeTitle.Size = UDim2.new(1, 0, 0.14, 0)
 homeTitle.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+homeTitle.BackgroundTransparency = 0.3
 homeTitle.Text = "BOXING GAME"
 homeTitle.TextColor3 = Color3.fromRGB(255, 215, 0)
 homeTitle.Font = Enum.Font.GothamBlack
@@ -41,9 +50,10 @@ homeTitle.TextScaled = true
 homeTitle.Parent = homeFrame
 
 local homeStatFrame = Instance.new("Frame")
-homeStatFrame.Size = UDim2.new(0.9, 0, 0.3, 0)
+homeStatFrame.Size = UDim2.new(0.9, 0, 0.56, 0)
 homeStatFrame.Position = UDim2.new(0.05, 0, 0.18, 0)
 homeStatFrame.BackgroundColor3 = Color3.fromRGB(43, 43, 43)
+homeStatFrame.BackgroundTransparency = 0.4
 homeStatFrame.BorderSizePixel = 1
 homeStatFrame.BorderColor3 = Color3.fromRGB(255, 255, 255)
 homeStatFrame.Parent = homeFrame
@@ -110,7 +120,7 @@ homeStaminaLabel.Parent = homeStatFrame
 local function createMainButton(parent, name, text, position, callback)
 	local btn = Instance.new("TextButton")
 	btn.Name = name
-	btn.Size = UDim2.new(0.24, 0, 0.12, 0)
+	btn.Size = UDim2.new(0.29, 0, 0.16, 0)
 	btn.Position = position
 	btn.Text = text
 	btn.BackgroundColor3 = Color3.fromRGB(80, 120, 180)
@@ -124,15 +134,15 @@ local function createMainButton(parent, name, text, position, callback)
 	return btn
 end
 
-createMainButton(homeFrame, "GymBtn", "GYM", UDim2.new(0.08, 0, 0.63, 0), function()
+createMainButton(homeFrame, "GymBtn", "GYM", UDim2.new(0.04, 0, 0.79, 0), function()
 	flowEvent:FireServer("gym")
 end)
 
-createMainButton(homeFrame, "ShopBtn", "SHOP", UDim2.new(0.38, 0, 0.63, 0), function()
+createMainButton(homeFrame, "ShopBtn", "SHOP", UDim2.new(0.355, 0, 0.79, 0), function()
 	flowEvent:FireServer("shop")
 end)
 
-createMainButton(homeFrame, "ArenaBtn", "ARENA", UDim2.new(0.68, 0, 0.63, 0), function()
+createMainButton(homeFrame, "ArenaBtn", "ARENA", UDim2.new(0.67, 0, 0.79, 0), function()
 	flowEvent:FireServer("arena")
 end)
 
