@@ -19,6 +19,7 @@ local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 
 local WorldConfig = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("WorldConfig"))
+local ReceiptRouter = require(script.Parent:WaitForChild("ReceiptRouter"))
 
 local VIP = WorldConfig.Vip
 local GYM = WorldConfig.Gyms
@@ -42,6 +43,9 @@ end
 
 local gyms = {}
 for index, info in ipairs(GYM.List) do
+	if info.vipShop then
+		continue -- the VIP Shop building has no VIP floor to auction
+	end
 	gyms[index] = {
 		id = index,
 		name = info.name,
@@ -294,6 +298,11 @@ end
 MarketplaceService.ProcessReceipt = function(receipt)
 	if processedReceipts[receipt.PurchaseId] then
 		return Enum.ProductPurchaseDecision.PurchaseGranted
+	end
+
+	local routed = ReceiptRouter.Handle(receipt)
+	if routed ~= nil then
+		return routed
 	end
 
 	local player = Players:GetPlayerByUserId(receipt.PlayerId)

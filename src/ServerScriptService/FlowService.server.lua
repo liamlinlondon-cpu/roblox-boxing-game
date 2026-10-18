@@ -110,6 +110,32 @@ local function handleArena(player)
 	setLocation(player, "arena")
 end
 
+local running = {} -- players currently on a treadmill
+
+-- Nav bar teleports (GYM / ARENA / SHOP / VIP SHOP)
+local function handleGoto(player, place)
+	local character = player.Character
+	if not character or running[player] or getPlayerData(player).isInMatch then
+		return
+	end
+
+	local target
+	if place == "gym" then
+		target = WorldConfig.GetGymPoint(1, WorldConfig.Gyms.Points.Entrance)
+	elseif place == "vipshop" then
+		target = WorldConfig.GetGymPoint(WorldConfig.Gyms.Count, WorldConfig.Gyms.Points.Entrance)
+	elseif place == "arena" then
+		target = CFrame.lookAt(WorldConfig.ArenaEntrance, WorldConfig.Arena.Center + Vector3.new(0, WorldConfig.ArenaEntrance.Y, 0))
+	elseif place == "shop" then
+		local shopPos = WorldConfig.Shop.Position
+		target = CFrame.lookAt(shopPos + Vector3.new(0, 4, -10), shopPos + Vector3.new(0, 4, 0))
+	end
+	if target then
+		character:PivotTo(target)
+		setLocation(player, "world")
+	end
+end
+
 -- Punching bag stations inside the gyms (built by WorldBuilder)
 local lastTrainTime = {}
 
@@ -144,24 +170,86 @@ end
 CollectionService:GetInstanceAddedSignal("GymStation"):Connect(hookStation)
 
 -- Treadmill stations inside the gyms (built by WorldBuilder)
-local lastTreadmillTime = {}
+local RUN_SECONDS = 6
+local RUN_ANIMATIONS = {
+	[Enum.HumanoidRigType.R15] = "rbxassetid://507767714",
+	[Enum.HumanoidRigType.R6] = "rbxassetid://180426354",
+}
+-- Puts the player on the belt, plays the run animation for RUN_SECONDS, then pays out the stamina.
+local function runOnTreadmill(player, deck, tierKey)
+	local character = player.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	if not humanoid or not root or humanoid.Health <= 0 then
+		return
+	end
+	running[player] = true
+
+	local oldSpeed, oldJump, oldUseJumpPower = humanoid.WalkSpeed, humanoid.JumpPower, humanoid.UseJumpPower
+	local oldJumpHeight = humanoid.JumpHeight
+	character:PivotTo(deck.CFrame * CFrame.new(0, 3.6, -1.5) * CFrame.Angles(0, math.pi, 0))
+	humanoid.WalkSpeed = 0
+	humanoid.UseJumpPower = true
+	humanoid.JumpPower = 0
+
+	local animator = humanoid:FindFirstChildOfClass("Animator")
+	if not animator then
+		animator = Instance.new("Animator")
+		animator.Parent = humanoid
+	end
+	local animation = Instance.new("Animation")
+	animation.AnimationId = RUN_ANIMATIONS[humanoid.RigType] or RUN_ANIMATIONS[Enum.HumanoidRigType.R15]
+	local track = animator:LoadAnimation(animation)
+	track.Looped = true
+	track:Play(0.2)
+	track:AdjustSpeed(1.6)
+
+	local startTime = os.clock()
+	while os.clock() - startTime < RUN_SECONDS do
+		task.wait(0.1)
+		if humanoid.Health <= 0 or not root.Parent or (root.Position - deck.Position).Magnitude > 12 then
+			break
+		end
+		-- Hold the runner in place on the belt
+		root.AssemblyLinearVelocity = Vector3.new(0, root.AssemblyLinearVelocity.Y, 0)
+	end
+	local completed = os.clock() - startTime >= RUN_SECONDS
+
+	track:Stop(0.2)
+	animation:Destroy()
+	if humanoid.Parent then
+		humanoid.WalkSpeed = oldSpeed
+		humanoid.JumpPower = oldJump
+		humanoid.JumpHeight = oldJumpHeight
+		humanoid.UseJumpPower = oldUseJumpPower
+	end
+	running[player] = nil
+
+	if completed then
+		handleTreadmill(player, tierKey)
+	end
+end
 
 local function hookTreadmill(prompt)
 	prompt.Triggered:Connect(function(player)
-		local clock = os.clock()
-		if lastTreadmillTime[player] and clock - lastTreadmillTime[player] < WorldConfig.Gyms.TrainCooldown then
+		if running[player] then
 			return
 		end
 
 		local character = player.Character
 		local root = character and character:FindFirstChild("HumanoidRootPart")
-		if not root or (root.Position - prompt.Parent.Position).Magnitude > 12 then
+		if not root or (root.Position - prompt.Parent.Position).Magnitude > 14 then
 			return
 		end
 
-		if handleTreadmill(player, prompt:GetAttribute("Tier")) then
-			lastTreadmillTime[player] = clock
+		local tierKey = prompt:GetAttribute("Tier")
+		if not getPlayerData(player).treadmills[tierKey] then
+			local openStore = script.Parent:WaitForChild("StoreService"):WaitForChild("OpenStore")
+			openStore:Fire(player, "normal")
+			return
 		end
+
+		runOnTreadmill(player, prompt.Parent, tierKey)
 	end)
 end
 
@@ -171,7 +259,7 @@ end
 CollectionService:GetInstanceAddedSignal("TreadmillStation"):Connect(hookTreadmill)
 
 Players.PlayerRemoving:Connect(function(player)
-	lastTreadmillTime[player] = nil
+	running[player] = nil
 	lastTrainTime[player] = nil
 end)
 
@@ -182,8 +270,8 @@ flowEvent.OnServerEvent:Connect(function(player, action)
 		handleGym(player)
 	elseif action == "train_strength" then
 		handleTrainStrength(player)
-	elseif type(action) == "string" and action:sub(1, 10) == "treadmill_" then
-		handleTreadmill(player, action:sub(11))
+	elseif type(action) == "string" and action:sub(1, 5) == "goto_" then
+		handleGoto(player, action:sub(6))
 	elseif action == "shop" then
 		handleShop(player)
 	elseif action == "arena" then
@@ -193,10 +281,10 @@ end)
 
 Players.PlayerAdded:Connect(function(player)
 	local data = getPlayerData(player)
-	data.location = "home"
+	data.location = "world"
 	stateEvent:FireClient(player, {
 		type = "location",
-		location = "home",
+		location = "world",
 	})
 	sendPlayerStats(player)
 end)

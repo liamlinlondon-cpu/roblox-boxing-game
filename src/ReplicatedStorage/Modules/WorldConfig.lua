@@ -24,7 +24,7 @@ WorldConfig.Gyms = {
 	FloorHeight = 16,
 	DoorWidth = 14,
 	DoorHeight = 11,
-	FreeStations = 10, -- ground floor, open to everyone
+	FreeStations = 5, -- ground floor, open to everyone (one row of punch bags; the other row is treadmills)
 	VipStations = 5, -- second floor, auction winners only
 	FreeTrainAmount = 50,
 	VipTrainAmount = 100,
@@ -35,7 +35,7 @@ WorldConfig.Gyms = {
 		{ name = "Knockout Club", color = Color3.fromRGB(240, 170, 40) },
 		{ name = "Steel Fist", color = Color3.fromRGB(70, 180, 110) },
 		{ name = "Jab Factory", color = Color3.fromRGB(160, 80, 200) },
-		{ name = "Uppercut Hall", color = Color3.fromRGB(40, 180, 190) },
+		{ name = "VIP Shop", color = Color3.fromRGB(255, 200, 60), vipShop = true },
 	},
 }
 WorldConfig.Gyms.Count = #WorldConfig.Gyms.List
@@ -48,6 +48,15 @@ WorldConfig.Gyms.Points = {
 	VipArrival = Vector3.new(16, floor + 5, 18),
 	Entrance = Vector3.new(0, 4, -16),
 }
+
+-- Normal shop kiosk on the plaza edge and the arena's side entrance (used by the nav bar teleports)
+WorldConfig.Shop = {
+	Position = Vector3.new(27.5, 0, 47.6),
+}
+WorldConfig.ArenaEntrance = Vector3.new(0, 4, 24)
+
+WorldConfig.WallHeight = 60
+WorldConfig.WallThickness = 4
 
 WorldConfig.Vip = {
 	SlotsPerGym = 5,
