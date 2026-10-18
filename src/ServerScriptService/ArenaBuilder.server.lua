@@ -1,4 +1,5 @@
 local Workspace = game:GetService("Workspace")
+local CollectionService = game:GetService("CollectionService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local WorldConfig = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("WorldConfig"))
@@ -128,6 +129,24 @@ local function buildArena()
 	redPad.CanCollide = false
 	local bluePad = makePart(arena, "BluePad", Vector3.new(4, 0.1, 4), CFrame.new(center + Vector3.new(half - 3, canvasTop + 0.05, -half + 3)), Enum.Material.SmoothPlastic, Color3.fromRGB(100, 100, 255))
 	bluePad.CanCollide = false
+
+	-- Corner buttons outside the ring: step on a button (hold E) to enter that corner. When both corners
+	-- are taken by different players the match starts in 3 seconds (ArenaService).
+	for _, button in ipairs({
+		{ team = "red", x = -4, color = Color3.fromRGB(220, 40, 40), label = "RED CORNER" },
+		{ team = "blue", x = 4, color = Color3.fromRGB(40, 70, 220), label = "BLUE CORNER" },
+	}) do
+		local part = makePart(arena, button.team .. "Button", Vector3.new(3, 0.6, 3), CFrame.new(center + Vector3.new(button.x, 0.3, 24)), Enum.Material.Neon, button.color)
+		local prompt = Instance.new("ProximityPrompt")
+		prompt.ActionText = "Enter " .. button.label
+		prompt.ObjectText = "Boxing ring"
+		prompt.HoldDuration = 0.3
+		prompt.MaxActivationDistance = 8
+		prompt.RequiresLineOfSight = false
+		prompt:SetAttribute("Team", button.team)
+		prompt.Parent = part
+		CollectionService:AddTag(prompt, "ArenaButton")
+	end
 
 	-- Spectator bleachers between the six gym paths, each facing the ring
 	local gymCount = WorldConfig.Gyms.Count

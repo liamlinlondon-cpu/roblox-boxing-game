@@ -473,7 +473,7 @@ end)
 -- Listen for match events
 matchResultEvent.OnClientEvent:Connect(function(data)
 	if data.type == "stats" then
-		homeMoneyLabel.Text = "Robux: " .. tostring(data.money)
+		homeMoneyLabel.Text = "Money: " .. (data.money == math.huge and "Infinite" or (data.money >= 1e15 and string.format("%.3e", data.money) or formatNumber(data.money)))
 		homeStrengthLabel.Text = "Strength: " .. tostring(data.strength)
 		homeKickLabel.Text = "Kick: " .. tostring(data.kick)
 		homeLuckLabel.Text = "Luck: " .. tostring(data.luck)
@@ -522,5 +522,44 @@ matchResultEvent.OnClientEvent:Connect(function(data)
 	end
 end)
 
--- Start at home
-setScreen("home")
+-- ==================== NAV BAR ====================
+-- Always-visible buttons that teleport to the gym, arena and shop (plus the stats screen).
+local navBar = Instance.new("Frame")
+navBar.Name = "NavBar"
+navBar.Size = UDim2.new(0, 460, 0, 56)
+navBar.Position = UDim2.new(0.5, -230, 1, -70)
+navBar.BackgroundColor3 = Color3.fromRGB(24, 24, 24)
+navBar.BorderSizePixel = 2
+navBar.BorderColor3 = Color3.fromRGB(255, 215, 0)
+navBar.Parent = screenGui
+
+local navLayout = Instance.new("UIListLayout")
+navLayout.FillDirection = Enum.FillDirection.Horizontal
+navLayout.Padding = UDim.new(0, 6)
+navLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+navLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+navLayout.Parent = navBar
+
+local function createNavButton(text, action)
+	local btn = Instance.new("TextButton")
+	btn.Name = text .. "NavBtn"
+	btn.Size = UDim2.new(0, 84, 0, 40)
+	btn.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
+	btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	btn.Font = Enum.Font.GothamBold
+	btn.TextSize = 14
+	btn.Text = text
+	btn.Parent = navBar
+	btn.MouseButton1Click:Connect(function()
+		flowEvent:FireServer(action)
+	end)
+end
+
+createNavButton("GYM", "goto_gym")
+createNavButton("ARENA", "goto_arena")
+createNavButton("SHOP", "goto_shop")
+createNavButton("VIP SHOP", "goto_vipshop")
+createNavButton("STATS", "home")
+
+-- Start in the world with the nav bar visible
+setScreen("world")

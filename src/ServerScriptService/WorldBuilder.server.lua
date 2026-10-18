@@ -107,17 +107,52 @@ local TREADMILL_COLORS = {
 	owner = Color3.fromRGB(255, 200, 0),
 }
 
--- Stamina treadmill (ground floor). FlowService handles the training.
+local DARK = Color3.fromRGB(28, 28, 32)
+
+-- Full-size gym treadmill: frame, moving belt, side rails, motor housing, handrails and a tilted console.
+-- The runner faces +Z (gym local) toward the console. FlowService handles running and training.
 local function buildTreadmill(model, gymCFrame, gymIndex, tierKey, x, z)
 	local tier = FighterStats.TreadmillTiers[tierKey]
 	local color = TREADMILL_COLORS[tierKey]
-	local belt = makePart(model, tierKey .. "Treadmill", Vector3.new(3, 0.6, 6), gymCFrame * CFrame.new(x, 1.3, z), Enum.Material.Metal, color)
-	makePart(model, tierKey .. "TreadmillConsole", Vector3.new(3, 3, 0.5), gymCFrame * CFrame.new(x, 2.8, z + 3), Enum.Material.SmoothPlastic, Color3.fromRGB(25, 25, 25))
-	addSign(belt, Enum.NormalId.Top, tier.name, color)
-	addPrompt(belt, "Run (+" .. string.format("%.0f", tier.gain) .. " stamina)", tier.name, "TreadmillStation", {
+	local base = gymCFrame * CFrame.new(x, 0, z)
+	local function at(dx, y, dz, rotation)
+		return base * CFrame.new(dx, y, dz) * (rotation or CFrame.new())
+	end
+
+	local deck = makePart(model, tierKey .. "Treadmill", Vector3.new(5, 0.8, 10), at(0, 1.4, 0), Enum.Material.Metal, Color3.fromRGB(55, 55, 60))
+	makePart(model, tierKey .. "Belt", Vector3.new(3.6, 0.2, 9), at(0, 1.9, 0), Enum.Material.Slate, DARK).CanCollide = false
+	for i = -4, 4 do
+		local stripe = makePart(model, tierKey .. "BeltStripe", Vector3.new(3.6, 0.05, 0.25), at(0, 2.03, i), Enum.Material.SmoothPlastic, Color3.fromRGB(60, 60, 66))
+		stripe.CanCollide = false
+	end
+	for _, side in ipairs({ -1, 1 }) do
+		makePart(model, tierKey .. "Rail", Vector3.new(0.7, 0.7, 10), at(side * 2.15, 2.1, 0), Enum.Material.SmoothPlastic, color)
+		makePart(model, tierKey .. "Upright", Vector3.new(0.4, 5.2, 0.4), at(side * 2, 4.4, 4.4), Enum.Material.Metal, Color3.fromRGB(190, 190, 195))
+		makePart(model, tierKey .. "Handrail", Vector3.new(0.35, 0.35, 4), at(side * 2, 6.9, 2.6), Enum.Material.Metal, Color3.fromRGB(190, 190, 195)).CanCollide = false
+		makePart(model, tierKey .. "Grip", Vector3.new(0.5, 0.5, 2), at(side * 2, 6.9, 2.6), Enum.Material.Rubber, DARK).CanCollide = false
+	end
+	makePart(model, tierKey .. "Motor", Vector3.new(5, 1.6, 1.4), at(0, 2.3, 4.6), Enum.Material.SmoothPlastic, color)
+	makePart(model, tierKey .. "ConsoleBody", Vector3.new(4.2, 2, 0.8), at(0, 6.9, 4.4, CFrame.Angles(-0.4, 0, 0)), Enum.Material.SmoothPlastic, DARK)
+	local screen = makePart(model, tierKey .. "ConsoleScreen", Vector3.new(3.4, 1.4, 0.2), at(0, 6.95, 4.05, CFrame.Angles(-0.4, math.pi, 0)), Enum.Material.Neon, Color3.fromRGB(20, 40, 30))
+	screen.CanCollide = false
+	addSign(screen, Enum.NormalId.Front, tier.name, color)
+
+	addPrompt(deck, "Run (+" .. string.format("%.0f", tier.gain) .. " stamina)", tier.name, "TreadmillStation", {
 		GymId = gymIndex,
 		Tier = tierKey,
 	})
+end
+
+-- Shop counter with a prompt that opens the store UI ("normal" or "vip")
+local function buildKiosk(parent, cframe, title, color, storeKind)
+	local counter = makePart(parent, title .. "Counter", Vector3.new(14, 4, 4), cframe * CFrame.new(0, 2, 0), Enum.Material.Wood, Color3.fromRGB(90, 60, 40))
+	local sign = makePart(parent, title .. "Sign", Vector3.new(14, 4, 0.5), cframe * CFrame.new(0, 8, 1.5), Enum.Material.SmoothPlastic, color)
+	addSign(sign, Enum.NormalId.Back, title, Color3.fromRGB(255, 255, 255))
+	makePart(parent, title .. "PostL", Vector3.new(0.6, 8, 0.6), cframe * CFrame.new(-6.5, 4, 1.5), Enum.Material.Metal, Color3.fromRGB(90, 90, 90))
+	makePart(parent, title .. "PostR", Vector3.new(0.6, 8, 0.6), cframe * CFrame.new(6.5, 4, 1.5), Enum.Material.Metal, Color3.fromRGB(90, 90, 90))
+	local prompt = addPrompt(counter, "Open shop", title, "StoreKiosk", { Store = storeKind })
+	prompt.MaxActivationDistance = 14
+	return counter
 end
 
 local function buildGym(world, index)
@@ -160,8 +195,10 @@ local function buildGym(world, index)
 	-- Signs on the outside of the front wall
 	local nameSign = makePart(model, "NameSign", Vector3.new(doorW + 10, F - doorH - 1, 0.4), at(0, (doorH + F) / 2, -D / 2 - 0.25), Enum.Material.SmoothPlastic, info.color)
 	addSign(nameSign, Enum.NormalId.Front, info.name, Color3.fromRGB(255, 255, 255))
-	local vipSign = makePart(model, "VipSign", Vector3.new(30, 4, 0.4), at(0, 2 * F - 3, -D / 2 - 0.25), Enum.Material.SmoothPlastic, Color3.fromRGB(25, 25, 25))
-	addSign(vipSign, Enum.NormalId.Front, "VIP FLOOR", GOLD)
+	local vipSign = not info.vipShop and makePart(model, "VipSign", Vector3.new(30, 4, 0.4), at(0, 2 * F - 3, -D / 2 - 0.25), Enum.Material.SmoothPlastic, Color3.fromRGB(25, 25, 25))
+	if vipSign then
+		addSign(vipSign, Enum.NormalId.Front, "VIP FLOOR", GOLD)
+	end
 
 	-- Ceiling lights on both floors
 	for _, ceilingY in ipairs({ F - 0.15, 2 * F - 0.15 }) do
@@ -175,21 +212,22 @@ local function buildGym(world, index)
 		end
 	end
 
-	-- Ground floor: free stations in two rows of five
+	if info.vipShop then
+		buildKiosk(model, at(0, 1, 6) * CFrame.Angles(0, math.pi, 0), "VIP SHOP", GOLD, "vip")
+		return model
+	end
+
+	-- Ground floor: one row of free punching-bag stations (the other row is treadmills)
 	local xs = { -24, -12, 0, 12, 24 }
-	local stationCount = 0
-	for _, z in ipairs({ -6, 8 }) do
-		for _, x in ipairs(xs) do
-			stationCount += 1
-			if stationCount <= GYM.FreeStations then
-				buildStation(model, gymCFrame, index, "Station" .. stationCount, x, 1, z, false)
-			end
+	for i, x in ipairs(xs) do
+		if i <= GYM.FreeStations then
+			buildStation(model, gymCFrame, index, "Station" .. i, x, 1, -6, false)
 		end
 	end
 
-	-- Ground floor: one treadmill per tier along the side of the bidding board
+	-- Ground floor: one large treadmill per tier in the freed row
 	for i, tierKey in ipairs({ "regular", "hacker", "admin", "owner" }) do
-		buildTreadmill(model, gymCFrame, index, tierKey, -27 + (i - 1) * 8, -17)
+		buildTreadmill(model, gymCFrame, index, tierKey, -18 + (i - 1) * 12, 8)
 	end
 
 	-- VIP floor: gold carpet and one row of VIP stations
@@ -237,6 +275,20 @@ local function buildWorld()
 		Color3.fromRGB(150, 150, 155),
 		Enum.PartType.Cylinder
 	)
+
+	-- Perimeter walls around the whole map (no roof)
+	local half = WorldConfig.GroundSize / 2
+	local wallHeight, wallThickness = WorldConfig.WallHeight, WorldConfig.WallThickness
+	local wallColor = Color3.fromRGB(95, 95, 105)
+	local wallLength = WorldConfig.GroundSize + wallThickness * 2
+	for _, side in ipairs({ -1, 1 }) do
+		makePart(world, "BoundaryWallZ" .. side, Vector3.new(wallLength, wallHeight, wallThickness), CFrame.new(center + Vector3.new(0, wallHeight / 2, side * (half + wallThickness / 2))), Enum.Material.Concrete, wallColor)
+		makePart(world, "BoundaryWallX" .. side, Vector3.new(wallThickness, wallHeight, WorldConfig.GroundSize), CFrame.new(center + Vector3.new(side * (half + wallThickness / 2), wallHeight / 2, 0)), Enum.Material.Concrete, wallColor)
+	end
+
+	-- Normal shop kiosk, facing the arena
+	local shopPosition = center + WorldConfig.Shop.Position
+	buildKiosk(world, CFrame.lookAt(shopPosition, Vector3.new(center.X, shopPosition.Y, center.Z)) * CFrame.Angles(0, math.pi, 0), "SHOP", Color3.fromRGB(60, 120, 220), "normal")
 
 	for i = 1, GYM.Count do
 		local gymPosition = WorldConfig.GetGymCFrame(i).Position

@@ -32,6 +32,10 @@ function FighterStats.CreatePlayerData()
 		arenaWins = 0,
 		arenaLosses = 0,
 		isInMatch = false,
+		treadmills = { regular = true },
+		luckPurchases = 0,
+		winMultiplier = 1,
+		carpet = false,
 	}
 end
 
@@ -70,6 +74,10 @@ end
 function FighterStats.TrainStamina(data, tierKey)
 	local tier = FighterStats.TreadmillTiers[tierKey]
 	if not tier then
+		return false
+	end
+
+	if not data.treadmills[tierKey] then
 		return false
 	end
 
