@@ -5,6 +5,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
 
 local WorldConfig = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("WorldConfig"))
 local trainingEvent = ReplicatedStorage:WaitForChild("Events"):WaitForChild("GymTraining")
@@ -185,10 +186,12 @@ local countRow = makeRow(0.2)
 makeLabel("Power", UDim2.new(0.2, 0, 0.12, 0), UDim2.new(0.03, 0, 0.42, 0))
 local weightRow = makeRow(0.4)
 
-local progressLabel = makeLabel("Choose punches and power, then START.", UDim2.new(0.94, 0, 0.1, 0), UDim2.new(0.03, 0, 0.6, 0), Color3.fromRGB(200, 200, 200))
+local MANUAL_HINT = "Click or press 0 to punch, or turn AUTO on."
+
+local progressLabel = makeLabel(MANUAL_HINT, UDim2.new(0.94, 0, 0.1, 0), UDim2.new(0.03, 0, 0.6, 0), Color3.fromRGB(200, 200, 200))
 
 local autoButton = makeButton(panel, "AUTO: OFF", UDim2.new(0.28, 0, 0.18, 0), UDim2.new(0.03, 0, 0.77, 0), Color3.fromRGB(90, 90, 90))
-local startButton = makeButton(panel, "START", UDim2.new(0.36, 0, 0.18, 0), UDim2.new(0.33, 0, 0.77, 0), Color3.fromRGB(40, 140, 70))
+local punchButton = makeButton(panel, "PUNCH", UDim2.new(0.36, 0, 0.18, 0), UDim2.new(0.33, 0, 0.77, 0), Color3.fromRGB(40, 140, 70))
 local leaveButton = makeButton(panel, "LEAVE", UDim2.new(0.28, 0, 0.18, 0), UDim2.new(0.69, 0, 0.77, 0), Color3.fromRGB(150, 40, 40))
 
 local countButtons = {}
@@ -231,8 +234,32 @@ local function refresh()
 
 	autoButton.Text = autoTrain and "AUTO: ON" or "AUTO: OFF"
 	autoButton.BackgroundColor3 = autoTrain and Color3.fromRGB(40, 140, 70) or Color3.fromRGB(90, 90, 90)
-	startButton.Text = running and "STOP" or "START"
-	startButton.BackgroundColor3 = running and Color3.fromRGB(180, 110, 30) or Color3.fromRGB(40, 140, 70)
+	punchButton.Text = autoTrain and "AUTO PUNCHING" or "PUNCH (0)"
+	punchButton.BackgroundColor3 = autoTrain and LOCKED_COLOR or Color3.fromRGB(40, 140, 70)
+	punchButton.AutoButtonColor = not autoTrain
+end
+
+-- Manual mode: one punch per press. The server limits how fast punches land.
+local function throwPunch()
+	if panel.Visible and not autoTrain then
+		trainingEvent:FireServer("punch", selectedCount, selectedWeight)
+	end
+end
+
+local function setAuto(enabled)
+	autoTrain = enabled
+	if enabled then
+		running = true
+		progressLabel.Text = "Auto-training..."
+		trainingEvent:FireServer("start", selectedCount, selectedWeight, true)
+	else
+		if running then
+			trainingEvent:FireServer("stop")
+		end
+		running = false
+		progressLabel.Text = MANUAL_HINT
+	end
+	refresh()
 end
 
 for count, button in pairs(countButtons) do
@@ -254,21 +281,23 @@ for index, button in ipairs(weightButtons) do
 end
 
 autoButton.Activated:Connect(function()
-	if not running then
-		autoTrain = not autoTrain
-		refresh()
-	end
+	setAuto(not autoTrain)
 end)
 
-startButton.Activated:Connect(function()
-	if running then
-		trainingEvent:FireServer("stop")
-	else
-		running = true
-		progressLabel.Text = "Training..."
-		trainingEvent:FireServer("start", selectedCount, selectedWeight, autoTrain)
+punchButton.Activated:Connect(throwPunch)
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed then
+		return
 	end
-	refresh()
+	if input.UserInputType == Enum.UserInputType.MouseButton1
+		or input.UserInputType == Enum.UserInputType.Touch
+		or input.KeyCode == Enum.KeyCode.Zero
+		or input.KeyCode == Enum.KeyCode.KeypadZero
+		or input.KeyCode == Enum.KeyCode.ButtonR2
+	then
+		throwPunch()
+	end
 end)
 
 leaveButton.Activated:Connect(function()
@@ -282,16 +311,18 @@ trainingEvent.OnClientEvent:Connect(function(kind, ...)
 		isVip = info.isVip
 		strength = info.strength
 		running = false
+		autoTrain = false
 		-- Fall back to the heaviest unlocked weight if the remembered one is locked
 		while selectedWeight > 1 and strength < TRAINING.Weights[selectedWeight].requiredStrength do
 			selectedWeight -= 1
 		end
-		progressLabel.Text = "Choose punches and power, then START."
+		progressLabel.Text = MANUAL_HINT
 		panel.Visible = true
 		refresh()
 	elseif kind == "close" then
 		panel.Visible = false
 		running = false
+		autoTrain = false
 	elseif kind == "punch" then
 		local character, bag, side, lbs = ...
 		if character and bag then
@@ -314,16 +345,15 @@ trainingEvent.OnClientEvent:Connect(function(kind, ...)
 		if info.auto then
 			progressLabel.Text = string.format("Set done: +%d power. Next set starting...", info.gained)
 		else
-			running = false
 			progressLabel.Text = string.format("Set complete! +%d power. Strength is now %d.", info.gained, info.strength)
 		end
 		refresh()
 	elseif kind == "stopped" then
 		running = false
-		progressLabel.Text = "Stopped. Pick new options or START again."
 		refresh()
 	elseif kind == "notice" then
 		running = false
+		autoTrain = false
 		progressLabel.Text = ...
 		refresh()
 	end

@@ -227,23 +227,77 @@ local function broadcastPunch(player, bag, side, lbs)
 	end
 end
 
-local function startTraining(player, punchCount, weightIndex, auto)
-	local session = trainingSessions[player]
+-- Returns the chosen weight if the options are valid and unlocked for this player
+local function checkOptions(player, punchCount, weightIndex)
 	local weight = TRAINING.Weights[weightIndex]
-	if not session or not weight or not table.find(TRAINING.PunchCounts, punchCount) then
+	if not weight or not table.find(TRAINING.PunchCounts, punchCount) then
+		return nil
+	end
+	if getPlayerData(player).strength < weight.requiredStrength then
+		trainingEvent:FireClient(player, "notice", string.format("%d lbs punches unlock at %d strength.", weight.lbs, weight.requiredStrength))
+		return nil
+	end
+	return weight
+end
+
+-- Awards one punch, plays it for nearby players and returns the set's running total
+local function landPunch(player, session, weight, punch, total, gained)
+	local data = getPlayerData(player)
+	local gain = weight.power * (session.isVip and TRAINING.VipMultiplier or 1)
+	FighterStats.TrainStrength(data, gain)
+	gained += gain
+	session.lastPunch = os.clock()
+	broadcastPunch(player, session.bag, punch % 2 == 1 and "Right" or "Left", weight.lbs)
+	trainingEvent:FireClient(player, "progress", {
+		punch = punch,
+		total = total,
+		gain = gain,
+		gained = gained,
+		strength = data.strength,
+	})
+	sendPlayerStats(player)
+	return gained
+end
+
+-- Manual mode: one punch per click / 0 key, no faster than the weight's punch speed
+local function manualPunch(player, punchCount, weightIndex)
+	local session = trainingSessions[player]
+	if not session or session.running then
+		return
+	end
+	local weight = checkOptions(player, punchCount, weightIndex)
+	if not weight or (session.lastPunch and os.clock() - session.lastPunch < weight.interval * 0.8) then
 		return
 	end
 
-	local data = getPlayerData(player)
-	if data.strength < weight.requiredStrength then
-		trainingEvent:FireClient(player, "notice", string.format("%d lbs punches unlock at %d strength.", weight.lbs, weight.requiredStrength))
+	if session.manualWeight ~= weightIndex or session.manualTotal ~= punchCount then
+		session.manualWeight, session.manualTotal = weightIndex, punchCount
+		session.manualCount, session.manualGained = 0, 0
+	end
+	session.manualCount += 1
+	session.manualGained = landPunch(player, session, weight, session.manualCount, punchCount, session.manualGained)
+
+	if session.manualCount >= punchCount then
+		trainingEvent:FireClient(player, "setComplete", {
+			gained = session.manualGained,
+			strength = getPlayerData(player).strength,
+			auto = false,
+		})
+		session.manualCount, session.manualGained = 0, 0
+	end
+end
+
+-- Auto mode: punches by itself, set after set, until stopped
+local function startTraining(player, punchCount, weightIndex, auto)
+	local session = trainingSessions[player]
+	local weight = session and checkOptions(player, punchCount, weightIndex)
+	if not weight then
 		return
 	end
 
 	session.token += 1
 	local token = session.token
 	session.running = true
-	local gainPerPunch = weight.power * (session.isVip and TRAINING.VipMultiplier or 1)
 
 	local function isActive()
 		return trainingSessions[player] == session and session.token == token
@@ -257,19 +311,9 @@ local function startTraining(player, punchCount, weightIndex, auto)
 				if not isActive() then
 					return
 				end
-				FighterStats.TrainStrength(data, gainPerPunch)
-				gained += gainPerPunch
-				broadcastPunch(player, session.bag, punch % 2 == 1 and "Right" or "Left", weight.lbs)
-				trainingEvent:FireClient(player, "progress", {
-					punch = punch,
-					total = punchCount,
-					gain = gainPerPunch,
-					gained = gained,
-					strength = data.strength,
-				})
-				sendPlayerStats(player)
+				gained = landPunch(player, session, weight, punch, punchCount, gained)
 			end
-			trainingEvent:FireClient(player, "setComplete", { gained = gained, strength = data.strength, auto = auto })
+			trainingEvent:FireClient(player, "setComplete", { gained = gained, strength = getPlayerData(player).strength, auto = auto })
 			if auto then
 				task.wait(TRAINING.AutoRestSeconds)
 			end
@@ -284,6 +328,8 @@ end
 trainingEvent.OnServerEvent:Connect(function(player, action, punchCount, weightIndex, auto)
 	if action == "start" then
 		startTraining(player, punchCount, weightIndex, auto == true)
+	elseif action == "punch" then
+		manualPunch(player, punchCount, weightIndex)
 	elseif action == "stop" then
 		local session = trainingSessions[player]
 		if session then
@@ -473,6 +519,8 @@ flowEvent.OnServerEvent:Connect(function(player, action)
 		handleGym(player)
 	elseif action == "train_strength" then
 		handleTrainStrength(player)
+	elseif action == "request_stats" then
+		sendPlayerStats(player)
 	elseif type(action) == "string" and action:sub(1, 5) == "goto_" then
 		handleGoto(player, action:sub(6))
 	elseif action == "shop" then

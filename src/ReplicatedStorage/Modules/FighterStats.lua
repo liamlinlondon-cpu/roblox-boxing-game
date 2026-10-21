@@ -47,22 +47,30 @@ function FighterStats.GetPlayerData(player)
 	return sharedPlayerData[player]
 end
 
-function FighterStats.GetStageFromStrength(strength)
-	if strength >= 250 then
-		return "World Champion"
-	elseif strength >= 180 then
-		return "Elite Boxer"
-	elseif strength >= 120 then
-		return "Power Puncher"
-	elseif strength >= 70 then
-		return "Strong Athlete"
-	elseif strength >= 40 then
-		return "Rising Fighter"
-	elseif strength >= 20 then
-		return "Average Boxer"
-	else
-		return "Skinny Bones"
+-- Body stages by minimum strength, lowest first (also drives the strength bar on screen)
+FighterStats.Stages = {
+	{ minStrength = 0, name = "Skinny Bones" },
+	{ minStrength = 20, name = "Average Boxer" },
+	{ minStrength = 40, name = "Rising Fighter" },
+	{ minStrength = 70, name = "Strong Athlete" },
+	{ minStrength = 120, name = "Power Puncher" },
+	{ minStrength = 180, name = "Elite Boxer" },
+	{ minStrength = 250, name = "World Champion" },
+}
+
+-- Returns the index of the stage the player is in
+function FighterStats.GetStageIndex(strength)
+	local index = 1
+	for i, stage in ipairs(FighterStats.Stages) do
+		if strength >= stage.minStrength then
+			index = i
+		end
 	end
+	return index
+end
+
+function FighterStats.GetStageFromStrength(strength)
+	return FighterStats.Stages[FighterStats.GetStageIndex(strength)].name
 end
 
 function FighterStats.TrainStrength(data, amount)
