@@ -4,6 +4,7 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
 
 local WorldConfig = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("WorldConfig"))
 local trainingEvent = ReplicatedStorage:WaitForChild("Events"):WaitForChild("GymTraining")
@@ -24,10 +25,28 @@ local strength = 0
 local isVip = false
 
 -- ==================== PUNCH ANIMATION ====================
--- Procedural: rotates the shoulder joint forward and back, so no animation asset upload is needed.
+-- Procedural: swings the shoulder joint forward and back, so no animation asset upload is needed.
+-- The joint's C0 can't be tweened on current rigs, so the punch is layered onto the joint's Transform
+-- every frame in PreSimulation, which runs after the Animator has applied the idle/walk animation.
 
-local restC0 = setmetatable({}, { __mode = "k" })
+local PUNCH_OUT = 0.08
+local PUNCH_BACK = 0.18
+
+local activePunches = {} -- [joint] = { rotation, startTime }
 local restBagCFrame = setmetatable({}, { __mode = "k" })
+
+RunService.PreSimulation:Connect(function()
+	local now = os.clock()
+	for joint, punch in pairs(activePunches) do
+		local elapsed = now - punch.startTime
+		if not joint.Parent or elapsed >= PUNCH_OUT + PUNCH_BACK then
+			activePunches[joint] = nil
+		else
+			local alpha = elapsed < PUNCH_OUT and elapsed / PUNCH_OUT or 1 - (elapsed - PUNCH_OUT) / PUNCH_BACK
+			joint.Transform = joint.Transform * CFrame.new():Lerp(punch.rotation, alpha)
+		end
+	end
+end)
 
 local function getShoulder(character, side)
 	local humanoid = character:FindFirstChildOfClass("Humanoid")
@@ -44,18 +63,10 @@ local function getShoulder(character, side)
 end
 
 local function animatePunch(character, side)
-	local motor, punchRotation = getShoulder(character, side)
-	if not motor then
-		return
+	local joint, punchRotation = getShoulder(character, side)
+	if joint then
+		activePunches[joint] = { rotation = punchRotation, startTime = os.clock() }
 	end
-	restC0[motor] = restC0[motor] or motor.C0
-	local rest = restC0[motor]
-
-	local extend = TweenService:Create(motor, TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { C0 = rest * punchRotation })
-	extend:Play()
-	extend.Completed:Once(function()
-		TweenService:Create(motor, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { C0 = rest }):Play()
-	end)
 end
 
 local function swingBag(bag, character, lbs)
@@ -284,8 +295,8 @@ trainingEvent.OnClientEvent:Connect(function(kind, ...)
 	elseif kind == "punch" then
 		local character, bag, side, lbs = ...
 		if character and bag then
-			animatePunch(character, side)
 			swingBag(bag, character, lbs)
+			animatePunch(character, side)
 		end
 	elseif kind == "progress" then
 		local info = ...

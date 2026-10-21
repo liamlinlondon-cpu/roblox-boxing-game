@@ -5,6 +5,7 @@ local CollectionService = game:GetService("CollectionService")
 local FighterStats = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("FighterStats"))
 local Shop = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("Shop"))
 local WorldConfig = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("WorldConfig"))
+local Catalog = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("Catalog"))
 
 local eventsFolder = ReplicatedStorage:FindFirstChild("Events")
 if not eventsFolder then
@@ -28,7 +29,7 @@ if not stateEvent then
 end
 
 -- Other scripts WaitForChild these, so they must exist even though they're used elsewhere
-for _, eventName in ipairs({ "MatchResult", "ShopAction", "ArenaAction", "CombatAction", "VipAuction", "GymTraining" }) do
+for _, eventName in ipairs({ "MatchResult", "ShopAction", "ArenaAction", "CombatAction", "VipAuction", "GymTraining", "TreadmillControl" }) do
 	if not eventsFolder:FindFirstChild(eventName) then
 		local remote = Instance.new("RemoteEvent")
 		remote.Name = eventName
@@ -312,7 +313,12 @@ local RUN_ANIMATIONS = {
 	[Enum.HumanoidRigType.R15] = "rbxassetid://507767714",
 	[Enum.HumanoidRigType.R6] = "rbxassetid://180426354",
 }
--- Puts the player on the belt, plays the run animation for RUN_SECONDS, then pays out the stamina.
+local treadmillEvent = eventsFolder:WaitForChild("TreadmillControl")
+local autoRun = {} -- [player] = true: keep running laps until stopped (remembered between treadmills)
+local stopRequested = {} -- [player] = true: end the run now (lap in progress isn't paid)
+
+-- Puts the player on the belt and plays the run animation. Every RUN_SECONDS lap pays out the stamina;
+-- with auto-run on, laps repeat until the player presses STOP or leaves the belt.
 local function runOnTreadmill(player, deck, tierKey)
 	local character = player.Character
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
@@ -321,6 +327,7 @@ local function runOnTreadmill(player, deck, tierKey)
 		return
 	end
 	running[player] = true
+	stopRequested[player] = nil
 
 	local oldSpeed, oldJump, oldUseJumpPower = humanoid.WalkSpeed, humanoid.JumpPower, humanoid.UseJumpPower
 	local oldJumpHeight = humanoid.JumpHeight
@@ -341,16 +348,40 @@ local function runOnTreadmill(player, deck, tierKey)
 	track:Play(0.2)
 	track:AdjustSpeed(1.6)
 
-	local startTime = os.clock()
-	while os.clock() - startTime < RUN_SECONDS do
-		task.wait(0.1)
-		if humanoid.Health <= 0 or not root.Parent or (root.Position - deck.Position).Magnitude > 12 then
+	treadmillEvent:FireClient(player, "start", {
+		tierName = FighterStats.TreadmillTiers[tierKey].name,
+		auto = autoRun[player] == true,
+	})
+
+	local laps = 0
+	while true do
+		treadmillEvent:FireClient(player, "lapStart", RUN_SECONDS)
+		local startTime = os.clock()
+		local interrupted = false
+		while os.clock() - startTime < RUN_SECONDS do
+			task.wait(0.1)
+			if stopRequested[player] or not player.Parent or humanoid.Health <= 0 or not root.Parent or (root.Position - deck.Position).Magnitude > 12 then
+				interrupted = true
+				break
+			end
+			-- Hold the runner in place on the belt
+			root.AssemblyLinearVelocity = Vector3.new(0, root.AssemblyLinearVelocity.Y, 0)
+		end
+		if interrupted then
 			break
 		end
-		-- Hold the runner in place on the belt
-		root.AssemblyLinearVelocity = Vector3.new(0, root.AssemblyLinearVelocity.Y, 0)
+
+		laps += 1
+		handleTreadmill(player, tierKey)
+		treadmillEvent:FireClient(player, "lap", {
+			laps = laps,
+			gain = FighterStats.TreadmillTiers[tierKey].gain,
+			maxStamina = getPlayerData(player).maxStamina,
+		})
+		if not autoRun[player] then
+			break
+		end
 	end
-	local completed = os.clock() - startTime >= RUN_SECONDS
 
 	track:Stop(0.2)
 	animation:Destroy()
@@ -361,11 +392,19 @@ local function runOnTreadmill(player, deck, tierKey)
 		humanoid.UseJumpPower = oldUseJumpPower
 	end
 	running[player] = nil
-
-	if completed then
-		handleTreadmill(player, tierKey)
+	stopRequested[player] = nil
+	if player.Parent then
+		treadmillEvent:FireClient(player, "stop", laps)
 	end
 end
+
+treadmillEvent.OnServerEvent:Connect(function(player, action, value)
+	if action == "auto" then
+		autoRun[player] = value == true or nil
+	elseif action == "stop" and running[player] then
+		stopRequested[player] = true
+	end
+end)
 
 local function hookTreadmill(prompt)
 	prompt.Triggered:Connect(function(player)
@@ -380,9 +419,21 @@ local function hookTreadmill(prompt)
 		end
 
 		local tierKey = prompt:GetAttribute("Tier")
-		if not getPlayerData(player).treadmills[tierKey] then
-			local openStore = script.Parent:WaitForChild("StoreService"):WaitForChild("OpenStore")
-			openStore:Fire(player, "normal")
+		local data = getPlayerData(player)
+		if not data.treadmills[tierKey] then
+			-- Offer the unlock right here; payment goes through StoreService (money or Robux)
+			for _, item in ipairs(Catalog.Treadmills) do
+				if item.tier == tierKey then
+					treadmillEvent:FireClient(player, "locked", {
+						itemId = item.id,
+						name = item.name,
+						money = item.money,
+						robux = item.robux,
+						playerMoney = data.money,
+					})
+					return
+				end
+			end
 			return
 		end
 
@@ -397,6 +448,8 @@ CollectionService:GetInstanceAddedSignal("TreadmillStation"):Connect(hookTreadmi
 
 Players.PlayerRemoving:Connect(function(player)
 	running[player] = nil
+	autoRun[player] = nil
+	stopRequested[player] = nil
 	releaseStation(player)
 end)
 
