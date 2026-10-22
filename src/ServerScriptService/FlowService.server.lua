@@ -81,24 +81,6 @@ local function handleTrainStrength(player)
 	sendPlayerStats(player)
 end
 
-local function handleTreadmill(player, tierKey)
-	local data = getPlayerData(player)
-	local success, tier = FighterStats.TrainStamina(data, tierKey)
-	if not success then
-		return false
-	end
-
-	local resultEvent = eventsFolder:FindFirstChild("MatchResult")
-	if resultEvent then
-		resultEvent:FireClient(player, {
-			type = "treadmill_result",
-			message = string.format("%s complete! +%.0f max stamina.", tier.name, tier.gain),
-		})
-	end
-	sendPlayerStats(player)
-	return true
-end
-
 local function handleHome(player)
 	setLocation(player, "home")
 end
@@ -365,11 +347,11 @@ local RUN_ANIMATIONS = {
 	[Enum.HumanoidRigType.R6] = "rbxassetid://180426354",
 }
 local treadmillEvent = eventsFolder:WaitForChild("TreadmillControl")
-local autoRun = {} -- [player] = true: keep running laps until stopped (remembered between treadmills)
-local stopRequested = {} -- [player] = true: end the run now (lap in progress isn't paid)
+local autoRun = {} -- [player] = true: keep running until stopped (remembered between treadmills)
+local stopRequested = {} -- [player] = true: end the run now
 
--- Puts the player on the belt and plays the run animation. Every RUN_SECONDS lap pays out the stamina;
--- with auto-run on, laps repeat until the player presses STOP or leaves the belt.
+-- Puts the player on the belt and plays the run animation. Every second on the belt pays the treadmill's
+-- stamina gain (e.g. +50/s on the regular one). A run lasts RUN_SECONDS, or until STOP with auto-run on.
 local function runOnTreadmill(player, deck, tierKey)
 	local character = player.Character
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
@@ -399,17 +381,19 @@ local function runOnTreadmill(player, deck, tierKey)
 	track:Play(0.2)
 	track:AdjustSpeed(1.6)
 
+	local tier = FighterStats.TreadmillTiers[tierKey]
 	treadmillEvent:FireClient(player, "start", {
-		tierName = FighterStats.TreadmillTiers[tierKey].name,
+		tierName = tier.name,
 		auto = autoRun[player] == true,
+		gainPerSecond = tier.gain,
+		runSeconds = RUN_SECONDS,
 	})
 
-	local laps = 0
-	while true do
-		treadmillEvent:FireClient(player, "lapStart", RUN_SECONDS)
+	local seconds, gained = 0, 0
+	while autoRun[player] or seconds < RUN_SECONDS do
 		local startTime = os.clock()
 		local interrupted = false
-		while os.clock() - startTime < RUN_SECONDS do
+		while os.clock() - startTime < 1 do
 			task.wait(0.1)
 			if stopRequested[player] or not player.Parent or humanoid.Health <= 0 or not root.Parent or (root.Position - deck.Position).Magnitude > 12 then
 				interrupted = true
@@ -422,16 +406,17 @@ local function runOnTreadmill(player, deck, tierKey)
 			break
 		end
 
-		laps += 1
-		handleTreadmill(player, tierKey)
-		treadmillEvent:FireClient(player, "lap", {
-			laps = laps,
-			gain = FighterStats.TreadmillTiers[tierKey].gain,
-			maxStamina = getPlayerData(player).maxStamina,
+		seconds += 1
+		local data = getPlayerData(player)
+		FighterStats.TrainStamina(data, tierKey)
+		gained += tier.gain
+		sendPlayerStats(player)
+		treadmillEvent:FireClient(player, "tick", {
+			seconds = seconds,
+			gain = tier.gain,
+			gained = gained,
+			maxStamina = data.maxStamina,
 		})
-		if not autoRun[player] then
-			break
-		end
 	end
 
 	track:Stop(0.2)
@@ -445,7 +430,7 @@ local function runOnTreadmill(player, deck, tierKey)
 	running[player] = nil
 	stopRequested[player] = nil
 	if player.Parent then
-		treadmillEvent:FireClient(player, "stop", laps)
+		treadmillEvent:FireClient(player, "stop", gained)
 	end
 end
 

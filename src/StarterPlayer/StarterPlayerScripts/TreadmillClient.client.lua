@@ -1,4 +1,4 @@
--- Treadmill run panel: lap progress, AUTO RUN toggle and STOP. FlowService runs the laps and pays the stamina.
+-- Treadmill run panel: per-second progress, AUTO RUN toggle and STOP. FlowService runs the belt and pays the stamina.
 -- Locked treadmills show an unlock panel instead; payment (money or Robux) goes through StoreService.
 
 local Players = game:GetService("Players")
@@ -89,6 +89,17 @@ local autoButton = makeButton("", UDim2.new(0.45, 0, 0.26, 0), UDim2.new(0.03, 0
 local stopButton = makeButton("STOP", UDim2.new(0.45, 0, 0.26, 0), UDim2.new(0.52, 0, 0.67, 0), Color3.fromRGB(150, 40, 40))
 
 local barTween = nil
+local runSeconds = 6
+
+-- The bar fills once per second, in step with each stamina payout
+local function pulseBar()
+	if barTween then
+		barTween:Cancel()
+	end
+	barFill.Size = UDim2.new(0, 0, 1, 0)
+	barTween = TweenService:Create(barFill, TweenInfo.new(1, Enum.EasingStyle.Linear), { Size = UDim2.new(1, 0, 1, 0) })
+	barTween:Play()
+end
 
 local function refreshAuto()
 	autoButton.Text = autoRun and "AUTO RUN: ON" or "AUTO RUN: OFF"
@@ -184,24 +195,21 @@ treadmillEvent.OnClientEvent:Connect(function(kind, info)
 	elseif kind == "start" then
 		unlockPanel.Visible = false
 		autoRun = info.auto
-		title.Text = string.upper(info.tierName)
-		statusLabel.Text = autoRun and "Auto-running: laps repeat until you press STOP." or "Running one lap. Turn AUTO RUN on to keep going."
+		runSeconds = info.runSeconds
+		title.Text = string.format("%s  ·  +%s/sec", string.upper(info.tierName), Catalog.FormatNumber(info.gainPerSecond))
+		statusLabel.Text = autoRun and "Auto-running until you press STOP." or string.format("Running for %d seconds. Turn AUTO RUN on to keep going.", runSeconds)
 		refreshAuto()
 		panel.Visible = true
-	elseif kind == "lapStart" then
-		if barTween then
-			barTween:Cancel()
-		end
-		barFill.Size = UDim2.new(0, 0, 1, 0)
-		barTween = TweenService:Create(barFill, TweenInfo.new(info, Enum.EasingStyle.Linear), { Size = UDim2.new(1, 0, 1, 0) })
-		barTween:Play()
-	elseif kind == "lap" then
+		pulseBar()
+	elseif kind == "tick" then
+		local timeText = autoRun and string.format("%ds", info.seconds) or string.format("%d/%ds", info.seconds, runSeconds)
 		statusLabel.Text = string.format(
-			"Lap %d done: +%s stamina. Max stamina %s",
-			info.laps,
-			Catalog.FormatNumber(info.gain),
+			"%s  ·  +%s this run  ·  Max stamina %s",
+			timeText,
+			Catalog.FormatNumber(info.gained),
 			Catalog.FormatNumber(info.maxStamina)
 		)
+		pulseBar()
 	elseif kind == "stop" then
 		if barTween then
 			barTween:Cancel()
