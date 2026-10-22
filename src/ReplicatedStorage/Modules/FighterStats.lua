@@ -84,6 +84,11 @@ function FighterStats.TrainStrength(data, amount)
 	data.health = 100
 end
 
+function FighterStats.TrainKick(data, amount)
+	data.kick = data.kick + amount
+	data.health = 100
+end
+
 function FighterStats.TrainStamina(data, tierKey)
 	local tier = FighterStats.TreadmillTiers[tierKey]
 	if not tier then

@@ -55,17 +55,21 @@ WorldConfig.ArenaEntrance = Vector3.new(0, 4, 24)
 WorldConfig.WallHeight = 60
 WorldConfig.WallThickness = 4
 
--- Punching bag training. Each punch adds `power` strength; heavier punches are slower
--- and unlock once the player is strong enough.
+-- Bag training. Punching bags train strength and kicking bags train kick. Each hit adds `power` to that
+-- stat; heavier hits are slower and unlock once that stat reaches `required`.
 WorldConfig.Training = {
 	PunchCounts = { 5, 10, 20, 50 },
 	Weights = {
-		{ lbs = 10, power = 1, interval = 0.45, requiredStrength = 0 },
-		{ lbs = 20, power = 2, interval = 0.55, requiredStrength = 30 },
-		{ lbs = 50, power = 5, interval = 0.7, requiredStrength = 100 },
-		{ lbs = 100, power = 10, interval = 0.9, requiredStrength = 250 },
+		{ lbs = 10, power = 1, interval = 0.45, required = 0 },
+		{ lbs = 20, power = 2, interval = 0.55, required = 30 },
+		{ lbs = 50, power = 5, interval = 0.7, required = 100 },
+		{ lbs = 100, power = 10, interval = 0.9, required = 250 },
 	},
-	VipMultiplier = 2, -- VIP floor bags give double power per punch
+	Modes = {
+		punch = { stat = "strength", statName = "Strength", statLabel = "STR", gainLabel = "POWER", bagName = "Punching Bag", hit = "punch", hits = "punches" },
+		kick = { stat = "kick", statName = "Kick", statLabel = "KICK", gainLabel = "KICK", bagName = "Kicking Bag", hit = "kick", hits = "kicks" },
+	},
+	VipMultiplier = 2, -- VIP floor bags give double gain per hit
 	AutoRestSeconds = 1.5, -- pause between sets when auto-training
 }
 

@@ -1,5 +1,6 @@
--- Punching bag training panel and punch visuals. The server (FlowService) runs the punches and awards power;
--- this script shows the options, plays the arm/bag animations and pops up the gains.
+-- Bag training panel and hit visuals for punching bags (train strength) and kicking bags (train kick).
+-- The server (FlowService) lands the hits and awards the stat; this script shows the options, plays the
+-- arm/leg and bag animations and pops up the gains.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -22,51 +23,57 @@ local selectedCount = TRAINING.PunchCounts[1]
 local selectedWeight = 1
 local autoTrain = false
 local running = false
-local strength = 0
+local mode = "punch" -- "punch" or "kick": which kind of bag the player is using
+local statValue = 0 -- the stat this bag trains (strength or kick)
 local isVip = false
 
--- ==================== PUNCH ANIMATION ====================
--- Procedural: swings the shoulder joint forward and back, so no animation asset upload is needed.
--- The joint's C0 can't be tweened on current rigs, so the punch is layered onto the joint's Transform
--- every frame in PreSimulation, which runs after the Animator has applied the idle/walk animation.
+-- ==================== HIT ANIMATION ====================
+-- Procedural: swings the shoulder (punch) or hip (kick) joint forward and back, so no animation asset
+-- upload is needed. The joint's C0 can't be tweened on current rigs, so the swing is layered onto the
+-- joint's Transform every frame in PreSimulation, which runs after the Animator has applied the idle/walk
+-- animation.
 
-local PUNCH_OUT = 0.08
-local PUNCH_BACK = 0.18
+local SWINGS = {
+	punch = { limb = "Arm", joint = "Shoulder", angle = 90, out = 0.08, back = 0.18 },
+	kick = { limb = "Leg", joint = "Hip", angle = 80, out = 0.12, back = 0.25 },
+}
 
-local activePunches = {} -- [joint] = { rotation, startTime }
+local activeSwings = {} -- [joint] = { rotation, startTime, out, back }
 local restBagCFrame = setmetatable({}, { __mode = "k" })
 
 RunService.PreSimulation:Connect(function()
 	local now = os.clock()
-	for joint, punch in pairs(activePunches) do
-		local elapsed = now - punch.startTime
-		if not joint.Parent or elapsed >= PUNCH_OUT + PUNCH_BACK then
-			activePunches[joint] = nil
+	for joint, swing in pairs(activeSwings) do
+		local elapsed = now - swing.startTime
+		if not joint.Parent or elapsed >= swing.out + swing.back then
+			activeSwings[joint] = nil
 		else
-			local alpha = elapsed < PUNCH_OUT and elapsed / PUNCH_OUT or 1 - (elapsed - PUNCH_OUT) / PUNCH_BACK
-			joint.Transform = joint.Transform * CFrame.new():Lerp(punch.rotation, alpha)
+			local alpha = elapsed < swing.out and elapsed / swing.out or 1 - (elapsed - swing.out) / swing.back
+			joint.Transform = joint.Transform * CFrame.new():Lerp(swing.rotation, alpha)
 		end
 	end
 end)
 
-local function getShoulder(character, side)
+-- Returns the shoulder/hip joint for that side and the rotation that swings the limb forward
+local function getJoint(character, side, swing)
 	local humanoid = character:FindFirstChildOfClass("Humanoid")
 	if not humanoid then
 		return nil
 	end
 	if humanoid.RigType == Enum.HumanoidRigType.R15 then
-		local upperArm = character:FindFirstChild(side .. "UpperArm")
-		return upperArm and upperArm:FindFirstChild(side .. "Shoulder"), CFrame.Angles(math.rad(90), 0, 0)
+		local upperLimb = character:FindFirstChild(side .. "Upper" .. swing.limb)
+		return upperLimb and upperLimb:FindFirstChild(side .. swing.joint), CFrame.Angles(math.rad(swing.angle), 0, 0)
 	end
 	local torso = character:FindFirstChild("Torso")
-	local angle = side == "Right" and 90 or -90
-	return torso and torso:FindFirstChild(side .. " Shoulder"), CFrame.Angles(0, 0, math.rad(angle))
+	local angle = side == "Right" and swing.angle or -swing.angle
+	return torso and torso:FindFirstChild(side .. " " .. swing.joint), CFrame.Angles(0, 0, math.rad(angle))
 end
 
-local function animatePunch(character, side)
-	local joint, punchRotation = getShoulder(character, side)
+local function animateHit(character, side, hitMode)
+	local swing = SWINGS[hitMode] or SWINGS.punch
+	local joint, rotation = getJoint(character, side, swing)
 	if joint then
-		activePunches[joint] = { rotation = punchRotation, startTime = os.clock() }
+		activeSwings[joint] = { rotation = rotation, startTime = os.clock(), out = swing.out, back = swing.back }
 	end
 end
 
@@ -97,7 +104,7 @@ local function popGain(part, amount)
 	local label = Instance.new("TextLabel")
 	label.Size = UDim2.fromScale(1, 1)
 	label.BackgroundTransparency = 1
-	label.Text = "+" .. amount .. " POWER"
+	label.Text = "+" .. amount .. " " .. TRAINING.Modes[mode].gainLabel
 	label.TextColor3 = GOLD
 	label.TextStrokeTransparency = 0.3
 	label.Font = Enum.Font.GothamBlack
@@ -179,20 +186,22 @@ local function makeRow(y)
 end
 
 local title = makeLabel("PUNCHING BAG", UDim2.new(0.6, 0, 0.13, 0), UDim2.new(0.03, 0, 0.03, 0), GOLD)
-local strengthLabel = makeLabel("", UDim2.new(0.34, 0, 0.1, 0), UDim2.new(0.63, 0, 0.05, 0))
-strengthLabel.TextXAlignment = Enum.TextXAlignment.Right
+local statLabel = makeLabel("", UDim2.new(0.34, 0, 0.1, 0), UDim2.new(0.63, 0, 0.05, 0))
+statLabel.TextXAlignment = Enum.TextXAlignment.Right
 
-makeLabel("Punches", UDim2.new(0.2, 0, 0.12, 0), UDim2.new(0.03, 0, 0.22, 0))
+local countHeader = makeLabel("Punches", UDim2.new(0.2, 0, 0.12, 0), UDim2.new(0.03, 0, 0.22, 0))
 local countRow = makeRow(0.2)
 makeLabel("Power", UDim2.new(0.2, 0, 0.12, 0), UDim2.new(0.03, 0, 0.42, 0))
 local weightRow = makeRow(0.4)
 
-local MANUAL_HINT = "Click or press 0 to punch, or turn AUTO on."
+local function manualHint()
+	return string.format("Click or press 0 to %s, or turn AUTO on.", TRAINING.Modes[mode].hit)
+end
 
-local progressLabel = makeLabel(MANUAL_HINT, UDim2.new(0.94, 0, 0.1, 0), UDim2.new(0.03, 0, 0.6, 0), Color3.fromRGB(200, 200, 200))
+local progressLabel = makeLabel("", UDim2.new(0.94, 0, 0.1, 0), UDim2.new(0.03, 0, 0.6, 0), Color3.fromRGB(200, 200, 200))
 
 local autoButton = makeButton(panel, "AUTO: OFF", UDim2.new(0.28, 0, 0.18, 0), UDim2.new(0.03, 0, 0.77, 0), Color3.fromRGB(90, 90, 90))
-local punchButton = makeButton(panel, "PUNCH", UDim2.new(0.36, 0, 0.18, 0), UDim2.new(0.33, 0, 0.77, 0), Color3.fromRGB(40, 140, 70))
+local hitButton = makeButton(panel, "PUNCH", UDim2.new(0.36, 0, 0.18, 0), UDim2.new(0.33, 0, 0.77, 0), Color3.fromRGB(40, 140, 70))
 local leaveButton = makeButton(panel, "LEAVE", UDim2.new(0.28, 0, 0.18, 0), UDim2.new(0.69, 0, 0.77, 0), Color3.fromRGB(150, 40, 40))
 
 local countButtons = {}
@@ -209,13 +218,15 @@ for index in ipairs(TRAINING.Weights) do
 	weightButtons[index] = button
 end
 
-local function gainPerPunch(weight)
+local function gainPerHit(weight)
 	return weight.power * (isVip and TRAINING.VipMultiplier or 1)
 end
 
 local function refresh()
-	title.Text = isVip and "VIP PUNCHING BAG" or "PUNCHING BAG"
-	strengthLabel.Text = "Strength: " .. strength
+	local modeInfo = TRAINING.Modes[mode]
+	title.Text = (isVip and "VIP " or "") .. string.upper(modeInfo.bagName)
+	statLabel.Text = string.format("%s: %d", modeInfo.statName, statValue)
+	countHeader.Text = modeInfo.hits:sub(1, 1):upper() .. modeInfo.hits:sub(2)
 
 	for count, button in pairs(countButtons) do
 		button.BackgroundColor3 = count == selectedCount and SELECTED_COLOR or BUTTON_COLOR
@@ -224,24 +235,24 @@ local function refresh()
 
 	for index, weight in ipairs(TRAINING.Weights) do
 		local button = weightButtons[index]
-		if strength < weight.requiredStrength then
-			button.Text = weight.lbs .. " lbs\n🔒 " .. weight.requiredStrength .. " STR"
+		if statValue < weight.required then
+			button.Text = weight.lbs .. " lbs\n🔒 " .. weight.required .. " " .. modeInfo.statLabel
 			button.BackgroundColor3 = LOCKED_COLOR
 		else
-			button.Text = weight.lbs .. " lbs\n+" .. gainPerPunch(weight) .. "/punch"
+			button.Text = weight.lbs .. " lbs\n+" .. gainPerHit(weight) .. "/" .. modeInfo.hit
 			button.BackgroundColor3 = index == selectedWeight and SELECTED_COLOR or BUTTON_COLOR
 		end
 	end
 
 	autoButton.Text = autoTrain and "AUTO: ON" or "AUTO: OFF"
 	autoButton.BackgroundColor3 = autoTrain and Color3.fromRGB(40, 140, 70) or Color3.fromRGB(90, 90, 90)
-	punchButton.Text = autoTrain and "AUTO PUNCHING" or "PUNCH (0)"
-	punchButton.BackgroundColor3 = autoTrain and LOCKED_COLOR or Color3.fromRGB(40, 140, 70)
-	punchButton.AutoButtonColor = not autoTrain
+	hitButton.Text = autoTrain and ("AUTO " .. string.upper(modeInfo.hit) .. "ING") or (string.upper(modeInfo.hit) .. " (0)")
+	hitButton.BackgroundColor3 = autoTrain and LOCKED_COLOR or Color3.fromRGB(40, 140, 70)
+	hitButton.AutoButtonColor = not autoTrain
 end
 
--- Manual mode: one punch per press. The server limits how fast punches land.
-local function throwPunch()
+-- Manual mode: one hit per press. The server limits how fast hits land.
+local function throwHit()
 	if panel.Visible and not autoTrain then
 		trainingEvent:FireServer("punch", selectedCount, selectedWeight)
 	end
@@ -258,7 +269,7 @@ local function setAuto(enabled)
 			trainingEvent:FireServer("stop")
 		end
 		running = false
-		progressLabel.Text = MANUAL_HINT
+		progressLabel.Text = manualHint()
 	end
 	refresh()
 end
@@ -274,7 +285,7 @@ end
 
 for index, button in ipairs(weightButtons) do
 	button.Activated:Connect(function()
-		if not running and strength >= TRAINING.Weights[index].requiredStrength then
+		if not running and statValue >= TRAINING.Weights[index].required then
 			selectedWeight = index
 			refresh()
 		end
@@ -285,7 +296,7 @@ autoButton.Activated:Connect(function()
 	setAuto(not autoTrain)
 end)
 
-punchButton.Activated:Connect(throwPunch)
+hitButton.Activated:Connect(throwHit)
 
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	if gameProcessed then
@@ -297,7 +308,7 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		or input.KeyCode == Enum.KeyCode.KeypadZero
 		or input.KeyCode == Enum.KeyCode.ButtonR2
 	then
-		throwPunch()
+		throwHit()
 	end
 end)
 
@@ -309,15 +320,16 @@ end)
 trainingEvent.OnClientEvent:Connect(function(kind, ...)
 	if kind == "open" then
 		local info = ...
+		mode = TRAINING.Modes[info.mode] and info.mode or "punch"
 		isVip = info.isVip
-		strength = info.strength
+		statValue = info.statValue
 		running = false
 		autoTrain = false
 		-- Fall back to the heaviest unlocked weight if the remembered one is locked
-		while selectedWeight > 1 and strength < TRAINING.Weights[selectedWeight].requiredStrength do
+		while selectedWeight > 1 and statValue < TRAINING.Weights[selectedWeight].required do
 			selectedWeight -= 1
 		end
-		progressLabel.Text = MANUAL_HINT
+		progressLabel.Text = manualHint()
 		panel.Visible = true
 		refresh()
 	elseif kind == "close" then
@@ -325,15 +337,23 @@ trainingEvent.OnClientEvent:Connect(function(kind, ...)
 		running = false
 		autoTrain = false
 	elseif kind == "punch" then
-		local character, bag, side, lbs = ...
+		local character, bag, side, lbs, hitMode = ...
 		if character and bag then
 			swingBag(bag, character, lbs)
-			animatePunch(character, side)
+			animateHit(character, side, hitMode)
 		end
 	elseif kind == "progress" then
 		local info = ...
-		strength = info.strength
-		progressLabel.Text = string.format("Punch %d/%d   ·   +%d power this set", info.punch, info.total, info.gained)
+		local modeInfo = TRAINING.Modes[mode]
+		statValue = info.statValue
+		progressLabel.Text = string.format(
+			"%s %d/%d   ·   +%d %s this set",
+			modeInfo.hit:sub(1, 1):upper() .. modeInfo.hit:sub(2),
+			info.punch,
+			info.total,
+			info.gained,
+			modeInfo.gainLabel:lower()
+		)
 		local character = player.Character
 		local root = character and character:FindFirstChild("HumanoidRootPart")
 		if root then
@@ -342,11 +362,12 @@ trainingEvent.OnClientEvent:Connect(function(kind, ...)
 		refresh()
 	elseif kind == "setComplete" then
 		local info = ...
-		strength = info.strength
+		local modeInfo = TRAINING.Modes[mode]
+		statValue = info.statValue
 		if info.auto then
-			progressLabel.Text = string.format("Set done: +%d power. Next set starting...", info.gained)
+			progressLabel.Text = string.format("Set done: +%d %s. Next set starting...", info.gained, modeInfo.gainLabel:lower())
 		else
-			progressLabel.Text = string.format("Set complete! +%d power. Strength is now %d.", info.gained, info.strength)
+			progressLabel.Text = string.format("Set complete! +%d %s. %s is now %d.", info.gained, modeInfo.gainLabel:lower(), modeInfo.statName, info.statValue)
 		end
 		refresh()
 	elseif kind == "stopped" then

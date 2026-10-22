@@ -65,13 +65,44 @@ local function addPrompt(part, actionText, objectText, tag, attributes)
 	return prompt
 end
 
-local function buildStation(model, gymCFrame, gymIndex, name, x, floorTop, z, isVip)
+-- mode "punch" = hanging punching bag (trains strength), "kick" = floor-standing kicking bag (trains kick)
+local function buildStation(model, gymCFrame, gymIndex, name, x, floorTop, z, isVip, mode)
+	mode = mode or "punch"
 	local padColor = isVip and GOLD or Color3.fromRGB(70, 70, 80)
 	local pad = makePart(model, name, Vector3.new(6, 0.4, 6), gymCFrame * CFrame.new(x, floorTop + 0.2, z), Enum.Material.Fabric, padColor)
 	pad:SetAttribute("Vip", isVip)
 
-	-- Vertical punching bag hanging from the ceiling at the back edge of the pad
 	local bagZ = z + 3.5
+	local modeInfo = WorldConfig.Training.Modes[mode]
+	local objectText = isVip and ("VIP " .. modeInfo.bagName .. " (" .. WorldConfig.Training.VipMultiplier .. "x)") or modeInfo.bagName
+	local promptAttributes = { GymId = gymIndex, Vip = isVip, Mode = mode }
+
+	if mode == "kick" then
+		-- Free-standing kicking bag on a weighted base, at leg height
+		local bagColor = isVip and Color3.fromRGB(30, 30, 30) or Color3.fromRGB(30, 70, 170)
+		makePart(
+			model,
+			name .. "Base",
+			Vector3.new(0.8, 3.4, 3.4),
+			gymCFrame * CFrame.new(x, floorTop + 0.4, bagZ) * CFrame.Angles(0, 0, math.pi / 2),
+			Enum.Material.SmoothPlastic,
+			Color3.fromRGB(35, 35, 40),
+			Enum.PartType.Cylinder
+		)
+		makePart(
+			model,
+			name .. "Bag",
+			Vector3.new(5.5, 2.4, 2.4),
+			gymCFrame * CFrame.new(x, floorTop + 3.55, bagZ) * CFrame.Angles(0, 0, math.pi / 2),
+			Enum.Material.Leather,
+			bagColor,
+			Enum.PartType.Cylinder
+		)
+		addPrompt(pad, "Train", objectText, "GymStation", promptAttributes)
+		return
+	end
+
+	-- Vertical punching bag hanging from the ceiling at the back edge of the pad
 	local bagColor = isVip and Color3.fromRGB(30, 30, 30) or Color3.fromRGB(170, 30, 30)
 	makePart(
 		model,
@@ -93,11 +124,7 @@ local function buildStation(model, gymCFrame, gymIndex, name, x, floorTop, z, is
 	)
 	chain.CanCollide = false
 
-	local objectText = isVip and ("VIP Punching Bag (" .. WorldConfig.Training.VipMultiplier .. "x power)") or "Punching Bag"
-	addPrompt(pad, "Train", objectText, "GymStation", {
-		GymId = gymIndex,
-		Vip = isVip,
-	})
+	addPrompt(pad, "Train", objectText, "GymStation", promptAttributes)
 end
 
 local TREADMILL_COLORS = {
@@ -230,11 +257,19 @@ local function buildGym(world, index)
 		buildTreadmill(model, gymCFrame, index, tierKey, -18 + (i - 1) * 12, 8)
 	end
 
-	-- VIP floor: gold carpet and one row of VIP stations
+	-- Ground floor: kicking bags in the open area by the entrance, either side of the doorway
+	for i, x in ipairs({ -24, -14, 14, 24 }) do
+		buildStation(model, gymCFrame, index, "KickStation" .. i, x, 1, -17, false, "kick")
+	end
+
+	-- VIP floor: gold carpet, one row of VIP punching bags and two VIP kicking bags
 	local carpet = makePart(model, "VipCarpet", Vector3.new(W - 4, 0.1, D - 4), at(0, F + 1.05, 0), Enum.Material.Fabric, Color3.fromRGB(120, 20, 30))
 	carpet.CanCollide = false
 	for i = 1, math.min(GYM.VipStations, #xs) do
 		buildStation(model, gymCFrame, index, "VipStation" .. i, xs[i], F + 1, -2, true)
+	end
+	for i, x in ipairs({ -14, 14 }) do
+		buildStation(model, gymCFrame, index, "VipKickStation" .. i, x, F + 1, -17, true, "kick")
 	end
 
 	-- Bidding board on the ground floor's back wall
