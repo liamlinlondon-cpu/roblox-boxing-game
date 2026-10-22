@@ -104,6 +104,15 @@ function startEvent(sky)
 	end)
 end
 
+-- Ends the running event now; the next random event follows after the usual interval
+local function clearEvent()
+	if not ReplicatedStorage:GetAttribute("SkyEventColor") then
+		return
+	end
+	scheduleToken += 1
+	endEvent(scheduleToken)
+end
+
 task.delay(EVENTS.FirstDelaySeconds, function()
 	if scheduleToken == 0 then
 		startEvent(pickColor(nil))
@@ -111,7 +120,8 @@ task.delay(EVENTS.FirstDelaySeconds, function()
 end)
 
 -- ==================== CHAT COMMANDS ====================
--- "/ruby", "/sapphire", ... start that color's event right away (WorldConfig.SkyEvents.Commands)
+-- "/ruby", "/sapphire", ... start that color's event right away (WorldConfig.SkyEvents.Commands);
+-- "/non color" ends the event and turns the sky back to normal.
 
 local function canUseCommands(player)
 	if RunService:IsStudio() or table.find(EVENTS.CommandUserIds, player.UserId) then
@@ -125,8 +135,15 @@ local function canUseCommands(player)
 end
 
 local function runCommand(player, alias)
+	if not canUseCommands(player) then
+		return
+	end
+	if alias == EVENTS.ClearCommand or alias == EVENTS.ClearCommandAlias then
+		clearEvent()
+		return
+	end
 	local sky = Catalog.SkyColorById[EVENTS.Commands[alias] or ""]
-	if sky and canUseCommands(player) then
+	if sky then
 		startEvent(sky)
 	end
 end
@@ -135,11 +152,15 @@ if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
 	local commandsFolder = Instance.new("Folder")
 	commandsFolder.Name = "SkyEventCommands"
 	commandsFolder.Parent = TextChatService
-	for alias in pairs(EVENTS.Commands) do
+	local function addCommand(alias, secondaryAlias)
 		local command = Instance.new("TextChatCommand")
 		command.Name = "SkyEvent_" .. alias
 		command.PrimaryAlias = "/" .. alias
+		if secondaryAlias then
+			command.SecondaryAlias = "/" .. secondaryAlias
+		end
 		command.Parent = commandsFolder
+		-- Commands match on the first word, so "/non color" triggers "/non"
 		command.Triggered:Connect(function(textSource)
 			local player = Players:GetPlayerByUserId(textSource.UserId)
 			if player then
@@ -147,11 +168,15 @@ if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
 			end
 		end)
 	end
+	for alias in pairs(EVENTS.Commands) do
+		addCommand(alias)
+	end
+	addCommand(EVENTS.ClearCommand, EVENTS.ClearCommandAlias)
 else
-	-- Places still on the legacy chat
+	-- Places still on the legacy chat: use the first word ("/non color" -> "non")
 	local function listen(player)
 		player.Chatted:Connect(function(message)
-			local alias = string.match(string.lower(message), "^/(%w+)$")
+			local alias = string.match(string.lower(message), "^/(%w+)")
 			if alias then
 				runCommand(player, alias)
 			end

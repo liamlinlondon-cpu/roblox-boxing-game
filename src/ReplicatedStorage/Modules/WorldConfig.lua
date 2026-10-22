@@ -71,6 +71,9 @@ WorldConfig.SkyEvents = {
 		crystal = "purple",
 		mta = "magenta",
 	},
+	-- Chat command that ends the current event and turns the sky back to normal ("/non color")
+	ClearCommand = "non",
+	ClearCommandAlias = "noncolor",
 	-- Who may use the commands: the game's owner (or group owner), anyone in Studio, plus these user IDs
 	CommandUserIds = {},
 }
