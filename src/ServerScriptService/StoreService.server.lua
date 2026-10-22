@@ -116,6 +116,9 @@ local function grant(player, itemId)
 	elseif item.kind == "strength" then
 		FighterStats.TrainStrength(data, item.amount)
 		return true, "+" .. Catalog.FormatNumber(item.amount) .. " strength!"
+	elseif item.kind == "kick" then
+		FighterStats.TrainKick(data, item.amount)
+		return true, "+" .. Catalog.FormatNumber(item.amount) .. " kick!"
 	elseif item.kind == "maxluck" then
 		data.luck = Catalog.VipMaxLuck
 		return true, "2x max luck (" .. Catalog.VipMaxLuck .. ") unlocked!"

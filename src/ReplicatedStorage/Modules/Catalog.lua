@@ -24,6 +24,10 @@ local function strength(id, name, amount, robux)
 	return { id = id, kind = "strength", name = name, amount = amount, robux = robux, productId = 0 }
 end
 
+local function kick(id, name, amount, robux)
+	return { id = id, kind = "kick", name = name, amount = amount, robux = robux, productId = 0 }
+end
+
 Catalog.Normal = {
 	{ id = "carpet", kind = "carpet", name = "Basic Carpet", robux = 1000, productId = 0 },
 	money("money_1k", "1,000 Money", 1e3, 272),
@@ -35,6 +39,10 @@ Catalog.Normal = {
 	strength("str_1k", "+1,000 Strength", 1e3, 199),
 	strength("str_1m", "+1,000,000 Strength", 1e6, 1499),
 	strength("str_1b", "+1 Billion Strength", 1e9, 9999),
+	kick("kick_100", "+100 Kick", 100, 49),
+	kick("kick_1k", "+1,000 Kick", 1e3, 199),
+	kick("kick_1m", "+1,000,000 Kick", 1e6, 1499),
+	kick("kick_1b", "+1 Billion Kick", 1e9, 9999),
 	-- Can be bought again and again: 10x, 100x, 1,000x...
 	{ id = "wins10", kind = "wins10", name = "10x Wins", robux = 2999, productId = 0 },
 }
@@ -42,6 +50,8 @@ Catalog.Normal = {
 -- Only World Champions can use the VIP shop (see FighterStats.IsWorldChampion)
 Catalog.Vip = {
 	{ id = "maxluck", kind = "maxluck", name = "2x Max Luck (200)", robux = 4999, productId = 0 },
+	strength("str_1t", "+1 Trillion Strength (Punch)", 1e12, 19999),
+	kick("kick_1t", "+1 Trillion Kick", 1e12, 19999),
 	money("money_1t", "1 Trillion Money", 1e12, 20000),
 	money("money_1qa", "1 Quadrillion Money", 1e15, 100000),
 	money("money_1sx", "1 Sextillion Money", 1e21, 1e6),

@@ -1,4 +1,4 @@
--- Strength and stamina bars at the top of the screen. Updated from any MatchResult message that
+-- Strength, kick and stamina bars at the top of the screen. Updated from any MatchResult message that
 -- carries those stats (FlowService, StoreService and ArenaService all send them).
 
 local Players = game:GetService("Players")
@@ -8,6 +8,7 @@ local TweenService = game:GetService("TweenService")
 local Modules = ReplicatedStorage:WaitForChild("Modules")
 local FighterStats = require(Modules:WaitForChild("FighterStats"))
 local Catalog = require(Modules:WaitForChild("Catalog"))
+local WorldConfig = require(Modules:WaitForChild("WorldConfig"))
 local events = ReplicatedStorage:WaitForChild("Events")
 local matchResultEvent = events:WaitForChild("MatchResult")
 local flowEvent = events:WaitForChild("FlowAction")
@@ -25,7 +26,7 @@ screenGui.Parent = player:WaitForChild("PlayerGui")
 local container = Instance.new("Frame")
 container.Name = "StatBars"
 container.AnchorPoint = Vector2.new(0.5, 0)
-container.Size = UDim2.new(0.4, 0, 0, 62)
+container.Size = UDim2.new(0.4, 0, 0, 90)
 container.Position = UDim2.new(0.5, 0, 0, 8)
 container.BackgroundColor3 = Color3.fromRGB(24, 24, 24)
 container.BackgroundTransparency = 0.35
@@ -34,8 +35,8 @@ container.BorderColor3 = GOLD
 container.Parent = screenGui
 
 local sizeConstraint = Instance.new("UISizeConstraint")
-sizeConstraint.MinSize = Vector2.new(280, 62)
-sizeConstraint.MaxSize = Vector2.new(460, 62)
+sizeConstraint.MinSize = Vector2.new(280, 90)
+sizeConstraint.MaxSize = Vector2.new(460, 90)
 sizeConstraint.Parent = container
 
 local function makeBar(name, y, fillColor)
@@ -82,7 +83,8 @@ local function makeBar(name, y, fillColor)
 end
 
 local strengthFill, strengthText = makeBar("Strength", 6, Color3.fromRGB(210, 60, 60))
-local staminaFill, staminaText = makeBar("Stamina", 34, Color3.fromRGB(60, 170, 90))
+local kickFill, kickText = makeBar("Kick", 34, Color3.fromRGB(60, 110, 220))
+local staminaFill, staminaText = makeBar("Stamina", 62, Color3.fromRGB(60, 170, 90))
 
 local function setFill(fill, fraction)
 	fraction = math.clamp(fraction, 0, 1)
@@ -103,6 +105,25 @@ local function updateStrength(strength)
 	end
 end
 
+-- Kick has no maximum, so its bar fills toward the next kicking-bag weight unlock
+local function updateKick(kick)
+	local previous, nextUnlock = 0, nil
+	for _, weight in ipairs(WorldConfig.Training.Weights) do
+		if kick < weight.required then
+			nextUnlock = weight
+			break
+		end
+		previous = weight.required
+	end
+	if nextUnlock then
+		setFill(kickFill, (kick - previous) / (nextUnlock.required - previous))
+		kickText.Text = string.format("%s / %s  ·  next: %d lbs kicks", Catalog.FormatNumber(kick), Catalog.FormatNumber(nextUnlock.required), nextUnlock.lbs)
+	else
+		setFill(kickFill, 1)
+		kickText.Text = string.format("%s  ·  all weights unlocked", Catalog.FormatNumber(kick))
+	end
+end
+
 local function updateStamina(stamina, maxStamina)
 	setFill(staminaFill, maxStamina > 0 and stamina / maxStamina or 0)
 	staminaText.Text = string.format("%s / %s", Catalog.FormatNumber(stamina), Catalog.FormatNumber(maxStamina))
@@ -114,6 +135,9 @@ matchResultEvent.OnClientEvent:Connect(function(data)
 	end
 	if data.type == "stats" and type(data.strength) == "number" then
 		updateStrength(data.strength)
+	end
+	if data.type == "stats" and type(data.kick) == "number" then
+		updateKick(data.kick)
 	end
 	if type(data.stamina) == "number" and type(data.maxStamina) == "number" then
 		updateStamina(data.stamina, data.maxStamina)
