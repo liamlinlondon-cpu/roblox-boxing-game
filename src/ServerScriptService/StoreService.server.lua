@@ -64,6 +64,8 @@ local function buildState(player)
 		strength = data.strength,
 		vipUnlocked = FighterStats.IsWorldChampion(data.strength),
 		vipRequiredStrength = FighterStats.Stages[#FighterStats.Stages].minStrength,
+		ownedSkins = data.ownedSkins,
+		skin = data.skin,
 	}
 end
 
@@ -89,6 +91,44 @@ local function attachCarpet(character)
 	weld.Part1 = carpet
 	weld.Parent = carpet
 	carpet.Parent = character
+end
+
+-- Color skins: the whole body turns the skin color (clothing is removed so the color shows)
+local BODY_COLOR_PROPERTIES = { "HeadColor3", "TorsoColor3", "LeftArmColor3", "RightArmColor3", "LeftLegColor3", "RightLegColor3" }
+
+local function applySkin(player)
+	local data = FighterStats.GetPlayerData(player)
+	local character = player.Character
+	local sky = data.skin and Catalog.SkyColorById[data.skin]
+	if not character or not sky then
+		return
+	end
+	for _, child in ipairs(character:GetChildren()) do
+		if child:IsA("Shirt") or child:IsA("Pants") or child:IsA("ShirtGraphic") then
+			child:Destroy()
+		elseif child:IsA("BasePart") and child.Name ~= "HumanoidRootPart" and child.Name ~= "BasicCarpet" then
+			child.Color = sky.color
+		end
+	end
+	local bodyColors = character:FindFirstChildOfClass("BodyColors")
+	if not bodyColors then
+		bodyColors = Instance.new("BodyColors")
+		bodyColors.Parent = character
+	end
+	for _, property in ipairs(BODY_COLOR_PROPERTIES) do
+		bodyColors[property] = sky.color
+	end
+end
+
+-- Puts the player's own avatar look back (body colors and clothing)
+local function restoreLook(player)
+	local character = player.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if humanoid then
+		pcall(function()
+			humanoid:ApplyDescription(Players:GetHumanoidDescriptionFromUserId(player.UserId))
+		end)
+	end
 end
 
 local function grant(player, itemId)
@@ -128,6 +168,11 @@ local function grant(player, itemId)
 	elseif item.kind == "treadmill" then
 		data.treadmills[item.tier] = true
 		return true, item.name .. " unlocked!"
+	elseif item.kind == "skin" then
+		data.ownedSkins[item.colorId] = true
+		data.skin = item.colorId
+		applySkin(player)
+		return true, item.name .. " unlocked and equipped!"
 	end
 	return false, "Unknown item."
 end
@@ -148,6 +193,13 @@ local function priceCheck(player, itemId)
 		return "You already own the carpet."
 	elseif Catalog.ById[itemId] and Catalog.ById[itemId].kind == "treadmill" and data.treadmills[Catalog.ById[itemId].tier] then
 		return "Treadmill already unlocked."
+	elseif item and item.kind == "skin" then
+		if data.ownedSkins[item.colorId] then
+			return "You already own the " .. item.name .. ". Press WEAR to put it on."
+		end
+		if ReplicatedStorage:GetAttribute("SkyEventColor") ~= item.colorId then
+			return "The " .. item.name .. " is only sold during a " .. Catalog.SkyColorById[item.colorId].name .. " sky event."
+		end
 	end
 	return nil
 end
@@ -172,7 +224,7 @@ local function buy(player, itemId, method)
 
 	if method == "money" then
 		local item = Catalog.ById[itemId]
-		if not item or item.kind ~= "treadmill" then
+		if not item or not item.money then
 			notify(player, "This item can only be bought with Robux.", false)
 			return
 		end
@@ -219,9 +271,27 @@ ReceiptRouter.Register(function(receipt)
 	return Enum.ProductPurchaseDecision.PurchaseGranted
 end)
 
+-- Switch between owned color skins, or "none" for the player's normal look
+local function wear(player, colorId)
+	local data = FighterStats.GetPlayerData(player)
+	if colorId == "none" then
+		if data.skin then
+			data.skin = nil
+			restoreLook(player)
+		end
+		notify(player, "Back to your normal look.", true)
+	elseif type(colorId) == "string" and data.ownedSkins[colorId] then
+		data.skin = colorId
+		applySkin(player)
+		notify(player, "Wearing the " .. Catalog.SkyColorById[colorId].name .. " skin!", true)
+	end
+end
+
 storeEvent.OnServerEvent:Connect(function(player, action, itemId, method)
 	if action == "buy" then
 		buy(player, itemId, method)
+	elseif action == "wear" then
+		wear(player, itemId)
 	end
 end)
 
@@ -248,5 +318,9 @@ Players.PlayerAdded:Connect(function(player)
 		if FighterStats.GetPlayerData(player).carpet then
 			attachCarpet(character)
 		end
+	end)
+	-- Re-apply the worn color skin after each respawn, once the avatar's clothes have loaded
+	player.CharacterAppearanceLoaded:Connect(function()
+		applySkin(player)
 	end)
 end)

@@ -67,8 +67,36 @@ Catalog.Treadmills = {
 	{ id = "tm_owner", kind = "treadmill", tier = "owner", name = "Owner's Treadmill", money = 5e12, robux = 500000, productId = 0 },
 }
 
+-- Sky event colors. During a sky event the sky turns that color and the Color Shop (next to the ring)
+-- sells the matching skin. Skins are kept once bought and can be worn again any time.
+Catalog.SkyColors = {
+	{ id = "red", name = "Red", color = Color3.fromRGB(255, 40, 40) },
+	{ id = "blue", name = "Blue", color = Color3.fromRGB(40, 90, 255) },
+	{ id = "green", name = "Green", color = Color3.fromRGB(40, 200, 70) },
+	{ id = "purple", name = "Purple", color = Color3.fromRGB(150, 60, 220) },
+	{ id = "yellow", name = "Yellow", color = Color3.fromRGB(255, 220, 40) },
+	{ id = "orange", name = "Orange", color = Color3.fromRGB(255, 140, 30) },
+	{ id = "pink", name = "Pink", color = Color3.fromRGB(255, 100, 200) },
+	{ id = "cyan", name = "Cyan", color = Color3.fromRGB(40, 220, 230) },
+	{ id = "magenta", name = "Magenta", color = Color3.fromRGB(255, 0, 255) },
+}
+Catalog.SkyColorById = {}
+Catalog.ColorSkins = {}
+for _, sky in ipairs(Catalog.SkyColors) do
+	Catalog.SkyColorById[sky.id] = sky
+	table.insert(Catalog.ColorSkins, {
+		id = "skin_" .. sky.id,
+		kind = "skin",
+		colorId = sky.id,
+		name = sky.name .. " Skin",
+		money = 10000,
+		robux = 75,
+		productId = 0,
+	})
+end
+
 Catalog.ById = {}
-for store, list in pairs({ normal = Catalog.Normal, vip = Catalog.Vip, treadmill = Catalog.Treadmills }) do
+for store, list in pairs({ normal = Catalog.Normal, vip = Catalog.Vip, treadmill = Catalog.Treadmills, color = Catalog.ColorSkins }) do
 	for _, item in ipairs(list) do
 		item.store = store
 		Catalog.ById[item.id] = item

@@ -36,6 +36,8 @@ function FighterStats.CreatePlayerData()
 		luckPurchases = 0,
 		winMultiplier = 1,
 		carpet = false,
+		ownedSkins = {}, -- [colorId] = true, bought in the Color Shop during sky events
+		skin = nil, -- colorId currently worn, or nil for the player's normal look
 	}
 end
 

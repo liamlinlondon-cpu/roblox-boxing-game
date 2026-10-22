@@ -52,6 +52,29 @@ WorldConfig.Shop = {
 }
 WorldConfig.ArenaEntrance = Vector3.new(0, 4, 24)
 
+-- Color Shop kiosk next to the ring, opposite the normal shop. It sells the current sky event's skin.
+WorldConfig.ColorShop = {
+	Position = Vector3.new(-27.5, 0, -47.6),
+}
+
+-- Sky color events: the sky turns a random color (Catalog.SkyColors) for a few minutes
+WorldConfig.SkyEvents = {
+	FirstDelaySeconds = 60, -- first event this long after the server starts
+	IntervalSeconds = 6 * 60, -- time between the end of one event and the start of the next
+	DurationSeconds = 3 * 60,
+	-- Chat commands that start an event right away, e.g. "/ruby" -> red sky (color ids from Catalog.SkyColors)
+	Commands = {
+		ruby = "red",
+		amber = "orange",
+		sy = "yellow",
+		sapphire = "blue",
+		crystal = "purple",
+		mta = "magenta",
+	},
+	-- Who may use the commands: the game's owner (or group owner), anyone in Studio, plus these user IDs
+	CommandUserIds = {},
+}
+
 WorldConfig.WallHeight = 60
 WorldConfig.WallThickness = 4
 

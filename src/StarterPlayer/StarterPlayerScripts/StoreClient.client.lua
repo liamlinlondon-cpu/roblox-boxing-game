@@ -93,7 +93,7 @@ local function addRow(text, buttons)
 		btn.Text = info.text
 		btn.Parent = row
 		btn.MouseButton1Click:Connect(function()
-			storeEvent:FireServer("buy", info.itemId, info.method)
+			storeEvent:FireServer(info.action or "buy", info.itemId, info.method)
 		end)
 	end
 end
@@ -105,11 +105,52 @@ local function robuxButton(item, itemId, price)
 	return { text = "R$ " .. Catalog.FormatNumber(price), itemId = itemId, method = "robux", color = ROBUX_COLOR }
 end
 
+local WEAR_COLOR = Color3.fromRGB(75, 110, 180)
+local lastState = nil
+
+-- Color Shop: the current sky event's skin is for sale; owned skins can be worn any time
+local function renderColorShop(state)
+	title.Text = "COLOR SHOP"
+	local eventColorId = ReplicatedStorage:GetAttribute("SkyEventColor")
+	local eventSky = eventColorId and Catalog.SkyColorById[eventColorId]
+	if eventSky then
+		local item = Catalog.ById["skin_" .. eventSky.id]
+		if state.ownedSkins and state.ownedSkins[eventSky.id] then
+			addRow(item.name .. " (owned)", {})
+		else
+			addRow(eventSky.name .. " sky event! " .. item.name, {
+				{ text = Catalog.FormatNumber(item.money) .. " money", itemId = item.id, method = "money", color = MONEY_COLOR },
+				robuxButton(item, item.id, item.robux),
+			})
+		end
+	else
+		addRow("No sky event right now. Come back when the sky changes color!", {})
+	end
+
+	for _, sky in ipairs(Catalog.SkyColors) do
+		if state.ownedSkins and state.ownedSkins[sky.id] then
+			local wearing = state.skin == sky.id
+			addRow(sky.name .. " Skin" .. (wearing and " (wearing)" or ""), wearing and {} or {
+				{ text = "WEAR", itemId = sky.id, action = "wear", color = WEAR_COLOR },
+			})
+		end
+	end
+	if state.skin then
+		addRow("Normal look", { { text = "WEAR", itemId = "none", action = "wear", color = WEAR_COLOR } })
+	end
+end
+
 local function render(state)
+	lastState = state
 	for _, child in ipairs(list:GetChildren()) do
 		if child:IsA("Frame") then
 			child:Destroy()
 		end
+	end
+
+	if currentStore == "color" then
+		renderColorShop(state)
+		return
 	end
 
 	if currentStore == "vip" then
@@ -165,5 +206,12 @@ storeEvent.OnClientEvent:Connect(function(action, a, b, c)
 		if frame.Visible and c then
 			render(c)
 		end
+	end
+end)
+
+-- Refresh the Color Shop when a sky event starts or ends while it's open
+ReplicatedStorage:GetAttributeChangedSignal("SkyEventColor"):Connect(function()
+	if frame.Visible and currentStore == "color" and lastState then
+		render(lastState)
 	end
 end)

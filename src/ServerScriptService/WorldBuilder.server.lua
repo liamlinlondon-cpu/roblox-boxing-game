@@ -325,6 +325,10 @@ local function buildWorld()
 	local shopPosition = center + WorldConfig.Shop.Position
 	buildKiosk(world, CFrame.lookAt(shopPosition, Vector3.new(center.X, shopPosition.Y, center.Z)) * CFrame.Angles(0, math.pi, 0), "SHOP", Color3.fromRGB(60, 120, 220), "normal")
 
+	-- Color Shop kiosk on the other side of the ring: sells the current sky event's color skin
+	local colorShopPosition = center + WorldConfig.ColorShop.Position
+	buildKiosk(world, CFrame.lookAt(colorShopPosition, Vector3.new(center.X, colorShopPosition.Y, center.Z)) * CFrame.Angles(0, math.pi, 0), "COLOR SHOP", Color3.fromRGB(200, 60, 200), "color")
+
 	for i = 1, GYM.Count do
 		local gymPosition = WorldConfig.GetGymCFrame(i).Position
 		local toCenter = (center - gymPosition).Unit
