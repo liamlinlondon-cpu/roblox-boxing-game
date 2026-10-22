@@ -6,7 +6,9 @@
 
 local Catalog = {}
 
-Catalog.MaxLuck = 99
+Catalog.MaxLuck = 99 -- highest luck from the normal shop's luck upgrades
+Catalog.VipMaxLuck = 200 -- the VIP shop's "2x Max Luck"
+Catalog.WinsMultiplierStep = 10 -- each "10x Wins" purchase multiplies win rewards by this again
 Catalog.LuckSteps = 6 -- luck doubles 1 > 2 > 4 > 8 > 16 > 32 > 64, then jumps to 99
 Catalog.LuckBasePrice = 99 -- Robux; after the first two luck purchases the price rises by 50 each time
 Catalog.LuckPriceStep = 50
@@ -18,6 +20,10 @@ local function money(id, name, amount, robux)
 	return { id = id, kind = "money", name = name, amount = amount, robux = robux, productId = 0 }
 end
 
+local function strength(id, name, amount, robux)
+	return { id = id, kind = "strength", name = name, amount = amount, robux = robux, productId = 0 }
+end
+
 Catalog.Normal = {
 	{ id = "carpet", kind = "carpet", name = "Basic Carpet", robux = 1000, productId = 0 },
 	money("money_1k", "1,000 Money", 1e3, 272),
@@ -25,17 +31,23 @@ Catalog.Normal = {
 	money("money_1m", "1,000,000 Money", 1e6, 752),
 	money("money_10m", "10,000,000 Money", 1e7, 1056),
 	money("money_1b", "1 Billion Money", 1e9, 7999),
+	strength("str_100", "+100 Strength", 100, 49),
+	strength("str_1k", "+1,000 Strength", 1e3, 199),
+	strength("str_1m", "+1,000,000 Strength", 1e6, 1499),
+	strength("str_1b", "+1 Billion Strength", 1e9, 9999),
+	-- Can be bought again and again: 10x, 100x, 1,000x...
+	{ id = "wins10", kind = "wins10", name = "10x Wins", robux = 2999, productId = 0 },
 }
 
+-- Only World Champions can use the VIP shop (see FighterStats.IsWorldChampion)
 Catalog.Vip = {
-	{ id = "maxluck", kind = "maxluck", name = "Max Luck x2 (99)", robux = 4999, productId = 0 },
+	{ id = "maxluck", kind = "maxluck", name = "2x Max Luck (200)", robux = 4999, productId = 0 },
 	money("money_1t", "1 Trillion Money", 1e12, 20000),
 	money("money_1qa", "1 Quadrillion Money", 1e15, 100000),
 	money("money_1sx", "1 Sextillion Money", 1e21, 1e6),
 	money("money_1sp", "1 Septillion Money", 1e24, 1e7),
 	money("money_1no", "1 Nonillion Money", 1e30, 1e8),
 	money("money_inf", "Infinite Money", math.huge, 1e9),
-	{ id = "wins10", kind = "wins10", name = "10x Wins", robux = 2999, productId = 0 },
 }
 
 -- Treadmill unlocks: everyone starts with the regular treadmill.
@@ -46,8 +58,9 @@ Catalog.Treadmills = {
 }
 
 Catalog.ById = {}
-for _, list in ipairs({ Catalog.Normal, Catalog.Vip, Catalog.Treadmills }) do
+for store, list in pairs({ normal = Catalog.Normal, vip = Catalog.Vip, treadmill = Catalog.Treadmills }) do
 	for _, item in ipairs(list) do
+		item.store = store
 		Catalog.ById[item.id] = item
 	end
 end

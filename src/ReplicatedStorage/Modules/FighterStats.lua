@@ -73,6 +73,11 @@ function FighterStats.GetStageFromStrength(strength)
 	return FighterStats.Stages[FighterStats.GetStageIndex(strength)].name
 end
 
+-- The top stage; required to use the VIP shop
+function FighterStats.IsWorldChampion(strength)
+	return FighterStats.GetStageIndex(strength) == #FighterStats.Stages
+end
+
 function FighterStats.TrainStrength(data, amount)
 	data.strength = data.strength + amount
 	data.bodyStage = FighterStats.GetStageFromStrength(data.strength)

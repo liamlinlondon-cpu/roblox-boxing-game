@@ -536,25 +536,32 @@ end)
 
 -- ==================== NAV BAR ====================
 -- Always-visible buttons that teleport to the gym, arena and shop (plus the stats screen).
+-- A vertical column on the right edge, so the bottom of the screen stays clear.
 local navBar = Instance.new("Frame")
 navBar.Name = "NavBar"
-navBar.Size = UDim2.new(0, 460, 0, 56)
-navBar.Position = UDim2.new(0.5, -230, 1, -70)
+navBar.AnchorPoint = Vector2.new(1, 0.5)
+navBar.Size = UDim2.new(0, 100, 0, 240)
+navBar.Position = UDim2.new(1, -12, 0.5, 0)
 navBar.BackgroundColor3 = Color3.fromRGB(24, 24, 24)
+navBar.BackgroundTransparency = 0.35
 navBar.BorderSizePixel = 2
 navBar.BorderColor3 = Color3.fromRGB(255, 215, 0)
 navBar.Parent = screenGui
 
 local navLayout = Instance.new("UIListLayout")
-navLayout.FillDirection = Enum.FillDirection.Horizontal
+navLayout.FillDirection = Enum.FillDirection.Vertical
 navLayout.Padding = UDim.new(0, 6)
 navLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 navLayout.VerticalAlignment = Enum.VerticalAlignment.Center
 navLayout.Parent = navBar
 
+local navButtonCount = 0
+
 local function createNavButton(text, action)
+	navButtonCount += 1
 	local btn = Instance.new("TextButton")
 	btn.Name = text .. "NavBtn"
+	btn.LayoutOrder = navButtonCount
 	btn.Size = UDim2.new(0, 84, 0, 40)
 	btn.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
 	btn.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -573,5 +580,5 @@ createNavButton("SHOP", "goto_shop")
 createNavButton("VIP SHOP", "goto_vipshop")
 createNavButton("STATS", "home")
 
--- Start in the world with the nav bar visible
+-- Start in the world with the nav column visible
 setScreen("world")

@@ -124,6 +124,11 @@ local function handleGoto(player, place)
 	if place == "gym" then
 		target = WorldConfig.GetGymPoint(1, WorldConfig.Gyms.Points.Entrance)
 	elseif place == "vipshop" then
+		if not FighterStats.IsWorldChampion(getPlayerData(player).strength) then
+			-- Shows the VIP shop's "World Champions only" message instead of teleporting
+			script.Parent:WaitForChild("StoreService"):WaitForChild("OpenStore"):Fire(player, "vip")
+			return
+		end
 		target = WorldConfig.GetGymPoint(WorldConfig.Gyms.Count, WorldConfig.Gyms.Points.Entrance)
 	elseif place == "arena" then
 		target = CFrame.lookAt(WorldConfig.ArenaEntrance, WorldConfig.Arena.Center + Vector3.new(0, WorldConfig.ArenaEntrance.Y, 0))

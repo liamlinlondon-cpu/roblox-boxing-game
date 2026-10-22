@@ -61,6 +61,9 @@ local function buildState(player)
 		treadmills = data.treadmills,
 		carpet = data.carpet,
 		winMultiplier = data.winMultiplier,
+		strength = data.strength,
+		vipUnlocked = FighterStats.IsWorldChampion(data.strength),
+		vipRequiredStrength = FighterStats.Stages[#FighterStats.Stages].minStrength,
 	}
 end
 
@@ -110,12 +113,15 @@ local function grant(player, itemId)
 			attachCarpet(player.Character)
 		end
 		return true, "Basic carpet unlocked!"
+	elseif item.kind == "strength" then
+		FighterStats.TrainStrength(data, item.amount)
+		return true, "+" .. Catalog.FormatNumber(item.amount) .. " strength!"
 	elseif item.kind == "maxluck" then
-		data.luck = Catalog.MaxLuck
-		return true, "Max luck (" .. Catalog.MaxLuck .. ") unlocked!"
+		data.luck = Catalog.VipMaxLuck
+		return true, "2x max luck (" .. Catalog.VipMaxLuck .. ") unlocked!"
 	elseif item.kind == "wins10" then
-		data.winMultiplier = 10
-		return true, "Win rewards are now 10x!"
+		data.winMultiplier = (data.winMultiplier or 1) * Catalog.WinsMultiplierStep
+		return true, "Win rewards are now " .. Catalog.FormatNumber(data.winMultiplier) .. "x!"
 	elseif item.kind == "treadmill" then
 		data.treadmills[item.tier] = true
 		return true, item.name .. " unlocked!"
@@ -125,14 +131,16 @@ end
 
 local function priceCheck(player, itemId)
 	local data = FighterStats.GetPlayerData(player)
+	local item = Catalog.ById[itemId]
+	if item and item.store == "vip" and not FighterStats.IsWorldChampion(data.strength) then
+		return "The VIP shop is for World Champions only."
+	end
 	if itemId == "luck" then
 		if not Catalog.NextLuck(data.luck) then
 			return "Max luck reached."
 		end
-	elseif itemId == "maxluck" and data.luck >= Catalog.MaxLuck then
-		return "You already have max luck."
-	elseif itemId == "wins10" and data.winMultiplier >= 10 then
-		return "You already have 10x wins."
+	elseif itemId == "maxluck" and data.luck >= Catalog.VipMaxLuck then
+		return "You already have 2x max luck."
 	elseif itemId == "carpet" and data.carpet then
 		return "You already own the carpet."
 	elseif Catalog.ById[itemId] and Catalog.ById[itemId].kind == "treadmill" and data.treadmills[Catalog.ById[itemId].tier] then

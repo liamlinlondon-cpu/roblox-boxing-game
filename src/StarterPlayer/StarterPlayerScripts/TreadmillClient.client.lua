@@ -20,13 +20,14 @@ local autoRun = false
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "TreadmillGui"
 screenGui.ResetOnSpawn = false
+screenGui.DisplayOrder = 5 -- draw above the other HUD panels
 screenGui.Parent = player:WaitForChild("PlayerGui")
 
 local panel = Instance.new("Frame")
 panel.Name = "TreadmillPanel"
 panel.AnchorPoint = Vector2.new(0.5, 1)
 panel.Size = UDim2.new(0.34, 0, 0.2, 0)
-panel.Position = UDim2.new(0.5, 0, 1, -16)
+panel.Position = UDim2.new(0.5, 0, 1, -110) -- raised so the buttons clear the bottom-of-screen controls
 panel.BackgroundColor3 = Color3.fromRGB(24, 24, 24)
 panel.BackgroundTransparency = 0.2
 panel.BorderSizePixel = 2

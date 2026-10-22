@@ -114,6 +114,14 @@ local function render(state)
 
 	if currentStore == "vip" then
 		title.Text = "VIP SHOP"
+		if not state.vipUnlocked then
+			addRow(string.format(
+				"🔒 World Champions only: reach %s strength (you have %s)",
+				Catalog.FormatNumber(state.vipRequiredStrength),
+				Catalog.FormatNumber(state.strength)
+			), {})
+			return
+		end
 		for _, item in ipairs(Catalog.Vip) do
 			addRow(item.name, { robuxButton(item, item.id, item.robux) })
 		end
@@ -122,7 +130,11 @@ local function render(state)
 
 	title.Text = "SHOP"
 	for _, item in ipairs(Catalog.Normal) do
-		addRow(item.name, { robuxButton(item, item.id, item.robux) })
+		local text = item.name
+		if item.kind == "wins10" then
+			text = string.format("%s (now %sx)", item.name, Catalog.FormatNumber(state.winMultiplier or 1))
+		end
+		addRow(text, { robuxButton(item, item.id, item.robux) })
 	end
 	if state.nextLuck then
 		addRow("Luck " .. state.luck .. " > " .. state.nextLuck, { robuxButton(nil, "luck", state.luckPrice) })
