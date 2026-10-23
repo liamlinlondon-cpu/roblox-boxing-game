@@ -1,3 +1,5 @@
+local Catalog = require(script.Parent:WaitForChild("Catalog"))
+
 local FighterStats = {}
 
 FighterStats.BASE_STAMINA = 100
@@ -121,9 +123,16 @@ function FighterStats.ConsumeStamina(data, actionType)
 	return true
 end
 
+-- Fight boost from the worn color skin (Catalog.SkyColors `bonus`), e.g. 0.3 = +30% strength and kick
+function FighterStats.GetSkinBonus(data)
+	local sky = data.skin and Catalog.SkyColorById[data.skin]
+	return sky and sky.bonus or 0
+end
+
 function FighterStats.CalculateDamage(data, actionType)
-	local base = data.strength * 0.9
-	local kickBonus = data.kick * 0.7
+	local skinMultiplier = 1 + FighterStats.GetSkinBonus(data)
+	local base = data.strength * skinMultiplier * 0.9
+	local kickBonus = data.kick * skinMultiplier * 0.7
 
 	if actionType == "punch" then
 		return math.floor(base * 0.75)

@@ -69,16 +69,18 @@ Catalog.Treadmills = {
 
 -- Sky event colors. During a sky event the sky turns that color and the Color Shop (next to the ring)
 -- sells the matching skin. Skins are kept once bought and can be worn again any time.
+-- `bonus`: while worn, the skin boosts strength and kick in fights (0.3 = +30%). Best first.
+-- `money` / `robux`: the skin's price in the Color Shop.
 Catalog.SkyColors = {
-	{ id = "red", name = "Red", color = Color3.fromRGB(255, 40, 40) },
-	{ id = "blue", name = "Blue", color = Color3.fromRGB(40, 90, 255) },
-	{ id = "green", name = "Green", color = Color3.fromRGB(40, 200, 70) },
-	{ id = "purple", name = "Purple", color = Color3.fromRGB(150, 60, 220) },
-	{ id = "yellow", name = "Yellow", color = Color3.fromRGB(255, 220, 40) },
-	{ id = "orange", name = "Orange", color = Color3.fromRGB(255, 140, 30) },
-	{ id = "pink", name = "Pink", color = Color3.fromRGB(255, 100, 200) },
-	{ id = "cyan", name = "Cyan", color = Color3.fromRGB(40, 220, 230) },
-	{ id = "magenta", name = "Magenta", color = Color3.fromRGB(255, 0, 255) },
+	{ id = "yellow", name = "Yellow", color = Color3.fromRGB(255, 220, 40), bonus = 0.3, money = 100000, robux = 100 },
+	{ id = "orange", name = "Orange", color = Color3.fromRGB(255, 140, 30), bonus = 0.25, money = 50000, robux = 75 },
+	{ id = "blue", name = "Blue", color = Color3.fromRGB(40, 90, 255), bonus = 0.2, money = 20000, robux = 60 },
+	{ id = "red", name = "Red", color = Color3.fromRGB(255, 40, 40), bonus = 0.15, money = 10000, robux = 50 },
+	{ id = "purple", name = "Purple", color = Color3.fromRGB(150, 60, 220), bonus = 0.1, money = 1000, robux = 40 },
+	{ id = "magenta", name = "Magenta", color = Color3.fromRGB(255, 0, 255), bonus = 0.05, money = 500, robux = 25 },
+	{ id = "green", name = "Green", color = Color3.fromRGB(40, 200, 70), bonus = 0.03, money = 100, robux = 10 },
+	{ id = "pink", name = "Pink", color = Color3.fromRGB(255, 100, 200), bonus = 0.03, money = 100, robux = 10 },
+	{ id = "cyan", name = "Cyan", color = Color3.fromRGB(40, 220, 230), bonus = 0.03, money = 100, robux = 10 },
 }
 Catalog.SkyColorById = {}
 Catalog.ColorSkins = {}
@@ -89,8 +91,8 @@ for _, sky in ipairs(Catalog.SkyColors) do
 		kind = "skin",
 		colorId = sky.id,
 		name = sky.name .. " Skin",
-		money = 10000,
-		robux = 75,
+		money = sky.money,
+		robux = sky.robux,
 		productId = 0,
 	})
 end

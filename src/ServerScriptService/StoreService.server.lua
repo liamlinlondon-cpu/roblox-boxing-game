@@ -172,7 +172,7 @@ local function grant(player, itemId)
 		data.ownedSkins[item.colorId] = true
 		data.skin = item.colorId
 		applySkin(player)
-		return true, item.name .. " unlocked and equipped!"
+		return true, string.format("%s unlocked and equipped! +%d%% strength & kick in fights.", item.name, math.floor(Catalog.SkyColorById[item.colorId].bonus * 100 + 0.5))
 	end
 	return false, "Unknown item."
 end
@@ -283,7 +283,8 @@ local function wear(player, colorId)
 	elseif type(colorId) == "string" and data.ownedSkins[colorId] then
 		data.skin = colorId
 		applySkin(player)
-		notify(player, "Wearing the " .. Catalog.SkyColorById[colorId].name .. " skin!", true)
+		local sky = Catalog.SkyColorById[colorId]
+		notify(player, string.format("Wearing the %s skin! +%d%% strength & kick in fights.", sky.name, math.floor(sky.bonus * 100 + 0.5)), true)
 	end
 end
 
