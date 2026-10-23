@@ -83,8 +83,10 @@ WorldConfig.SkyEvents = {
 	ClearCommandAlias = "noncolor",
 }
 
--- Extra admins (user IDs) who may use the chat commands: sky events, /ban and /unban.
--- The game's owner is always an admin; admins can't be banned.
+-- The only account that can use the chat commands (sky events, /ban, /unban): Liantw1.
+-- Everyone else, including test players in Studio, gets nothing when they type them.
+WorldConfig.OwnerUserId = 11702564473
+-- Add user IDs here to give other accounts the commands too (none right now). Admins can't be banned.
 WorldConfig.AdminUserIds = {}
 
 WorldConfig.WallHeight = 60
