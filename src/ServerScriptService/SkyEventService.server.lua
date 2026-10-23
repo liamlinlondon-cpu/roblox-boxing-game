@@ -9,7 +9,6 @@
 local Lighting = game:GetService("Lighting")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local RunService = game:GetService("RunService")
 local TextChatService = game:GetService("TextChatService")
 local TweenService = game:GetService("TweenService")
 local Workspace = game:GetService("Workspace")
@@ -17,6 +16,7 @@ local Workspace = game:GetService("Workspace")
 local Modules = ReplicatedStorage:WaitForChild("Modules")
 local Catalog = require(Modules:WaitForChild("Catalog"))
 local WorldConfig = require(Modules:WaitForChild("WorldConfig"))
+local Admins = require(script.Parent:WaitForChild("Admins"))
 
 local EVENTS = WorldConfig.SkyEvents
 local FADE = TweenInfo.new(4, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
@@ -143,19 +143,8 @@ end)
 -- "/ruby", "/sapphire", ... start that color's event right away (WorldConfig.SkyEvents.Commands);
 -- "/non color" ends the event and turns the sky back to normal.
 
-local function canUseCommands(player)
-	if RunService:IsStudio() or table.find(EVENTS.CommandUserIds, player.UserId) then
-		return true
-	end
-	if game.CreatorType == Enum.CreatorType.Group then
-		local ok, rank = pcall(player.GetRankInGroup, player, game.CreatorId)
-		return ok and rank == 255
-	end
-	return player.UserId == game.CreatorId
-end
-
 local function runCommand(player, alias)
-	if not canUseCommands(player) then
+	if not Admins.IsAdmin(player) then
 		return
 	end
 	if alias == EVENTS.ClearCommand or alias == EVENTS.ClearCommandAlias then

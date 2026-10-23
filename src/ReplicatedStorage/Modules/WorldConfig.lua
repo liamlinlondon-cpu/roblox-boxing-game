@@ -81,9 +81,11 @@ WorldConfig.SkyEvents = {
 	-- Chat command that ends the current event and turns the sky back to normal ("/non color")
 	ClearCommand = "non",
 	ClearCommandAlias = "noncolor",
-	-- Who may use the commands: the game's owner (or group owner), anyone in Studio, plus these user IDs
-	CommandUserIds = {},
 }
+
+-- Extra admins (user IDs) who may use the chat commands: sky events, /ban and /unban.
+-- The game's owner is always an admin; admins can't be banned.
+WorldConfig.AdminUserIds = {}
 
 WorldConfig.WallHeight = 60
 WorldConfig.WallThickness = 4
