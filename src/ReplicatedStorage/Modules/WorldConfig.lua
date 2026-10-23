@@ -57,11 +57,17 @@ WorldConfig.ColorShop = {
 	Position = Vector3.new(-27.5, 0, -47.6),
 }
 
--- Sky color events: the sky turns a random color (Catalog.SkyColors) for a few minutes
+-- Sky color events: the sky turns a color (Catalog.SkyColors) for a few minutes
 WorldConfig.SkyEvents = {
 	FirstDelaySeconds = 60, -- first event this long after the server starts
-	IntervalSeconds = 6 * 60, -- time between the end of one event and the start of the next
-	DurationSeconds = 3 * 60,
+	IntervalSeconds = 60 * 60, -- one hour between the end of one event and the start of the next
+	DurationSeconds = 60, -- each event lasts one minute
+	-- Natural events follow this order, then repeat from the start. Colors not listed here (yellow and
+	-- orange are the rare ones) only appear when the owner starts them with a chat command.
+	Schedule = {
+		"blue", "magenta", "red", "purple", "magenta", "purple", "magenta",
+		"red", "blue", "magenta", "purple", "red", "blue",
+	},
 	-- Chat commands that start an event right away, e.g. "/ruby" -> red sky (color ids from Catalog.SkyColors)
 	Commands = {
 		ruby = "red",
@@ -70,6 +76,7 @@ WorldConfig.SkyEvents = {
 		sapphire = "blue",
 		crystal = "purple",
 		mta = "magenta",
+		rbr = "rainbow",
 	},
 	-- Chat command that ends the current event and turns the sky back to normal ("/non color")
 	ClearCommand = "non",

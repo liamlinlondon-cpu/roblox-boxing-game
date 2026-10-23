@@ -51,8 +51,10 @@ local function refresh()
 		secondsLeft // 60,
 		secondsLeft % 60
 	)
-	banner.BorderColor3 = sky.color
-	banner.BackgroundColor3 = Color3.fromRGB(24, 24, 24):Lerp(sky.color, 0.35)
+	-- The rainbow banner shifts color on every countdown tick
+	local color = sky.rainbow and Color3.fromHSV((os.clock() * 0.15) % 1, 0.85, 1) or sky.color
+	banner.BorderColor3 = color
+	banner.BackgroundColor3 = Color3.fromRGB(24, 24, 24):Lerp(color, 0.35)
 	banner.Visible = true
 end
 

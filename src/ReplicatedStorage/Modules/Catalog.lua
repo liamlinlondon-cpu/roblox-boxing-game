@@ -71,7 +71,19 @@ Catalog.Treadmills = {
 -- sells the matching skin. Skins are kept once bought and can be worn again any time.
 -- `bonus`: while worn, the skin boosts strength and kick in fights (0.3 = +30%). Best first.
 -- `money` / `robux`: the skin's price in the Color Shop.
+-- `strengthPerSecond`: strength gained every second while the skin is worn.
+-- `rainbow`: the sky cycles through all colors and the skin colors each body part differently.
 Catalog.SkyColors = {
+	{
+		id = "rainbow",
+		name = "Rainbow",
+		color = Color3.fromRGB(255, 80, 200),
+		rainbow = true,
+		bonus = 0.3,
+		strengthPerSecond = 50,
+		money = 200000,
+		robux = 200,
+	},
 	{ id = "yellow", name = "Yellow", color = Color3.fromRGB(255, 220, 40), bonus = 0.3, money = 100000, robux = 100 },
 	{ id = "orange", name = "Orange", color = Color3.fromRGB(255, 140, 30), bonus = 0.25, money = 50000, robux = 75 },
 	{ id = "blue", name = "Blue", color = Color3.fromRGB(40, 90, 255), bonus = 0.2, money = 20000, robux = 60 },
@@ -82,6 +94,16 @@ Catalog.SkyColors = {
 	{ id = "pink", name = "Pink", color = Color3.fromRGB(255, 100, 200), bonus = 0.03, money = 100, robux = 10 },
 	{ id = "cyan", name = "Cyan", color = Color3.fromRGB(40, 220, 230), bonus = 0.03, money = 100, robux = 10 },
 }
+-- Rainbow skin body colors: head, torso, left arm, right arm, left leg, right leg
+Catalog.RainbowColors = {
+	Color3.fromRGB(255, 40, 40),
+	Color3.fromRGB(255, 140, 30),
+	Color3.fromRGB(255, 220, 40),
+	Color3.fromRGB(40, 200, 70),
+	Color3.fromRGB(40, 90, 255),
+	Color3.fromRGB(150, 60, 220),
+}
+
 Catalog.SkyColorById = {}
 Catalog.ColorSkins = {}
 for _, sky in ipairs(Catalog.SkyColors) do
@@ -103,6 +125,15 @@ for store, list in pairs({ normal = Catalog.Normal, vip = Catalog.Vip, treadmill
 		item.store = store
 		Catalog.ById[item.id] = item
 	end
+end
+
+-- What a skin does while worn, e.g. "+30% STR & KICK, +50 STR/sec"
+function Catalog.SkinPerkText(sky)
+	local text = string.format("+%d%% STR & KICK", math.floor(sky.bonus * 100 + 0.5))
+	if sky.strengthPerSecond then
+		text ..= string.format(", +%d STR/sec", sky.strengthPerSecond)
+	end
+	return text
 end
 
 -- Luck jumps: doubles until 64, then becomes 99

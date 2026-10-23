@@ -108,11 +108,6 @@ end
 local WEAR_COLOR = Color3.fromRGB(75, 110, 180)
 local lastState = nil
 
--- e.g. "+30% STR & KICK": the fight boost a skin gives while worn
-local function bonusText(sky)
-	return string.format("+%d%% STR & KICK", math.floor(sky.bonus * 100 + 0.5))
-end
-
 -- Color Shop: the current sky event's skin is for sale; owned skins can be worn any time
 local function renderColorShop(state)
 	title.Text = "COLOR SHOP"
@@ -121,9 +116,9 @@ local function renderColorShop(state)
 	if eventSky then
 		local item = Catalog.ById["skin_" .. eventSky.id]
 		if state.ownedSkins and state.ownedSkins[eventSky.id] then
-			addRow(item.name .. " (owned) · " .. bonusText(eventSky), {})
+			addRow(item.name .. " (owned) · " .. Catalog.SkinPerkText(eventSky), {})
 		else
-			addRow(eventSky.name .. " sky event! " .. item.name .. " · " .. bonusText(eventSky), {
+			addRow(eventSky.name .. " sky event! " .. item.name .. " · " .. Catalog.SkinPerkText(eventSky), {
 				{ text = Catalog.FormatNumber(item.money) .. " money", itemId = item.id, method = "money", color = MONEY_COLOR },
 				robuxButton(item, item.id, item.robux),
 			})
@@ -135,7 +130,7 @@ local function renderColorShop(state)
 	for _, sky in ipairs(Catalog.SkyColors) do
 		if state.ownedSkins and state.ownedSkins[sky.id] then
 			local wearing = state.skin == sky.id
-			addRow(sky.name .. " Skin · " .. bonusText(sky) .. (wearing and " (wearing)" or ""), wearing and {} or {
+			addRow(sky.name .. " Skin · " .. Catalog.SkinPerkText(sky) .. (wearing and " (wearing)" or ""), wearing and {} or {
 				{ text = "WEAR", itemId = sky.id, action = "wear", color = WEAR_COLOR },
 			})
 		end

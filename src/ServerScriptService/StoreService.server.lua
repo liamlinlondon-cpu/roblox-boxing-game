@@ -93,8 +93,35 @@ local function attachCarpet(character)
 	carpet.Parent = character
 end
 
--- Color skins: the whole body turns the skin color (clothing is removed so the color shows)
+-- Color skins: the whole body turns the skin color (clothing is removed so the color shows).
+-- The rainbow skin gives each body section its own color from Catalog.RainbowColors.
 local BODY_COLOR_PROPERTIES = { "HeadColor3", "TorsoColor3", "LeftArmColor3", "RightArmColor3", "LeftLegColor3", "RightLegColor3" }
+
+-- Which BodyColors section an R6 or R15 body part belongs to ("LeftUpperArm" -> "LeftArmColor3")
+local function bodyColorProperty(partName)
+	if partName == "Head" then
+		return "HeadColor3"
+	elseif string.find(partName, "Torso") then
+		return "TorsoColor3"
+	end
+	for _, side in ipairs({ "Left", "Right" }) do
+		if string.find(partName, side) then
+			if string.find(partName, "Arm") or string.find(partName, "Hand") then
+				return side .. "ArmColor3"
+			elseif string.find(partName, "Leg") or string.find(partName, "Foot") then
+				return side .. "LegColor3"
+			end
+		end
+	end
+	return nil
+end
+
+local function skinColor(sky, property)
+	if sky.rainbow then
+		return Catalog.RainbowColors[table.find(BODY_COLOR_PROPERTIES, property)]
+	end
+	return sky.color
+end
 
 local function applySkin(player)
 	local data = FighterStats.GetPlayerData(player)
@@ -106,8 +133,11 @@ local function applySkin(player)
 	for _, child in ipairs(character:GetChildren()) do
 		if child:IsA("Shirt") or child:IsA("Pants") or child:IsA("ShirtGraphic") then
 			child:Destroy()
-		elseif child:IsA("BasePart") and child.Name ~= "HumanoidRootPart" and child.Name ~= "BasicCarpet" then
-			child.Color = sky.color
+		elseif child:IsA("BasePart") then
+			local property = bodyColorProperty(child.Name)
+			if property then
+				child.Color = skinColor(sky, property)
+			end
 		end
 	end
 	local bodyColors = character:FindFirstChildOfClass("BodyColors")
@@ -116,7 +146,7 @@ local function applySkin(player)
 		bodyColors.Parent = character
 	end
 	for _, property in ipairs(BODY_COLOR_PROPERTIES) do
-		bodyColors[property] = sky.color
+		bodyColors[property] = skinColor(sky, property)
 	end
 end
 
@@ -172,7 +202,7 @@ local function grant(player, itemId)
 		data.ownedSkins[item.colorId] = true
 		data.skin = item.colorId
 		applySkin(player)
-		return true, string.format("%s unlocked and equipped! +%d%% strength & kick in fights.", item.name, math.floor(Catalog.SkyColorById[item.colorId].bonus * 100 + 0.5))
+		return true, item.name .. " unlocked and equipped! " .. Catalog.SkinPerkText(Catalog.SkyColorById[item.colorId])
 	end
 	return false, "Unknown item."
 end
@@ -284,7 +314,7 @@ local function wear(player, colorId)
 		data.skin = colorId
 		applySkin(player)
 		local sky = Catalog.SkyColorById[colorId]
-		notify(player, string.format("Wearing the %s skin! +%d%% strength & kick in fights.", sky.name, math.floor(sky.bonus * 100 + 0.5)), true)
+		notify(player, "Wearing the " .. sky.name .. " skin! " .. Catalog.SkinPerkText(sky), true)
 	end
 end
 
@@ -324,4 +354,19 @@ Players.PlayerAdded:Connect(function(player)
 	player.CharacterAppearanceLoaded:Connect(function()
 		applySkin(player)
 	end)
+end)
+
+-- Skins with strengthPerSecond (the rainbow skin) give that much strength every second while worn
+task.spawn(function()
+	while true do
+		task.wait(1)
+		for _, player in ipairs(Players:GetPlayers()) do
+			local data = FighterStats.GetPlayerData(player)
+			local sky = data.skin and Catalog.SkyColorById[data.skin]
+			if sky and sky.strengthPerSecond then
+				FighterStats.TrainStrength(data, sky.strengthPerSecond)
+				sendStats(player)
+			end
+		end
+	end
 end)

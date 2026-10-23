@@ -1,4 +1,5 @@
--- Sky color events: every few minutes the sky turns a random color (Catalog.SkyColors) for a while.
+-- Sky color events: every few minutes the sky turns a color for a while, following
+-- WorldConfig.SkyEvents.Schedule (yellow and orange are command-only).
 -- The current event is published as ReplicatedStorage attributes that replicate to every client:
 --   SkyEventColor  = color id ("red", "blue", ...) or nil when no event is running
 --   SkyEventEndsAt = Workspace:GetServerTimeNow() when the event ends
@@ -46,8 +47,30 @@ tint.Name = "SkyEventTint"
 tint.TintColor = WHITE
 tint.Parent = Lighting
 
+local RAINBOW_STEP = TweenInfo.new(0.25, Enum.EasingStyle.Linear)
+local lookToken = 0 -- bumped on every look change; stops a running rainbow cycle
+
 local function setLook(sky)
-	if sky then
+	lookToken += 1
+	local token = lookToken
+	if sky and sky.rainbow then
+		-- Cycle the sky through every hue until the look changes again
+		task.spawn(function()
+			local hue = 0
+			while lookToken == token do
+				local color = Color3.fromHSV(hue, 0.85, 1)
+				TweenService:Create(atmosphere, RAINBOW_STEP, {
+					Color = color,
+					Decay = color:Lerp(Color3.new(0, 0, 0), 0.4),
+					Density = 0.4,
+					Haze = 2.5,
+				}):Play()
+				TweenService:Create(tint, RAINBOW_STEP, { TintColor = WHITE:Lerp(color, 0.35) }):Play()
+				hue = (hue + 0.04) % 1
+				task.wait(0.25)
+			end
+		end)
+	elseif sky then
 		TweenService:Create(atmosphere, FADE, {
 			Color = sky.color,
 			Decay = sky.color:Lerp(Color3.new(0, 0, 0), 0.4),
@@ -61,20 +84,18 @@ local function setLook(sky)
 	end
 end
 
-local function pickColor(previousId)
-	local choices = {}
-	for _, sky in ipairs(Catalog.SkyColors) do
-		if sky.id ~= previousId then
-			table.insert(choices, sky)
-		end
-	end
-	return choices[math.random(#choices)]
+-- Natural events walk through EVENTS.Schedule in order and loop. Events started by chat commands
+-- don't move the schedule, so it carries on from where it was afterwards.
+local scheduleIndex = 0
+
+local function nextScheduledColor()
+	scheduleIndex = scheduleIndex % #EVENTS.Schedule + 1
+	return Catalog.SkyColorById[EVENTS.Schedule[scheduleIndex]]
 end
 
 -- Each start bumps `scheduleToken`, which cancels the previous event's pending end/next-start timers.
 -- That lets a chat command start an event at any time without the old schedule interfering.
 local scheduleToken = 0
-local previousId = nil
 local startEvent
 
 local function endEvent(token)
@@ -86,7 +107,7 @@ local function endEvent(token)
 	setLook(nil)
 	task.delay(EVENTS.IntervalSeconds, function()
 		if token == scheduleToken then
-			startEvent(pickColor(previousId))
+			startEvent(nextScheduledColor())
 		end
 	end)
 end
@@ -94,7 +115,6 @@ end
 function startEvent(sky)
 	scheduleToken += 1
 	local token = scheduleToken
-	previousId = sky.id
 	-- Set the end time first so anything reacting to the color change can read it
 	ReplicatedStorage:SetAttribute("SkyEventEndsAt", Workspace:GetServerTimeNow() + EVENTS.DurationSeconds)
 	ReplicatedStorage:SetAttribute("SkyEventColor", sky.id)
@@ -104,7 +124,7 @@ function startEvent(sky)
 	end)
 end
 
--- Ends the running event now; the next random event follows after the usual interval
+-- Ends the running event now; the next scheduled event follows after the usual interval
 local function clearEvent()
 	if not ReplicatedStorage:GetAttribute("SkyEventColor") then
 		return
@@ -115,7 +135,7 @@ end
 
 task.delay(EVENTS.FirstDelaySeconds, function()
 	if scheduleToken == 0 then
-		startEvent(pickColor(nil))
+		startEvent(nextScheduledColor())
 	end
 end)
 
