@@ -5,6 +5,7 @@
 --   /give <name> <item>         gives a player in the server an item, e.g. /give Bob owner treadmill;
 --                               "/give <name> commands" gives them the commands (owner only)
 --   /take <name> commands       removes commands given with /give (owner only)
+--   /reset [name]               resets a player (or yourself) to a new player's start
 --   /luck <number> [name]       sets luck, e.g. /luck 64
 --   /infinitystrength [name]    infinite strength (also /infinitykick, /infinitystamina, /infinitymoney)
 -- <name> is the name shown above a player's head (display name) or their username; the start of it is
@@ -334,6 +335,51 @@ local function makeInfinity(stat)
 	end
 end
 
+-- ==================== RESET ====================
+-- /reset [name]: everything goes back to a new player's start (stats, money, items, skins)
+
+local function reset(admin, args)
+	local target = admin
+	if #args > 0 then
+		-- Names can't contain spaces, so "Fulton family" also tries "Fultonfamily"
+		target = findPlayerInServer(table.concat(args, " ")) or findPlayerInServer(table.concat(args, ""))
+		if not target then
+			notify(admin, "Couldn't find \"" .. table.concat(args, " ") .. "\" in this server.")
+			return
+		end
+	end
+	if target ~= admin and Admins.IsOwner(target) then
+		notify(admin, "You can't reset the owner.")
+		return
+	end
+	local data = FighterStats.GetPlayerData(target)
+	if data.isInMatch or data.opponent then
+		notify(admin, target.DisplayName .. " is in an arena match. Try again when it's over.")
+		return
+	end
+
+	FighterStats.ResetPlayerData(target)
+
+	-- Take off the worn skin and the carpet
+	local character = target.Character
+	if character then
+		local carpet = character:FindFirstChild("BasicCarpet")
+		if carpet then
+			carpet:Destroy()
+		end
+		local humanoid = character:FindFirstChildOfClass("Humanoid")
+		if humanoid then
+			pcall(function()
+				humanoid:ApplyDescription(Players:GetHumanoidDescriptionFromUserId(target.UserId))
+			end)
+		end
+	end
+
+	sendStats(target)
+	notify(admin, target.DisplayName .. " has been reset to the start.")
+	tellTarget(admin, target, "Your progress was reset to the start.")
+end
+
 -- ==================== COMMAND TABLE ====================
 -- minArgs: how many words must follow the command; usage: shown when they're missing
 
@@ -344,6 +390,7 @@ local COMMANDS = {
 	unfly = { run = unfly },
 	give = { run = give, minArgs = 2, usage = "/give <name> <item>, e.g. /give Bob owner treadmill" },
 	take = { run = take, minArgs = 2, usage = "/take <name> commands" },
+	reset = { run = reset },
 	luck = { run = luck, minArgs = 1, usage = "/luck <number> [name], e.g. /luck 64" },
 }
 for stat in pairs(INFINITE_STATS) do

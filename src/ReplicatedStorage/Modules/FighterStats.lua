@@ -52,6 +52,17 @@ function FighterStats.GetPlayerData(player)
 	return sharedPlayerData[player]
 end
 
+-- Puts a player's stats back to a new player's. The same table is refilled in place, so any
+-- service still holding it sees the reset values.
+function FighterStats.ResetPlayerData(player)
+	local data = FighterStats.GetPlayerData(player)
+	table.clear(data)
+	for key, value in pairs(FighterStats.CreatePlayerData()) do
+		data[key] = value
+	end
+	return data
+end
+
 -- Body stages by minimum strength, lowest first (also drives the strength bar on screen)
 FighterStats.Stages = {
 	{ minStrength = 0, name = "Skinny Bones" },
