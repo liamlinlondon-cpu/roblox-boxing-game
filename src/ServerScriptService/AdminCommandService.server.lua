@@ -2,7 +2,9 @@
 --   /ban <username>             bans the player from the game (all servers) and kicks them if they're here
 --   /unban <username>           lifts the ban
 --   /fly, /unfly                toggles flying (FlyClient moves the character) / lands
---   /give <name> <item>         gives a player in the server an item, e.g. /give Bob owner treadmill
+--   /give <name> <item>         gives a player in the server an item, e.g. /give Bob owner treadmill;
+--                               "/give <name> commands" gives them the commands (owner only)
+--   /take <name> commands       removes commands given with /give (owner only)
 --   /luck <number> [name]       sets luck, e.g. /luck 64
 --   /infinitystrength [name]    infinite strength (also /infinitykick, /infinitystamina, /infinitymoney)
 -- <name> is the name shown above a player's head (display name) or their username; the start of it is
@@ -180,6 +182,15 @@ end
 -- Item keywords for /give (spaces and apostrophes are ignored, so "owner's treadmill" works too)
 
 local GIFTS = {
+	-- The owner's commands, until the player leaves the server. Only the owner can give these.
+	commands = {
+		name = "owner commands",
+		ownerOnly = true,
+		note = " They keep them until they leave this server (/take <name> commands removes them).",
+		give = function(_, target)
+			Admins.Grant(target.UserId)
+		end,
+	},
 	ownertreadmill = {
 		name = "Owner's Treadmill",
 		note = " They can use it in public servers too.",
@@ -213,7 +224,7 @@ end
 
 local function findGift(words)
 	local key = string.gsub(string.lower(table.concat(words, "")), "[^%w]", "")
-	return GIFTS[key] or GIFTS[key .. "treadmill"] or GIFTS[key .. "skin"]
+	return GIFTS[key] or GIFTS[key .. "s"] or GIFTS[key .. "treadmill"] or GIFTS[key .. "skin"]
 end
 
 local function giftList()
@@ -236,10 +247,43 @@ local function give(admin, args)
 		notify(admin, "Unknown item. You can give: " .. giftList())
 		return
 	end
-	gift.give(FighterStats.GetPlayerData(target))
+	if gift.ownerOnly and not Admins.IsOwner(admin) then
+		notify(admin, "Only the owner can give " .. gift.name .. ".")
+		return
+	end
+	gift.give(FighterStats.GetPlayerData(target), target)
 	sendStats(target)
 	notify(admin, "Gave " .. target.DisplayName .. " the " .. gift.name .. "." .. (gift.note or ""))
 	tellTarget(admin, target, "You received the " .. gift.name .. "!")
+end
+
+-- /take <name> commands: removes commands the owner gave with /give
+local function take(admin, args)
+	if not Admins.IsOwner(admin) then
+		notify(admin, "Only the owner can take commands away.")
+		return
+	end
+	local target = findPlayerInServer(args[1])
+	if not target then
+		notify(admin, "Couldn't find \"" .. args[1] .. "\" in this server.")
+		return
+	end
+	local key = string.gsub(string.lower(table.concat({ table.unpack(args, 2) }, "")), "[^%w]", "")
+	if key ~= "commands" then
+		notify(admin, "Usage: /take <name> commands")
+		return
+	end
+	if Admins.IsOwner(target) then
+		notify(admin, "You can't take the owner's commands.")
+		return
+	end
+	Admins.Revoke(target.UserId)
+	if flying[target] then
+		flying[target] = nil
+		flyEvent:FireClient(target, false)
+	end
+	notify(admin, target.DisplayName .. " no longer has commands.")
+	tellTarget(admin, target, "Your commands were removed.")
 end
 
 -- ==================== LUCK / INFINITY ====================
@@ -299,6 +343,7 @@ local COMMANDS = {
 	fly = { run = fly },
 	unfly = { run = unfly },
 	give = { run = give, minArgs = 2, usage = "/give <name> <item>, e.g. /give Bob owner treadmill" },
+	take = { run = take, minArgs = 2, usage = "/take <name> commands" },
 	luck = { run = luck, minArgs = 1, usage = "/luck <number> [name], e.g. /luck 64" },
 }
 for stat in pairs(INFINITE_STATS) do
@@ -372,4 +417,5 @@ end)
 
 Players.PlayerRemoving:Connect(function(player)
 	flying[player] = nil
+	Admins.Revoke(player.UserId) -- commands given with /give last until the player leaves
 end)

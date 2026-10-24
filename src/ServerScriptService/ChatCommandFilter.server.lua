@@ -3,7 +3,10 @@
 -- it. The commands themselves still run. Every TextChatCommand the game creates (sky events, admin
 -- commands) is picked up automatically, so new commands are hidden without changing this script.
 
+local Players = game:GetService("Players")
 local TextChatService = game:GetService("TextChatService")
+
+local Admins = require(script.Parent:WaitForChild("Admins"))
 
 local hiddenCommands = {
 	e = true, -- emotes: /e dance, /e floss, /e wave, ...
@@ -26,10 +29,23 @@ local function isCommand(text)
 	return word ~= nil and hiddenCommands[word] == true
 end
 
+-- Anything the owner types starting with "/" is hidden too, so a mistyped command never shows up
+local function isFromAdmin(message)
+	local source = message.TextSource
+	local sender = source and Players:GetPlayerByUserId(source.UserId)
+	return sender ~= nil and Admins.IsAdmin(sender)
+end
+
 local function hookChannel(channel)
 	if channel:IsA("TextChannel") then
 		channel.ShouldDeliverCallback = function(message)
-			return not isCommand(message.Text)
+			if isCommand(message.Text) then
+				return false
+			end
+			if isFromAdmin(message) and string.match(message.Text or "", "^%s*/") then
+				return false
+			end
+			return true
 		end
 	end
 end
