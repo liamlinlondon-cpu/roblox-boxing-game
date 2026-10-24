@@ -218,6 +218,11 @@ for index in ipairs(TRAINING.Weights) do
 	weightButtons[index] = button
 end
 
+-- Stat values can be infinite (owner commands like /infinitystrength)
+local function formatStat(value)
+	return value == math.huge and "Infinite" or string.format("%d", value)
+end
+
 local function gainPerHit(weight)
 	return weight.power * (isVip and TRAINING.VipMultiplier or 1)
 end
@@ -225,7 +230,7 @@ end
 local function refresh()
 	local modeInfo = TRAINING.Modes[mode]
 	title.Text = (isVip and "VIP " or "") .. string.upper(modeInfo.bagName)
-	statLabel.Text = string.format("%s: %d", modeInfo.statName, statValue)
+	statLabel.Text = string.format("%s: %s", modeInfo.statName, formatStat(statValue))
 	countHeader.Text = modeInfo.hits:sub(1, 1):upper() .. modeInfo.hits:sub(2)
 
 	for count, button in pairs(countButtons) do
@@ -367,7 +372,7 @@ trainingEvent.OnClientEvent:Connect(function(kind, ...)
 		if info.auto then
 			progressLabel.Text = string.format("Set done: +%d %s. Next set starting...", info.gained, modeInfo.gainLabel:lower())
 		else
-			progressLabel.Text = string.format("Set complete! +%d %s. %s is now %d.", info.gained, modeInfo.gainLabel:lower(), modeInfo.statName, info.statValue)
+			progressLabel.Text = string.format("Set complete! +%d %s. %s is now %s.", info.gained, modeInfo.gainLabel:lower(), modeInfo.statName, formatStat(info.statValue))
 		end
 		refresh()
 	elseif kind == "stopped" then

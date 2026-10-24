@@ -8,7 +8,7 @@ FighterStats.TreadmillTiers = {
 	regular = { name = "Regular Treadmill", multiplier = 1, gain = 50 },
 	hacker = { name = "Hacker's Treadmill", multiplier = 1000, gain = 50000 },
 	admin = { name = "Admin Treadmill", multiplier = 10000000, gain = 50000000 },
-	owner = { name = "Owner's Treadmill", multiplier = 100000000000, gain = 5000000000000 },
+	owner = { name = "Owner's Treadmill", multiplier = 100000000000, gain = 5000000000000, privateServerOnly = true },
 }
 
 FighterStats.StaminaCosts = {
@@ -39,6 +39,7 @@ function FighterStats.CreatePlayerData()
 		winMultiplier = 1,
 		carpet = false,
 		ownedSkins = {}, -- [colorId] = true, bought in the Color Shop during sky events
+		ownerTreadmillAnywhere = false, -- given with the owner's /give: may use the Owner's Treadmill in public servers
 		skin = nil, -- colorId currently worn, or nil for the player's normal look
 	}
 end

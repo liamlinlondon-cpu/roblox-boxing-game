@@ -64,7 +64,7 @@ Catalog.Vip = {
 Catalog.Treadmills = {
 	{ id = "tm_hacker", kind = "treadmill", tier = "hacker", name = "Hacker's Treadmill", money = 5000, robux = 5000, productId = 0 },
 	{ id = "tm_admin", kind = "treadmill", tier = "admin", name = "Admin Treadmill", money = 50000, robux = 50000, productId = 0 },
-	{ id = "tm_owner", kind = "treadmill", tier = "owner", name = "Owner's Treadmill", money = 5e12, robux = 500000, productId = 0 },
+	{ id = "tm_owner", kind = "treadmill", tier = "owner", name = "Owner's Treadmill (use in private servers)", money = 5e12, robux = 500000, productId = 0 },
 }
 
 -- Sky event colors. During a sky event the sky turns that color and the Color Shop (next to the ring)

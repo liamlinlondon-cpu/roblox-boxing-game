@@ -189,8 +189,18 @@ end)
 
 treadmillEvent.OnClientEvent:Connect(function(kind, info)
 	if kind == "locked" then
+		payMoneyButton.Visible = true
+		payRobuxButton.Visible = true
 		pendingUnlock = info
 		refreshUnlock()
+		unlockPanel.Visible = true
+	elseif kind == "privateOnly" then
+		-- Owned, but this treadmill only runs in private servers
+		pendingUnlock = nil
+		unlockTitle.Text = string.upper(info.name) .. " · PRIVATE SERVERS ONLY"
+		unlockStatus.Text = "In public servers only the owner can use it. You can use it in a private server (57 R$ a month on the game's page)."
+		payMoneyButton.Visible = false
+		payRobuxButton.Visible = false
 		unlockPanel.Visible = true
 	elseif kind == "start" then
 		unlockPanel.Visible = false

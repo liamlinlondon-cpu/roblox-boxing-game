@@ -164,7 +164,7 @@ local function buildTreadmill(model, gymCFrame, gymIndex, tierKey, x, z)
 	screen.CanCollide = false
 	addSign(screen, Enum.NormalId.Front, tier.name, color)
 
-	addPrompt(deck, "Run (+" .. string.format("%.0f", tier.gain) .. " stamina/sec)", tier.name, "TreadmillStation", {
+	addPrompt(deck, "Run (+" .. string.format("%.0f", tier.gain) .. " stamina/sec)", tier.privateServerOnly and (tier.name .. " (owner, or private servers)") or tier.name, "TreadmillStation", {
 		GymId = gymIndex,
 		Tier = tierKey,
 	})

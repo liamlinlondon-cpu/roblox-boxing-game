@@ -125,7 +125,9 @@ local function updateKick(kick)
 end
 
 local function updateStamina(stamina, maxStamina)
-	setFill(staminaFill, maxStamina > 0 and stamina / maxStamina or 0)
+	-- Infinite stamina (/infinitystamina) would give inf/inf, so show it as a full bar
+	local fraction = maxStamina == math.huge and 1 or (maxStamina > 0 and stamina / maxStamina or 0)
+	setFill(staminaFill, fraction)
 	staminaText.Text = string.format("%s / %s", Catalog.FormatNumber(stamina), Catalog.FormatNumber(maxStamina))
 end
 

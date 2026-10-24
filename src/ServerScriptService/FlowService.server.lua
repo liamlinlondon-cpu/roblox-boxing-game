@@ -1,11 +1,13 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local CollectionService = game:GetService("CollectionService")
+local RunService = game:GetService("RunService")
 
 local FighterStats = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("FighterStats"))
 local Shop = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("Shop"))
 local WorldConfig = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("WorldConfig"))
 local Catalog = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("Catalog"))
+local Admins = require(script.Parent:WaitForChild("Admins"))
 
 local eventsFolder = ReplicatedStorage:FindFirstChild("Events")
 if not eventsFolder then
@@ -456,6 +458,12 @@ treadmillEvent.OnServerEvent:Connect(function(player, action, value)
 	end
 end)
 
+-- Private (VIP) servers bought by a player have a PrivateServerOwnerId; reserved servers don't.
+-- Studio counts as private so the Owner's Treadmill can still be tested there.
+local function isPrivateServer()
+	return game.PrivateServerOwnerId ~= 0 or RunService:IsStudio()
+end
+
 local function hookTreadmill(prompt)
 	prompt.Triggered:Connect(function(player)
 		if running[player] then
@@ -470,6 +478,15 @@ local function hookTreadmill(prompt)
 
 		local tierKey = prompt:GetAttribute("Tier")
 		local data = getPlayerData(player)
+		local tier = FighterStats.TreadmillTiers[tierKey]
+
+		-- The owner can use the Owner's Treadmill on any server without buying it, and so can players
+		-- the owner gave it to with /give
+		if tier.privateServerOnly and (Admins.IsAdmin(player) or data.ownerTreadmillAnywhere) then
+			runOnTreadmill(player, prompt.Parent, tierKey)
+			return
+		end
+
 		if not data.treadmills[tierKey] then
 			-- Offer the unlock right here; payment goes through StoreService (money or Robux)
 			for _, item in ipairs(Catalog.Treadmills) do
@@ -484,6 +501,12 @@ local function hookTreadmill(prompt)
 					return
 				end
 			end
+			return
+		end
+
+		-- Everyone else needs to own it and be in a private server
+		if tier.privateServerOnly and not isPrivateServer() then
+			treadmillEvent:FireClient(player, "privateOnly", { name = tier.name })
 			return
 		end
 
