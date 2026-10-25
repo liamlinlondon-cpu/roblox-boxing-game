@@ -54,6 +54,8 @@ local function sendStats(player)
 		health = data.health,
 		stamina = data.stamina,
 		maxStamina = data.maxStamina,
+		arenaWins = data.arenaWins,
+		gameBeats = data.gameBeats,
 	})
 end
 
@@ -427,6 +429,10 @@ local STAT_WORDS = {
 	money = "money",
 	cash = "money",
 	stamina = "stamina",
+	beatthegame = "gameBeats",
+	beatgame = "gameBeats",
+	beat = "gameBeats",
+	wins = "arenaWins",
 }
 
 local function statLine(data, stat)
@@ -438,6 +444,11 @@ local function statLine(data, stat)
 		return "Money: " .. Catalog.FormatNumber(data.money)
 	elseif stat == "stamina" then
 		return "Stamina: " .. Catalog.FormatNumber(data.stamina) .. " / " .. Catalog.FormatNumber(data.maxStamina)
+	elseif stat == "gameBeats" then
+		local beats = data.gameBeats or 0
+		return "Beat the game: " .. beats .. (beats == 1 and " time" or " times")
+	elseif stat == "arenaWins" then
+		return "Arena wins: " .. Catalog.FormatNumber(data.arenaWins or 0)
 	end
 	return nil
 end
@@ -468,15 +479,16 @@ lookupFunction.OnServerInvoke = function(player, query)
 	local data = FighterStats.GetPlayerData(target)
 
 	if words[2] then
-		local stat = STAT_WORDS[string.lower(words[2])]
+		local statText = table.concat({ table.unpack(words, 2) }, " ")
+		local stat = STAT_WORDS[string.gsub(string.lower(statText), "[^%a]", "")]
 		if not stat then
-			return "Unknown stat \"" .. words[2] .. "\". Try strength, kick, money or stamina."
+			return "Unknown stat \"" .. statText .. "\". Try strength, kick, money, stamina, beat the game or wins."
 		end
 		return target.DisplayName .. "  ·  " .. statLine(data, stat)
 	end
 
 	local lines = { target.DisplayName }
-	for _, stat in ipairs({ "strength", "kick", "money", "stamina" }) do
+	for _, stat in ipairs({ "strength", "kick", "money", "stamina", "gameBeats", "arenaWins" }) do
 		table.insert(lines, statLine(data, stat))
 	end
 	return table.concat(lines, "\n")

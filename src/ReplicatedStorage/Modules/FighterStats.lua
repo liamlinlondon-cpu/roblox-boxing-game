@@ -39,6 +39,7 @@ function FighterStats.CreatePlayerData()
 		winMultiplier = 1,
 		carpet = false,
 		carpetPass = false, -- may ride the Magic Carpet outside the map, over the parkour
+		gameBeats = 0, -- times the player pressed the red button and beat the game
 		ownedSkins = {}, -- [colorId] = true, bought in the Color Shop during sky events
 		ownerTreadmillAnywhere = false, -- given with the owner's /give: may use the Owner's Treadmill in public servers
 		skin = nil, -- colorId currently worn, or nil for the player's normal look

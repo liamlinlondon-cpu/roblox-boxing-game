@@ -50,6 +50,8 @@ local function sendStats(player)
 		health = data.health,
 		stamina = data.stamina,
 		maxStamina = data.maxStamina,
+		arenaWins = data.arenaWins,
+		gameBeats = data.gameBeats,
 	})
 end
 

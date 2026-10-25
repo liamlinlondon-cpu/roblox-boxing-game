@@ -10,9 +10,31 @@ local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local FighterStats = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("FighterStats"))
+
 local beatGameEvent = Instance.new("RemoteEvent")
 beatGameEvent.Name = "BeatGame"
 beatGameEvent.Parent = ReplicatedStorage:WaitForChild("Events")
+
+local matchResultEvent = ReplicatedStorage:WaitForChild("Events"):WaitForChild("MatchResult")
+
+-- Refreshes the player's stats panel (it shows how many times they beat the game)
+local function sendStats(player)
+	local data = FighterStats.GetPlayerData(player)
+	matchResultEvent:FireClient(player, {
+		type = "stats",
+		money = data.money,
+		strength = data.strength,
+		kick = data.kick,
+		luck = data.luck,
+		bodyStage = data.bodyStage,
+		health = data.health,
+		stamina = data.stamina,
+		maxStamina = data.maxStamina,
+		arenaWins = data.arenaWins,
+		gameBeats = data.gameBeats,
+	})
+end
 
 local RETURN_AFTER_WIN_SECONDS = 8 -- how long the win screen shows before respawning in the map
 
@@ -78,11 +100,21 @@ hookTag("BeatGamePortal", function(portal, player)
 	end
 end)
 
--- Red button: win the game, then go back to the map
+-- Red button: win the game (counted in gameBeats), then go back to the map
+local winning = {} -- [player] = true between pressing the button and being sent back
+
 local function hookButton(prompt)
 	prompt.Triggered:Connect(function(player)
+		if winning[player] then
+			return
+		end
+		winning[player] = true
+		local data = FighterStats.GetPlayerData(player)
+		data.gameBeats = (data.gameBeats or 0) + 1
+		sendStats(player)
 		beatGameEvent:FireClient(player, "won")
 		task.delay(RETURN_AFTER_WIN_SECONDS, function()
+			winning[player] = nil
 			if player.Parent then
 				player:LoadCharacter()
 			end
@@ -96,4 +128,5 @@ CollectionService:GetInstanceAddedSignal("BeatGameButton"):Connect(hookButton)
 
 Players.PlayerRemoving:Connect(function(player)
 	lastTouch[player] = nil
+	winning[player] = nil
 end)
