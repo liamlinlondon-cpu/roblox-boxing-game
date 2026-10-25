@@ -6,7 +6,7 @@
 --                               "/give <name> commands" gives them the commands (owner only)
 --   /take <name> commands       removes commands given with /give (owner only)
 --   /reset [name]               resets a player (or yourself) to a new player's start
---   /luck <number> [name]       sets luck, e.g. /luck 64
+--   /luck <number> [name]       sets everyone's luck (or one player's with a name), e.g. /luck 64
 --   /infinitystrength [name]    infinite strength (also /infinitykick, /infinitystamina, /infinitymoney)
 -- <name> is the name shown above a player's head (display name) or their username; the start of it is
 -- enough. Commands with [name] apply to the admin when no name is given. Results are shown to the admin
@@ -292,18 +292,32 @@ end
 local function luck(admin, args)
 	local amount = tonumber((string.gsub(args[1], "[xX]$", "")))
 	if not amount or amount < 1 or amount ~= amount then
-		notify(admin, "Usage: /luck <number> [name], e.g. /luck 64")
-		return
-	end
-	local target = targetOrSelf(admin, args[2])
-	if not target then
+		notify(admin, "Usage: /luck <number> [name], e.g. /luck 64 (everyone) or /luck 64 Bob")
 		return
 	end
 	amount = math.floor(amount)
-	FighterStats.GetPlayerData(target).luck = amount
-	sendStats(target)
-	notify(admin, target.DisplayName .. "'s luck is now " .. Catalog.FormatNumber(amount) .. ".")
-	tellTarget(admin, target, "Your luck is now " .. Catalog.FormatNumber(amount) .. "!")
+	local amountText = Catalog.FormatNumber(amount)
+
+	-- With a name: just that player. Without: everyone in the server.
+	if args[2] then
+		local target = findPlayerInServer(args[2])
+		if not target then
+			notify(admin, "Couldn't find \"" .. args[2] .. "\" in this server.")
+			return
+		end
+		FighterStats.GetPlayerData(target).luck = amount
+		sendStats(target)
+		notify(admin, target.DisplayName .. "'s luck is now " .. amountText .. ".")
+		tellTarget(admin, target, "Your luck is now " .. amountText .. "!")
+		return
+	end
+
+	for _, player in ipairs(Players:GetPlayers()) do
+		FighterStats.GetPlayerData(player).luck = amount
+		sendStats(player)
+		tellTarget(admin, player, "Everyone's luck is now " .. amountText .. "!")
+	end
+	notify(admin, "Everyone in the server now has " .. amountText .. " luck.")
 end
 
 local INFINITE_STATS = {
@@ -360,10 +374,16 @@ local function reset(admin, args)
 
 	FighterStats.ResetPlayerData(target)
 
-	-- Take off the worn skin and the carpet
+	-- Take away the Magic Carpet and take off the worn skin
 	local character = target.Character
+	for _, container in ipairs({ target:FindFirstChildOfClass("Backpack"), character }) do
+		local tool = container and container:FindFirstChild("Magic Carpet")
+		if tool then
+			tool:Destroy()
+		end
+	end
 	if character then
-		local carpet = character:FindFirstChild("BasicCarpet")
+		local carpet = character:FindFirstChild("MagicCarpet")
 		if carpet then
 			carpet:Destroy()
 		end
@@ -391,7 +411,7 @@ local COMMANDS = {
 	give = { run = give, minArgs = 2, usage = "/give <name> <item>, e.g. /give Bob owner treadmill" },
 	take = { run = take, minArgs = 2, usage = "/take <name> commands" },
 	reset = { run = reset },
-	luck = { run = luck, minArgs = 1, usage = "/luck <number> [name], e.g. /luck 64" },
+	luck = { run = luck, minArgs = 1, usage = "/luck <number> [name], e.g. /luck 64 (everyone) or /luck 64 Bob" },
 }
 for stat in pairs(INFINITE_STATS) do
 	local entry = { run = makeInfinity(stat) }

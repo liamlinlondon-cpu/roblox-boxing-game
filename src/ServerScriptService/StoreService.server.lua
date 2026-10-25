@@ -73,24 +73,110 @@ local function notify(player, text, success)
 	storeEvent:FireClient(player, "notice", text, success, buildState(player))
 end
 
+-- ==================== MAGIC CARPET ====================
+-- Owning the carpet puts a "Magic Carpet" tool in the backpack. Equipping it shows a rainbow carpet with
+-- rainbow fire at the corners under the player; CarpetClient makes them sit and fly (Space up, Q down).
+
+local CARPET_TOOL_NAME = "Magic Carpet"
+local CARPET_MODEL_NAME = "MagicCarpet"
+local CARPET_STRIPES = {
+	Color3.fromRGB(255, 50, 50),
+	Color3.fromRGB(255, 150, 30),
+	Color3.fromRGB(255, 230, 40),
+	Color3.fromRGB(50, 210, 80),
+	Color3.fromRGB(50, 120, 255),
+	Color3.fromRGB(160, 70, 230),
+}
+local RAINBOW_FIRE = ColorSequence.new({
+	ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 60, 60)),
+	ColorSequenceKeypoint.new(0.2, Color3.fromRGB(255, 160, 40)),
+	ColorSequenceKeypoint.new(0.4, Color3.fromRGB(255, 240, 60)),
+	ColorSequenceKeypoint.new(0.6, Color3.fromRGB(60, 220, 90)),
+	ColorSequenceKeypoint.new(0.8, Color3.fromRGB(60, 130, 255)),
+	ColorSequenceKeypoint.new(1, Color3.fromRGB(180, 80, 240)),
+})
+
+local function addRainbowFire(part, offset)
+	local attachment = Instance.new("Attachment")
+	attachment.Position = offset
+	attachment.Parent = part
+	local fire = Instance.new("ParticleEmitter")
+	fire.Texture = "rbxasset://textures/particles/fire_main.dds"
+	fire.Color = RAINBOW_FIRE -- each flame runs through the rainbow as it rises
+	fire.LightEmission = 1
+	fire.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.9), NumberSequenceKeypoint.new(1, 0.1) })
+	fire.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.1), NumberSequenceKeypoint.new(1, 1) })
+	fire.Lifetime = NumberRange.new(0.4, 0.7)
+	fire.Rate = 40
+	fire.Speed = NumberRange.new(2, 4)
+	fire.SpreadAngle = Vector2.new(15, 15)
+	fire.Rotation = NumberRange.new(0, 360)
+	fire.RotSpeed = NumberRange.new(-90, 90)
+	fire.Parent = attachment
+end
+
+local function removeCarpet(character)
+	local model = character and character:FindFirstChild(CARPET_MODEL_NAME)
+	if model then
+		model:Destroy()
+	end
+end
+
+-- Six rainbow stripes (front to back) welded under the player, with a rainbow flame on each corner
 local function attachCarpet(character)
-	local root = character:WaitForChild("HumanoidRootPart", 5)
-	if not root or character:FindFirstChild("BasicCarpet") then
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	if not root or character:FindFirstChild(CARPET_MODEL_NAME) then
 		return
 	end
-	local carpet = Instance.new("Part")
-	carpet.Name = "BasicCarpet"
-	carpet.Size = Vector3.new(4, 0.2, 6)
-	carpet.Color = Color3.fromRGB(150, 30, 40)
-	carpet.Material = Enum.Material.Fabric
-	carpet.CanCollide = false
-	carpet.Massless = true
-	carpet.CFrame = root.CFrame * CFrame.new(0, -3.1, 0)
-	local weld = Instance.new("WeldConstraint")
-	weld.Part0 = root
-	weld.Part1 = carpet
-	weld.Parent = carpet
-	carpet.Parent = character
+	local model = Instance.new("Model")
+	model.Name = CARPET_MODEL_NAME
+	local stripeLength = 1
+	local base = root.CFrame * CFrame.new(0, -1.6, 0.4)
+	for i, color in ipairs(CARPET_STRIPES) do
+		local stripe = Instance.new("Part")
+		stripe.Name = "Stripe" .. i
+		stripe.Size = Vector3.new(4, 0.2, stripeLength)
+		stripe.Color = color
+		stripe.Material = Enum.Material.Neon
+		stripe.CanCollide = false
+		stripe.CanQuery = false
+		stripe.Massless = true
+		stripe.CFrame = base * CFrame.new(0, 0, (i - 3.5) * stripeLength)
+		local weld = Instance.new("WeldConstraint")
+		weld.Part0 = root
+		weld.Part1 = stripe
+		weld.Parent = stripe
+		stripe.Parent = model
+		-- Flames on the four corners: both sides of the front and back stripes
+		if i == 1 then
+			addRainbowFire(stripe, Vector3.new(-2, 0.1, -stripeLength / 2))
+			addRainbowFire(stripe, Vector3.new(2, 0.1, -stripeLength / 2))
+		elseif i == #CARPET_STRIPES then
+			addRainbowFire(stripe, Vector3.new(-2, 0.1, stripeLength / 2))
+			addRainbowFire(stripe, Vector3.new(2, 0.1, stripeLength / 2))
+		end
+	end
+	model.Parent = character
+end
+
+local function giveCarpetTool(player)
+	local backpack = player:FindFirstChildOfClass("Backpack")
+	local character = player.Character
+	if not backpack or backpack:FindFirstChild(CARPET_TOOL_NAME) or (character and character:FindFirstChild(CARPET_TOOL_NAME)) then
+		return
+	end
+	local tool = Instance.new("Tool")
+	tool.Name = CARPET_TOOL_NAME
+	tool.RequiresHandle = false
+	tool.CanBeDropped = false
+	tool.ToolTip = "Equip to ride and fly: Space up, Q down"
+	tool.Equipped:Connect(function()
+		attachCarpet(tool.Parent)
+	end)
+	tool.Unequipped:Connect(function()
+		removeCarpet(player.Character)
+	end)
+	tool.Parent = backpack
 end
 
 -- Color skins: the whole body turns the skin color (clothing is removed so the color shows).
@@ -179,10 +265,8 @@ local function grant(player, itemId)
 		return true, "+" .. Catalog.FormatNumber(item.amount) .. " money!"
 	elseif item.kind == "carpet" then
 		data.carpet = true
-		if player.Character then
-			attachCarpet(player.Character)
-		end
-		return true, "Basic carpet unlocked!"
+		giveCarpetTool(player)
+		return true, "Magic Carpet unlocked! Equip it from your backpack to fly (Space up, Q down)."
 	elseif item.kind == "strength" then
 		FighterStats.TrainStrength(data, item.amount)
 		return true, "+" .. Catalog.FormatNumber(item.amount) .. " strength!"
@@ -220,7 +304,7 @@ local function priceCheck(player, itemId)
 	elseif itemId == "maxluck" and data.luck >= Catalog.VipMaxLuck then
 		return "You already have 2x max luck."
 	elseif itemId == "carpet" and data.carpet then
-		return "You already own the carpet."
+		return "You already own the Magic Carpet."
 	elseif Catalog.ById[itemId] and Catalog.ById[itemId].kind == "treadmill" and data.treadmills[Catalog.ById[itemId].tier] then
 		return "Treadmill already unlocked."
 	elseif item and item.kind == "skin" then
@@ -345,9 +429,10 @@ openStore.Event:Connect(function(player, store)
 end)
 
 Players.PlayerAdded:Connect(function(player)
-	player.CharacterAdded:Connect(function(character)
-		if FighterStats.GetPlayerData(player).carpet then
-			attachCarpet(character)
+	-- Each respawn gets a new backpack, so hand the carpet tool back when it appears
+	player.ChildAdded:Connect(function(child)
+		if child:IsA("Backpack") and FighterStats.GetPlayerData(player).carpet then
+			giveCarpetTool(player)
 		end
 	end)
 	-- Re-apply the worn color skin after each respawn, once the avatar's clothes have loaded

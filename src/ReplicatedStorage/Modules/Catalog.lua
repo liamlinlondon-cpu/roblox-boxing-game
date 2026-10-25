@@ -29,7 +29,8 @@ local function kick(id, name, amount, robux)
 end
 
 Catalog.Normal = {
-	{ id = "carpet", kind = "carpet", name = "Basic Carpet", robux = 1000, productId = 0 },
+	-- Rainbow flying carpet with rainbow fire on the corners (a tool: equip to sit on it and fly)
+	{ id = "carpet", kind = "carpet", name = "Magic Carpet", robux = 1000, productId = 0 },
 	money("money_1k", "1,000 Money", 1e3, 272),
 	money("money_100k", "100,000 Money", 1e5, 527),
 	money("money_1m", "1,000,000 Money", 1e6, 752),
