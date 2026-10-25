@@ -290,27 +290,30 @@ local function buildGym(world, index)
 end
 
 -- ==================== BEAT THE GAME ====================
--- Parkour course outside the east wall: a field of buildings about the size of the whole map, in 11
--- columns (going away from the map) of 9 buildings each. There are no stairs: getting over the 60-stud
--- wall is part of the challenge. Players jump from column to column toward a three-tier hill, and the
--- jumps get longer the further they go. A normal Roblox jump only covers about 8 studs on flat ground,
+-- Parkour course outside the east wall: a hollow diamond of buildings about the size of the whole map,
+-- 11 columns long (going away from the map). The back and front tips are one building each; every column
+-- in between has two, one on each side, spreading apart toward the middle and closing in again, with
+-- nothing in the middle. Players go around either side of the diamond from the back tip to the front
+-- tip, then jump to a three-tier hill. There are no stairs: getting over the 60-stud wall is part of
+-- the challenge. Each building overlaps the next one sideways, so every jump is straight across a gap,
+-- and the gaps get longer the further they go. A normal Roblox jump only covers about 8 studs on flat ground,
 -- so columns get lower when the jumps get longer than that:
 --   wall top 60 -> column 1 (gap 4); columns 1-8 roofs 56 (gaps 4, 5, 5, 6, 6, 7, 7);
 --   column 9 roof 53 (gap 8), column 10 roof 50 (gap 8), column 11 roof 44 (gap 9);
 --   column 11 -> hill top 32 (gap 10, the big one)
--- Buildings in the same column are 6 studs apart, so players can also move sideways. The ground outside
--- is lava. The hill: yellow pad on the bottom tier, blue on the middle and a red round portal on top,
--- which teleports you inside the middle building of the last column, where the red button wins the
--- game. The tiers are 10 studs apart so they can't be climbed: missing the last jump leaves you on a
+-- The ground outside is lava. The hill: yellow pad on the bottom tier, blue on the middle and a red round
+-- portal on top, which teleports you inside the front tip building (the last one you jumped on), where
+-- the red button wins the game. The tiers are 10 studs apart so they can't be climbed: missing the last jump leaves you on a
 -- decoy tier. BeatGameService handles the lava, pads, portal and button.
 
 local LAVA_COLOR = Color3.fromRGB(255, 90, 20)
 local BUILDING_COLOR = Color3.fromRGB(120, 120, 130)
 local RED = Color3.fromRGB(255, 40, 40)
 
-local BUILDING_SIZE = 30
-local ROW_GAP = 6
-local ROW_COUNT = 9
+local BUILDING_SIZE = 36
+-- Sideways step between neighbouring columns' buildings; BUILDING_SIZE - DIAMOND_STEP (12 studs) is how
+-- much each building overlaps the next one, i.e. the strip you jump across
+local DIAMOND_STEP = 24
 local FIRST_COLUMN_X = 218 -- 4 studs past the wall's outside face
 -- Each column: the gap before it (from the previous column) and its roof height
 local COURSE_COLUMNS = {
@@ -337,15 +340,18 @@ do
 		if column > 1 then
 			x += info.gap
 		end
-		for row = 1, ROW_COUNT do
-			local zCenter = (row - (ROW_COUNT + 1) / 2) * (BUILDING_SIZE + ROW_GAP)
+		-- Steps out from the diamond's center line: 0 at the tips, most in the middle column
+		local steps = math.min(column - 1, #COURSE_COLUMNS - column)
+		local sides = steps == 0 and { 0 } or { -steps, steps }
+		for _, side in ipairs(sides) do
+			local zCenter = side * DIAMOND_STEP
 			table.insert(COURSE_BUILDINGS, {
-				name = "Building" .. column .. "_" .. row,
+				name = "Building" .. column .. (side < 0 and "Left" or side > 0 and "Right" or "Tip"),
 				x = { x, x + BUILDING_SIZE },
 				z = { zCenter - BUILDING_SIZE / 2, zCenter + BUILDING_SIZE / 2 },
 				roof = info.roof,
-				-- The middle building of the last column holds the red button room
-				hollow = column == #COURSE_COLUMNS and row == (ROW_COUNT + 1) / 2,
+				-- The front tip holds the red button room
+				hollow = column == #COURSE_COLUMNS,
 			})
 		end
 		x += BUILDING_SIZE
