@@ -31,6 +31,8 @@ end
 Catalog.Normal = {
 	-- Rainbow flying carpet with rainbow fire on the corners (a tool: equip to sit on it and fly)
 	{ id = "carpet", kind = "carpet", name = "Magic Carpet", robux = 1000, productId = 0 },
+	-- Without this, riding the Magic Carpet outside the map (over the parkour) kills you. Money only.
+	{ id = "carpetpass", kind = "carpetpass", name = "Carpet Parkour Pass", money = 10000 },
 	money("money_1k", "1,000 Money", 1e3, 272),
 	money("money_100k", "100,000 Money", 1e5, 527),
 	money("money_1m", "1,000,000 Money", 1e6, 752),

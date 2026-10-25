@@ -175,7 +175,18 @@ local function render(state)
 		if item.kind == "wins10" then
 			text = string.format("%s (now %sx)", item.name, Catalog.FormatNumber(state.winMultiplier or 1))
 		end
-		addRow(text, { robuxButton(item, item.id, item.robux) })
+		local buttons = {}
+		if item.kind == "carpetpass" and state.carpetPass then
+			text ..= " (owned)"
+		else
+			if item.money then
+				table.insert(buttons, { text = Catalog.FormatNumber(item.money) .. " money", itemId = item.id, method = "money", color = MONEY_COLOR })
+			end
+			if item.robux then
+				table.insert(buttons, robuxButton(item, item.id, item.robux))
+			end
+		end
+		addRow(text, buttons)
 	end
 	if state.nextLuck then
 		addRow("Luck " .. state.luck .. " > " .. state.nextLuck, { robuxButton(nil, "luck", state.luckPrice) })

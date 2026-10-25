@@ -1,5 +1,6 @@
 -- Magic Carpet riding. Equipping the "Magic Carpet" tool (given by StoreService) makes the player sit and
--- fly with FlightController: WASD to fly, Space up, Q down. Unequipping it lands.
+-- fly with FlightController: WASD to fly, Space up, Q down. Unequipping it lands. Flying it outside the
+-- map needs the Carpet Parkour Pass.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -32,6 +33,19 @@ local function hookTool(tool)
 	tool.Unequipped:Connect(land)
 	tool.Destroying:Connect(land) -- e.g. the owner's /reset takes the carpet away
 end
+
+-- Riding outside the map without the Carpet Parkour Pass kills you (StoreService); explain why
+local StarterGui = game:GetService("StarterGui")
+local carpetNotice = ReplicatedStorage:WaitForChild("Events"):WaitForChild("CarpetNotice")
+carpetNotice.OnClientEvent:Connect(function()
+	pcall(function()
+		StarterGui:SetCore("SendNotification", {
+			Title = "No Carpet Parkour Pass",
+			Text = "Buy the Carpet Parkour Pass (10,000 money) in the shop to fly over the parkour.",
+			Duration = 6,
+		})
+	end)
+end)
 
 -- The tool sits in the Backpack (a child of the player) until it's equipped
 player.DescendantAdded:Connect(hookTool)

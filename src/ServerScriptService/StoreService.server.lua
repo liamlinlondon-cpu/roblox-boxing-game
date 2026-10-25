@@ -11,7 +11,9 @@ local RunService = game:GetService("RunService")
 local Modules = ReplicatedStorage:WaitForChild("Modules")
 local Catalog = require(Modules:WaitForChild("Catalog"))
 local FighterStats = require(Modules:WaitForChild("FighterStats"))
+local WorldConfig = require(Modules:WaitForChild("WorldConfig"))
 local ReceiptRouter = require(script.Parent:WaitForChild("ReceiptRouter"))
+local Admins = require(script.Parent:WaitForChild("Admins"))
 
 local eventsFolder = ReplicatedStorage:WaitForChild("Events")
 local storeEvent = eventsFolder:FindFirstChild("StoreAction")
@@ -60,6 +62,7 @@ local function buildState(player)
 		luckPrice = Catalog.LuckPrice(data.luckPurchases),
 		treadmills = data.treadmills,
 		carpet = data.carpet,
+		carpetPass = data.carpetPass,
 		winMultiplier = data.winMultiplier,
 		strength = data.strength,
 		vipUnlocked = FighterStats.IsWorldChampion(data.strength),
@@ -279,6 +282,9 @@ local function grant(player, itemId)
 	elseif item.kind == "wins10" then
 		data.winMultiplier = (data.winMultiplier or 1) * Catalog.WinsMultiplierStep
 		return true, "Win rewards are now " .. Catalog.FormatNumber(data.winMultiplier) .. "x!"
+	elseif item.kind == "carpetpass" then
+		data.carpetPass = true
+		return true, "Carpet Parkour Pass unlocked! You can now fly the Magic Carpet over the parkour."
 	elseif item.kind == "treadmill" then
 		data.treadmills[item.tier] = true
 		return true, item.name .. " unlocked!"
@@ -305,6 +311,8 @@ local function priceCheck(player, itemId)
 		return "You already have 2x max luck."
 	elseif itemId == "carpet" and data.carpet then
 		return "You already own the Magic Carpet."
+	elseif itemId == "carpetpass" and data.carpetPass then
+		return "You already have the Carpet Parkour Pass."
 	elseif Catalog.ById[itemId] and Catalog.ById[itemId].kind == "treadmill" and data.treadmills[Catalog.ById[itemId].tier] then
 		return "Treadmill already unlocked."
 	elseif item and item.kind == "skin" then
@@ -463,4 +471,31 @@ script.Parent:WaitForChild("PlayerDataService"):WaitForChild("DataLoaded").Event
 		giveCarpetTool(player)
 	end
 	applySkin(player)
+end)
+
+-- Riding the Magic Carpet outside the map (over the parkour) kills you unless you have the Carpet
+-- Parkour Pass. The owner is never stopped.
+local carpetNotice = Instance.new("RemoteEvent")
+carpetNotice.Name = "CarpetNotice"
+carpetNotice.Parent = eventsFolder
+
+local MAP_EDGE = WorldConfig.GroundSize / 2 + WorldConfig.WallThickness
+
+task.spawn(function()
+	while true do
+		task.wait(0.25)
+		for _, player in ipairs(Players:GetPlayers()) do
+			local character = player.Character
+			local root = character and character:FindFirstChild("HumanoidRootPart")
+			local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+			if root and humanoid and humanoid.Health > 0 and character:FindFirstChild(CARPET_MODEL_NAME) then
+				local offset = root.Position - WorldConfig.Arena.Center
+				local outsideMap = math.abs(offset.X) > MAP_EDGE or math.abs(offset.Z) > MAP_EDGE
+				if outsideMap and not FighterStats.GetPlayerData(player).carpetPass and not Admins.IsOwner(player) then
+					humanoid.Health = 0
+					carpetNotice:FireClient(player)
+				end
+			end
+		end
+	end
 end)
