@@ -356,6 +356,7 @@ do
 				x = { x, x + BUILDING_SIZE },
 				z = { zCenter - BUILDING_SIZE / 2, zCenter + BUILDING_SIZE / 2 },
 				roof = info.roof,
+				style = #COURSE_BUILDINGS % 5 + 1, -- which BUILDING_STYLES look it gets
 				-- The front tip holds the red button room
 				hollow = column == #COURSE_COLUMNS,
 			})
@@ -373,12 +374,107 @@ local HILL_TIERS = { -- bottom to top
 }
 local HILL_CENTER = Vector3.new(courseEndX + FINAL_JUMP + HILL_TIERS[#HILL_TIERS].radius, 0, 0)
 
+-- Wall finishes for the course buildings, used in turn
+local BUILDING_STYLES = {
+	{ material = Enum.Material.Brick, color = Color3.fromRGB(150, 85, 65), trim = Color3.fromRGB(215, 205, 190) },
+	{ material = Enum.Material.Concrete, color = Color3.fromRGB(200, 195, 185), trim = Color3.fromRGB(110, 110, 115) },
+	{ material = Enum.Material.Concrete, color = Color3.fromRGB(95, 100, 110), trim = Color3.fromRGB(190, 190, 195) },
+	{ material = Enum.Material.Brick, color = Color3.fromRGB(175, 150, 115), trim = Color3.fromRGB(90, 70, 55) },
+	{ material = Enum.Material.SmoothPlastic, color = Color3.fromRGB(65, 75, 90), trim = Color3.fromRGB(210, 210, 215) },
+}
+local WINDOW_GLASS = Color3.fromRGB(45, 65, 95)
+
+-- Makes a plain block look like a city building: a dark glass window band on every floor, pillars up
+-- the corners and between windows, a low wall around the roof edge, rooftop AC units, a water tank and
+-- an antenna, and an entrance on the side facing the map. Roof height stays the same.
+local function decorateBuilding(model, info, center, width, depth)
+	local style = BUILDING_STYLES[info.style or 1]
+	local roof = info.roof
+	local function part(name, size, offset, material, color)
+		local p = makePart(model, info.name .. name, size, CFrame.new(center + offset), material, color)
+		p.CanQuery = false
+		return p
+	end
+
+	-- A thin strip of glass windows on each side, every floor (thin so the hollow building's room stays clear)
+	for y = 5, roof - 4, 5 do
+		for _, strip in ipairs({
+			{ Vector3.new(width, 2.6, 0.2), Vector3.new(0, y, -depth / 2 - 0.1) },
+			{ Vector3.new(width, 2.6, 0.2), Vector3.new(0, y, depth / 2 + 0.1) },
+			{ Vector3.new(0.2, 2.6, depth), Vector3.new(-width / 2 - 0.1, y, 0) },
+			{ Vector3.new(0.2, 2.6, depth), Vector3.new(width / 2 + 0.1, y, 0) },
+		}) do
+			local glass = part("Windows", strip[1], strip[2], Enum.Material.Glass, WINDOW_GLASS)
+			glass.Reflectance = 0.25
+		end
+	end
+
+	-- Pillars between the windows, about every 6 studs along each side
+	local function pillarsAlong(length, isXSide)
+		local count = math.max(2, math.floor(length / 6) + 1)
+		for i = 0, count - 1 do
+			local along = -length / 2 + 0.6 + i * (length - 1.2) / (count - 1)
+			for _, sideSign in ipairs({ -1, 1 }) do
+				local offset, size
+				if isXSide then
+					offset = Vector3.new(along, roof / 2, sideSign * (depth / 2 + 0.25))
+					size = Vector3.new(1, roof, 0.6)
+				else
+					offset = Vector3.new(sideSign * (width / 2 + 0.25), roof / 2, along)
+					size = Vector3.new(0.6, roof, 1)
+				end
+				part("Pillar", size, offset, style.material, style.trim)
+			end
+		end
+	end
+	pillarsAlong(width, true)
+	pillarsAlong(depth, false)
+
+	-- Low wall around the roof edge
+	for _, edge in ipairs({
+		{ Vector3.new(width, 1.2, 0.6), Vector3.new(0, roof + 0.6, -depth / 2 + 0.3) },
+		{ Vector3.new(width, 1.2, 0.6), Vector3.new(0, roof + 0.6, depth / 2 - 0.3) },
+		{ Vector3.new(0.6, 1.2, depth), Vector3.new(-width / 2 + 0.3, roof + 0.6, 0) },
+		{ Vector3.new(0.6, 1.2, depth), Vector3.new(width / 2 - 0.3, roof + 0.6, 0) },
+	}) do
+		part("Parapet", edge[1], edge[2], style.material, style.trim)
+	end
+
+	-- Rooftop equipment
+	local metal = Color3.fromRGB(160, 160, 165)
+	part("ACUnit", Vector3.new(3, 1.6, 2.4), Vector3.new(-width / 4, roof + 0.8, depth / 4), Enum.Material.Metal, metal)
+	part("ACUnit", Vector3.new(3, 1.6, 2.4), Vector3.new(-width / 4 + 4, roof + 0.8, depth / 4), Enum.Material.Metal, metal)
+	part("TankStand", Vector3.new(3.6, 2, 3.6), Vector3.new(width / 4, roof + 1, -depth / 4), Enum.Material.Metal, Color3.fromRGB(80, 80, 85))
+	local tank = makePart(
+		model,
+		info.name .. "WaterTank",
+		Vector3.new(4, 4, 4),
+		CFrame.new(center + Vector3.new(width / 4, roof + 4, -depth / 4)) * CFrame.Angles(0, 0, math.pi / 2),
+		Enum.Material.WoodPlanks,
+		Color3.fromRGB(120, 85, 55),
+		Enum.PartType.Cylinder
+	)
+	tank.CanQuery = false
+	part("Antenna", Vector3.new(0.3, 8, 0.3), Vector3.new(width / 3, roof + 4, depth / 3), Enum.Material.Metal, metal)
+	local beacon = part("AntennaLight", Vector3.new(0.6, 0.6, 0.6), Vector3.new(width / 3, roof + 8.3, depth / 3), Enum.Material.Neon, Color3.fromRGB(255, 40, 40))
+	local light = Instance.new("PointLight")
+	light.Color = Color3.fromRGB(255, 40, 40)
+	light.Range = 10
+	light.Parent = beacon
+
+	-- Entrance on the side facing the map (-X): door and awning
+	part("Door", Vector3.new(0.4, 7, 5), Vector3.new(-width / 2 - 0.2, 3.5, 0), Enum.Material.Glass, Color3.fromRGB(30, 35, 45))
+	part("Awning", Vector3.new(2.5, 0.4, 7), Vector3.new(-width / 2 - 1.2, 7.6, 0), Enum.Material.Fabric, style.trim)
+end
+
 local function buildCourseBuilding(model, info)
 	local x1, x2, z1, z2 = info.x[1], info.x[2], info.z[1], info.z[2]
 	local width, depth = x2 - x1, z2 - z1
 	local center = ARENA.Center + Vector3.new((x1 + x2) / 2, 0, (z1 + z2) / 2)
+	local style = BUILDING_STYLES[info.style or 1]
+	decorateBuilding(model, info, center, width, depth)
 	if not info.hollow then
-		makePart(model, info.name, Vector3.new(width, info.roof, depth), CFrame.new(center + Vector3.new(0, info.roof / 2, 0)), Enum.Material.Concrete, BUILDING_COLOR)
+		makePart(model, info.name, Vector3.new(width, info.roof, depth), CFrame.new(center + Vector3.new(0, info.roof / 2, 0)), style.material, style.color)
 		return
 	end
 
@@ -396,7 +492,7 @@ local function buildCourseBuilding(model, info)
 		{ Vector3.new(1, info.roof, depth), Vector3.new(-width / 2 + 0.5, info.roof / 2, 0) },
 		{ Vector3.new(1, info.roof, depth), Vector3.new(width / 2 - 0.5, info.roof / 2, 0) },
 	}) do
-		makePart(model, info.name .. "Wall", wall[1], CFrame.new(center + wall[2]), Enum.Material.Concrete, BUILDING_COLOR)
+		makePart(model, info.name .. "Wall", wall[1], CFrame.new(center + wall[2]), style.material, style.color)
 	end
 
 	-- The red button on a pedestal in the middle of the room
