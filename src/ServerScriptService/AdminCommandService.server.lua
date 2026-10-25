@@ -18,12 +18,14 @@
 -- Bans use Roblox's ban system (Players:BanAsync), which works in live servers. In Studio, where it
 -- isn't available, the player is kicked and banned from this test session only.
 
+local CollectionService = game:GetService("CollectionService")
 local DataStoreService = game:GetService("DataStoreService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local TeleportService = game:GetService("TeleportService")
 local TextChatService = game:GetService("TextChatService")
+local TweenService = game:GetService("TweenService")
 
 local Modules = ReplicatedStorage:WaitForChild("Modules")
 local FighterStats = require(Modules:WaitForChild("FighterStats"))
@@ -555,7 +557,8 @@ end
 
 -- ==================== CLONES ====================
 -- /clone [count] makes copies of the owner (their avatar's look, up to MAX_CLONES), and
--- /clones follow | stay | dance | copy | fight <name> | remove tells them what to do. Owner only.
+-- /clones follow | stay | dance | copy | fight <name> | beat the game | remove tells them what to do.
+-- Owner only.
 
 local MAX_CLONES = 10
 local CLONE_PUNCH_DAMAGE = 5 -- per second while a fighting clone is next to its target
@@ -669,6 +672,86 @@ local function setCloneMode(name, target)
 	end
 end
 
+-- /clones beat the game: each clone flies high over the wall and the course, dives into the red portal,
+-- comes out in the red button room, walks up and presses the button. Then they all come back.
+local CLONE_FLY_HEIGHT = 90 -- above the walls, buildings and antennas
+local CLONE_FLY_SPEED = 90 -- studs per second
+
+local function flyCloneTo(root, position)
+	local distance = (position - root.Position).Magnitude
+	local flat = (position - root.Position) * Vector3.new(1, 0, 1)
+	local facing = flat.Magnitude > 0.1 and CFrame.lookAt(position, position + flat) or CFrame.new(position)
+	local tween = TweenService:Create(root, TweenInfo.new(math.max(0.4, distance / CLONE_FLY_SPEED), Enum.EasingStyle.Linear), { CFrame = facing })
+	tween:Play()
+	tween.Completed:Wait()
+end
+
+local function clonesBeatTheGame(owner)
+	local portal = CollectionService:GetTagged("BeatGamePortal")[1]
+	local arrival = CollectionService:GetTagged("BeatGameArrival")[1]
+	local prompt = CollectionService:GetTagged("BeatGameButton")[1]
+	local button = prompt and prompt.Parent
+	if not portal or not arrival or not button then
+		notify(owner, "The beat-the-game course isn't there.")
+		return
+	end
+
+	local list = { table.unpack(liveClones()) }
+	if #list == 0 then
+		notify(owner, "You don't have any clones. Make some with /clone.")
+		return
+	end
+	setCloneMode("busy") -- the movement loop leaves them alone
+	notify(owner, "Your clones are flying off to beat the game!")
+
+	local pending = #list
+	for i, clone in ipairs(list) do
+		task.spawn(function()
+			task.wait((i - 1) * 0.4) -- take off one after another
+			local root, humanoid = clone.root, clone.humanoid
+			if root.Parent and humanoid.Health > 0 then
+				-- Fly: straight up, across to just before the portal, then dive into it
+				local spread = Vector3.new(0, 0, (i - (#list + 1) / 2) * 3)
+				root.Anchored = true
+				flyCloneTo(root, Vector3.new(root.Position.X, CLONE_FLY_HEIGHT, root.Position.Z))
+				flyCloneTo(root, Vector3.new(portal.Position.X - 25, CLONE_FLY_HEIGHT, portal.Position.Z) + spread)
+				flyCloneTo(root, portal.Position)
+
+				-- Through the portal into the room, then walk to the button and press it
+				clone.model:PivotTo(arrival.CFrame * CFrame.new(((i - 1) % 4 - 1.5) * 2, 0, 0))
+				root.Anchored = false
+				humanoid:MoveTo(button.Position)
+				local deadline = os.clock() + 6
+				while (root.Position - button.Position).Magnitude > 4 and os.clock() < deadline and root.Parent do
+					task.wait(0.1)
+				end
+				local color = button.Color
+				button.Color = Color3.new(1, 1, 1)
+				task.delay(0.2, function()
+					button.Color = color
+				end)
+				notify(owner, humanoid.DisplayName .. " " .. i .. " pressed the red button!")
+			end
+
+			pending -= 1
+			if pending == 0 then
+				notify(owner, "All your clones beat the game!")
+				announcementEvent:FireAllClients("👑 " .. owner.DisplayName .. "'s clones beat the game!")
+				-- Bring them back to the owner
+				task.wait(3)
+				local ownerRoot = rootOf(owner)
+				for j, back in ipairs(liveClones()) do
+					if ownerRoot then
+						local angle = j / MAX_CLONES * math.pi * 2
+						back.model:PivotTo(ownerRoot.CFrame * CFrame.new(math.cos(angle) * 6, 0, math.sin(angle) * 6))
+					end
+				end
+				setCloneMode("follow")
+			end
+		end)
+	end
+end
+
 local function cloneCommand(admin, args)
 	if not Admins.IsOwner(admin) then
 		return
@@ -694,7 +777,10 @@ local function clonesCommand(admin, args)
 		return
 	end
 	local order = string.lower(args[1] or "")
-	if order == "remove" then
+	local wholeOrder = string.gsub(string.lower(table.concat(args, "")), "[^%a]", "")
+	if wholeOrder == "beatthegame" or order == "beat" then
+		task.spawn(clonesBeatTheGame, admin)
+	elseif order == "remove" then
 		removeClones()
 		notify(admin, "Clones removed.")
 	elseif order == "follow" or order == "stay" or order == "dance" or order == "copy" then
@@ -709,7 +795,7 @@ local function clonesCommand(admin, args)
 		setCloneMode("fight", target)
 		notify(admin, "Clones are going after " .. target.DisplayName .. "!")
 	else
-		notify(admin, "Usage: /clones follow | stay | dance | copy | fight <name> | remove")
+		notify(admin, "Usage: /clones follow | stay | dance | copy | fight <name> | beat the game | remove")
 	end
 end
 
