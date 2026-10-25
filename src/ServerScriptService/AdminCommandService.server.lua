@@ -707,9 +707,13 @@ local function clonesBeatTheGame(owner)
 	local pending = #list
 	for i, clone in ipairs(list) do
 		task.spawn(function()
-			task.wait((i - 1) * 0.4) -- take off one after another
-			local root, humanoid = clone.root, clone.humanoid
-			if root.Parent and humanoid.Health > 0 then
+			-- pcall: a problem with one clone must never stop the others from coming back
+			pcall(function()
+				task.wait((i - 1) * 0.4) -- take off one after another
+				local root, humanoid = clone.root, clone.humanoid
+				if not root.Parent or humanoid.Health <= 0 then
+					return
+				end
 				-- Fly: straight up, across to just before the portal, then dive into it
 				local spread = Vector3.new(0, 0, (i - (#list + 1) / 2) * 3)
 				root.Anchored = true
@@ -722,7 +726,7 @@ local function clonesBeatTheGame(owner)
 				root.Anchored = false
 				humanoid:MoveTo(button.Position)
 				local deadline = os.clock() + 6
-				while (root.Position - button.Position).Magnitude > 4 and os.clock() < deadline and root.Parent do
+				while root.Parent and (root.Position - button.Position).Magnitude > 4 and os.clock() < deadline do
 					task.wait(0.1)
 				end
 				local color = button.Color
@@ -731,25 +735,35 @@ local function clonesBeatTheGame(owner)
 					button.Color = color
 				end)
 				notify(owner, humanoid.DisplayName .. " " .. i .. " pressed the red button!")
-			end
-
+			end)
 			pending -= 1
-			if pending == 0 then
-				notify(owner, "All your clones beat the game!")
-				announcementEvent:FireAllClients("👑 " .. owner.DisplayName .. "'s clones beat the game!")
-				-- Bring them back to the owner
-				task.wait(3)
-				local ownerRoot = rootOf(owner)
-				for j, back in ipairs(liveClones()) do
-					if ownerRoot then
-						local angle = j / MAX_CLONES * math.pi * 2
-						back.model:PivotTo(ownerRoot.CFrame * CFrame.new(math.cos(angle) * 6, 0, math.sin(angle) * 6))
-					end
-				end
-				setCloneMode("follow")
-			end
 		end)
 	end
+
+	-- Wait for every clone (at most 30 seconds), then always bring them all back
+	local giveUpAt = os.clock() + 30
+	while pending > 0 and os.clock() < giveUpAt do
+		task.wait(0.25)
+	end
+	notify(owner, "All your clones beat the game!")
+	announcementEvent:FireAllClients("👑 " .. owner.DisplayName .. "'s clones beat the game!")
+	task.wait(3)
+
+	local ownerRoot = rootOf(owner)
+	if ownerRoot then
+		for j, clone in ipairs(liveClones()) do
+			clone.root.Anchored = false
+			local angle = j / MAX_CLONES * math.pi * 2
+			clone.model:PivotTo(ownerRoot.CFrame * CFrame.new(math.cos(angle) * 6, 0, math.sin(angle) * 6))
+			clone.humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+		end
+		-- Replace any clone that was lost on the way, so the owner gets the same number back
+		local missing = math.min(#list, MAX_CLONES) - #liveClones()
+		for k = 1, missing do
+			task.spawn(spawnClone, owner, #clones + k)
+		end
+	end
+	setCloneMode("follow")
 end
 
 local function cloneCommand(admin, args)
