@@ -6,6 +6,7 @@
 --                               "/give <name> commands" gives them the commands (owner only)
 --   /take <name> commands       removes commands given with /give (owner only)
 --   /reset [name]               resets a player (or yourself) to a new player's start
+--   /privateserver              teleports the owner to their own private server (owner only)
 --   /luck <number> [name]       sets everyone's luck (or one player's with a name), e.g. /luck 64
 --   /infinitystrength [name]    infinite strength (also /infinitykick, /infinitystamina, /infinitymoney,
 --                               /infinitywins and /infinitybeatthegame; dashes are fine: /infinity-wins)
@@ -16,8 +17,11 @@
 -- Bans use Roblox's ban system (Players:BanAsync), which works in live servers. In Studio, where it
 -- isn't available, the player is kicked and banned from this test session only.
 
+local DataStoreService = game:GetService("DataStoreService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local TeleportService = game:GetService("TeleportService")
 local TextChatService = game:GetService("TextChatService")
 
 local Modules = ReplicatedStorage:WaitForChild("Modules")
@@ -507,6 +511,47 @@ lookupFunction.OnServerInvoke = function(player, query)
 	return table.concat(lines, "\n")
 end
 
+-- ==================== PRIVATE SERVER ====================
+-- /privateserver (or "/private server"): teleports the owner to their own private server. The server is
+-- reserved once and its code saved, so it's the same server every time. Only people teleported in can
+-- join it. Teleporting doesn't work in Studio, only in the published game.
+
+local privateServerStore = DataStoreService:GetDataStore("OwnerPrivateServer_v1")
+
+local function privateServer(admin)
+	if not Admins.IsOwner(admin) then
+		return
+	end
+	if RunService:IsStudio() then
+		notify(admin, "Teleporting to your private server only works in the published game, not in Studio.")
+		return
+	end
+
+	local key = "owner_" .. admin.UserId
+	local loaded, code = pcall(function()
+		return privateServerStore:GetAsync(key)
+	end)
+	if not loaded or type(code) ~= "string" then
+		local reserved, newCode = pcall(TeleportService.ReserveServer, TeleportService, game.PlaceId)
+		if not reserved then
+			notify(admin, "Couldn't create your private server: " .. tostring(newCode))
+			return
+		end
+		code = newCode
+		pcall(function()
+			privateServerStore:SetAsync(key, code)
+		end)
+	end
+
+	notify(admin, "Teleporting you to your private server...")
+	local teleported, err = pcall(function()
+		TeleportService:TeleportToPrivateServer(game.PlaceId, code, { admin })
+	end)
+	if not teleported then
+		notify(admin, "Teleport failed: " .. tostring(err))
+	end
+end
+
 -- ==================== COMMAND TABLE ====================
 -- minArgs: how many words must follow the command; usage: shown when they're missing
 
@@ -518,6 +563,8 @@ local COMMANDS = {
 	give = { run = give, minArgs = 2, usage = "/give <name> <item>, e.g. /give Bob owner treadmill" },
 	take = { run = take, minArgs = 2, usage = "/take <name> commands" },
 	reset = { run = reset },
+	privateserver = { run = privateServer },
+	private = { run = privateServer }, -- "/private server"
 	luck = { run = luck, minArgs = 1, usage = "/luck <number> [name], e.g. /luck 64 (everyone) or /luck 64 Bob" },
 }
 for stat in pairs(INFINITE_STATS) do
