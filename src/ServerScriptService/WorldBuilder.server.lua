@@ -290,36 +290,76 @@ local function buildGym(world, index)
 end
 
 -- ==================== BEAT THE GAME ====================
--- Parkour course outside the east wall. There are no stairs: getting over the 60-stud wall is part of
--- the challenge. From the wall top, jump across four buildings in a diamond (back, middle-left,
--- middle-right, front) to a three-tier hill.
--- The ground outside is lava. Each building is lower than the last so the longer jumps can be made with
--- a normal Roblox jump (about 8 studs on flat ground):
---   wall top 60 -> back 56 (gap 4) -> mid-left 50 (gap 6) -> mid-right 43 (gap 7) -> front 35 (gap 9)
---   -> hill top 23 (gap 10, the big one)
--- The hill: yellow pad on the bottom tier, blue on the middle and a red round portal on top, which
--- teleports you inside the front building, where the red button wins the game. The tiers are 10 studs
--- apart so they can't be climbed: missing the last jump leaves you on a decoy tier.
--- BeatGameService handles the lava, pads, portal and button.
+-- Parkour course outside the east wall: a field of buildings about the size of the whole map, in 11
+-- columns (going away from the map) of 9 buildings each. There are no stairs: getting over the 60-stud
+-- wall is part of the challenge. Players jump from column to column toward a three-tier hill, and the
+-- jumps get longer the further they go. A normal Roblox jump only covers about 8 studs on flat ground,
+-- so columns get lower when the jumps get longer than that:
+--   wall top 60 -> column 1 (gap 4); columns 1-8 roofs 56 (gaps 4, 5, 5, 6, 6, 7, 7);
+--   column 9 roof 53 (gap 8), column 10 roof 50 (gap 8), column 11 roof 44 (gap 9);
+--   column 11 -> hill top 32 (gap 10, the big one)
+-- Buildings in the same column are 6 studs apart, so players can also move sideways. The ground outside
+-- is lava. The hill: yellow pad on the bottom tier, blue on the middle and a red round portal on top,
+-- which teleports you inside the middle building of the last column, where the red button wins the
+-- game. The tiers are 10 studs apart so they can't be climbed: missing the last jump leaves you on a
+-- decoy tier. BeatGameService handles the lava, pads, portal and button.
 
 local LAVA_COLOR = Color3.fromRGB(255, 90, 20)
 local BUILDING_COLOR = Color3.fromRGB(120, 120, 130)
 local RED = Color3.fromRGB(255, 40, 40)
 
--- Footprints (x from/to, z from/to, relative to the arena center) and roof heights
-local COURSE_BUILDINGS = {
-	{ name = "BackBuilding", x = { 218, 236 }, z = { -12, 12 }, roof = 56 },
-	{ name = "MidLeftBuilding", x = { 242, 260 }, z = { 3.5, 21.5 }, roof = 50 },
-	{ name = "MidRightBuilding", x = { 242, 260 }, z = { -21.5, -3.5 }, roof = 43 },
-	{ name = "FrontBuilding", x = { 269, 287 }, z = { -12, 12 }, roof = 35, hollow = true },
+local BUILDING_SIZE = 30
+local ROW_GAP = 6
+local ROW_COUNT = 9
+local FIRST_COLUMN_X = 218 -- 4 studs past the wall's outside face
+-- Each column: the gap before it (from the previous column) and its roof height
+local COURSE_COLUMNS = {
+	{ gap = 0, roof = 56 },
+	{ gap = 4, roof = 56 },
+	{ gap = 5, roof = 56 },
+	{ gap = 5, roof = 56 },
+	{ gap = 6, roof = 56 },
+	{ gap = 6, roof = 56 },
+	{ gap = 7, roof = 56 },
+	{ gap = 7, roof = 56 },
+	{ gap = 8, roof = 53 },
+	{ gap = 8, roof = 50 },
+	{ gap = 9, roof = 44 },
 }
--- Top tier edge is 10 studs past the front building (x 297); the bottom tier stops at the building's wall
-local HILL_CENTER = Vector3.new(306, 0, 0)
+local FINAL_JUMP = 10
+
+-- Builds the list of building footprints (x from/to, z from/to, relative to the arena center)
+local COURSE_BUILDINGS = {}
+local courseEndX = FIRST_COLUMN_X
+do
+	local x = FIRST_COLUMN_X
+	for column, info in ipairs(COURSE_COLUMNS) do
+		if column > 1 then
+			x += info.gap
+		end
+		for row = 1, ROW_COUNT do
+			local zCenter = (row - (ROW_COUNT + 1) / 2) * (BUILDING_SIZE + ROW_GAP)
+			table.insert(COURSE_BUILDINGS, {
+				name = "Building" .. column .. "_" .. row,
+				x = { x, x + BUILDING_SIZE },
+				z = { zCenter - BUILDING_SIZE / 2, zCenter + BUILDING_SIZE / 2 },
+				roof = info.roof,
+				-- The middle building of the last column holds the red button room
+				hollow = column == #COURSE_COLUMNS and row == (ROW_COUNT + 1) / 2,
+			})
+		end
+		x += BUILDING_SIZE
+	end
+	courseEndX = x
+end
+
+-- The hill's top tier starts FINAL_JUMP studs past the last column; its bottom tier ends just past it
 local HILL_TIERS = { -- bottom to top
-	{ radius = 18, top = 3, pad = { color = "yellow", rgb = Color3.fromRGB(255, 220, 40), offset = 16 } },
-	{ radius = 14, top = 13, pad = { color = "blue", rgb = Color3.fromRGB(40, 90, 255), offset = 11.5 } },
-	{ radius = 9, top = 23 },
+	{ radius = 23, top = 12, pad = { color = "yellow", rgb = Color3.fromRGB(255, 220, 40), offset = 21.5 } },
+	{ radius = 20, top = 22, pad = { color = "blue", rgb = Color3.fromRGB(40, 90, 255), offset = 17 } },
+	{ radius = 14, top = 32 },
 }
+local HILL_CENTER = Vector3.new(courseEndX + FINAL_JUMP + HILL_TIERS[#HILL_TIERS].radius, 0, 0)
 
 local function buildCourseBuilding(model, info)
 	local x1, x2, z1, z2 = info.x[1], info.x[2], info.z[1], info.z[2]
@@ -390,7 +430,7 @@ local function buildHill(model)
 			local pad = makePart(
 				model,
 				tier.pad.color .. "Pad",
-				Vector3.new(0.4, 4, 4),
+				Vector3.new(0.4, 3, 3),
 				CFrame.new(center + Vector3.new(0, tier.top + 0.2, tier.pad.offset)) * CFrame.Angles(0, 0, math.pi / 2),
 				Enum.Material.Neon,
 				tier.pad.rgb,
@@ -433,11 +473,12 @@ local function buildBeatGameCourse(world)
 
 	-- Lava covering the ground outside the east wall, under the whole course
 	local wallOuter = WorldConfig.GroundSize / 2 + WorldConfig.WallThickness
+	local lavaEndX = HILL_CENTER.X + HILL_TIERS[1].radius + 40
 	local lava = makePart(
 		model,
 		"Lava",
-		Vector3.new(340 - wallOuter, 1, 140),
-		CFrame.new(ARENA.Center + Vector3.new((wallOuter + 340) / 2, 0, 0)),
+		Vector3.new(lavaEndX - wallOuter, 1, 400),
+		CFrame.new(ARENA.Center + Vector3.new((wallOuter + lavaEndX) / 2, 0, 0)),
 		Enum.Material.CrackedLava,
 		LAVA_COLOR
 	)
