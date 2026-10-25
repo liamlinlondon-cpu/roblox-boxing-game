@@ -580,3 +580,46 @@ Players.PlayerRemoving:Connect(function(player)
 	flying[player] = nil
 	Admins.Revoke(player.UserId) -- commands given with /give last until the player leaves
 end)
+
+-- ==================== OWNER TAG ====================
+-- A gold "👑 OWNER" tag floats above the owner's head so everyone can see who the owner is. It's on the
+-- HumanoidRootPart so it stays when the owner's look changes (skins, /reset).
+
+local function addOwnerTag(character)
+	local root = character:WaitForChild("HumanoidRootPart", 10)
+	if not root or root:FindFirstChild("OwnerTag") then
+		return
+	end
+	local tag = Instance.new("BillboardGui")
+	tag.Name = "OwnerTag"
+	tag.Size = UDim2.new(0, 180, 0, 44)
+	tag.StudsOffset = Vector3.new(0, 4.5, 0)
+	tag.MaxDistance = 200
+	tag.Parent = root
+
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.fromScale(1, 1)
+	label.BackgroundTransparency = 1
+	label.Text = "👑 OWNER"
+	label.TextColor3 = Color3.fromRGB(255, 215, 0)
+	label.TextStrokeColor3 = Color3.fromRGB(60, 40, 0)
+	label.TextStrokeTransparency = 0
+	label.Font = Enum.Font.GothamBlack
+	label.TextScaled = true
+	label.Parent = tag
+end
+
+local function watchOwner(player)
+	if not Admins.IsOwner(player) then
+		return
+	end
+	player.CharacterAdded:Connect(addOwnerTag)
+	if player.Character then
+		task.spawn(addOwnerTag, player.Character)
+	end
+end
+
+Players.PlayerAdded:Connect(watchOwner)
+for _, player in ipairs(Players:GetPlayers()) do
+	watchOwner(player)
+end
