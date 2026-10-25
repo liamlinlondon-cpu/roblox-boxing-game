@@ -290,8 +290,9 @@ local function buildGym(world, index)
 end
 
 -- ==================== BEAT THE GAME ====================
--- Parkour course outside the east wall. Climb the stairs inside the map to the top of the wall, then
--- jump across four buildings in a diamond (back, middle-left, middle-right, front) to a three-tier hill.
+-- Parkour course outside the east wall. There are no stairs: getting over the 60-stud wall is part of
+-- the challenge. From the wall top, jump across four buildings in a diamond (back, middle-left,
+-- middle-right, front) to a three-tier hill.
 -- The ground outside is lava. Each building is lower than the last so the longer jumps can be made with
 -- a normal Roblox jump (about 8 studs on flat ground):
 --   wall top 60 -> back 56 (gap 4) -> mid-left 50 (gap 6) -> mid-right 43 (gap 7) -> front 35 (gap 9)
@@ -307,33 +308,18 @@ local RED = Color3.fromRGB(255, 40, 40)
 
 -- Footprints (x from/to, z from/to, relative to the arena center) and roof heights
 local COURSE_BUILDINGS = {
-	{ name = "BackBuilding", x = { 218, 232 }, z = { -9, 9 }, roof = 56 },
-	{ name = "MidLeftBuilding", x = { 238, 252 }, z = { 3.5, 17.5 }, roof = 50 },
-	{ name = "MidRightBuilding", x = { 238, 252 }, z = { -17.5, -3.5 }, roof = 43 },
-	{ name = "FrontBuilding", x = { 261, 275 }, z = { -9, 9 }, roof = 35, hollow = true },
+	{ name = "BackBuilding", x = { 218, 236 }, z = { -12, 12 }, roof = 56 },
+	{ name = "MidLeftBuilding", x = { 242, 260 }, z = { 3.5, 21.5 }, roof = 50 },
+	{ name = "MidRightBuilding", x = { 242, 260 }, z = { -21.5, -3.5 }, roof = 43 },
+	{ name = "FrontBuilding", x = { 269, 287 }, z = { -12, 12 }, roof = 35, hollow = true },
 }
-local HILL_CENTER = Vector3.new(292, 0, 0)
+-- Top tier edge is 10 studs past the front building (x 297); the bottom tier stops at the building's wall
+local HILL_CENTER = Vector3.new(306, 0, 0)
 local HILL_TIERS = { -- bottom to top
-	{ radius = 20, top = 3, pad = { color = "yellow", rgb = Color3.fromRGB(255, 220, 40), offset = 16.5 } },
-	{ radius = 13, top = 13, pad = { color = "blue", rgb = Color3.fromRGB(40, 90, 255), offset = 10 } },
-	{ radius = 7, top = 23 },
+	{ radius = 18, top = 3, pad = { color = "yellow", rgb = Color3.fromRGB(255, 220, 40), offset = 16 } },
+	{ radius = 14, top = 13, pad = { color = "blue", rgb = Color3.fromRGB(40, 90, 255), offset = 11.5 } },
+	{ radius = 9, top = 23 },
 }
-
--- Stairs along the inside of the east wall, 1 stud per step, up to the top of the 60-stud wall
-local function buildWallStairs(model)
-	local wallX = WorldConfig.GroundSize / 2
-	local steps = WorldConfig.WallHeight
-	for i = 1, steps do
-		makePart(
-			model,
-			"Step" .. i,
-			Vector3.new(8, i, 1.6),
-			CFrame.new(ARENA.Center + Vector3.new(wallX - 4, i / 2, -steps * 1.6 + (i - 0.5) * 1.6)),
-			Enum.Material.Concrete,
-			Color3.fromRGB(150, 150, 155)
-		)
-	end
-end
 
 local function buildCourseBuilding(model, info)
 	local x1, x2, z1, z2 = info.x[1], info.x[2], info.z[1], info.z[2]
@@ -404,7 +390,7 @@ local function buildHill(model)
 			local pad = makePart(
 				model,
 				tier.pad.color .. "Pad",
-				Vector3.new(0.4, 5, 5),
+				Vector3.new(0.4, 4, 4),
 				CFrame.new(center + Vector3.new(0, tier.top + 0.2, tier.pad.offset)) * CFrame.Angles(0, 0, math.pi / 2),
 				Enum.Material.Neon,
 				tier.pad.rgb,
@@ -445,8 +431,6 @@ local function buildBeatGameCourse(world)
 	model.Name = "BeatGameCourse"
 	model.Parent = world
 
-	buildWallStairs(model)
-
 	-- Lava covering the ground outside the east wall, under the whole course
 	local wallOuter = WorldConfig.GroundSize / 2 + WorldConfig.WallThickness
 	local lava = makePart(
@@ -472,7 +456,7 @@ local function buildBeatGameSign(world)
 		makePart(world, "BeatGameSignPost", Vector3.new(0.6, 10, 0.6), facing * CFrame.new(side * 7, 5, 0), Enum.Material.Wood, Color3.fromRGB(90, 60, 40))
 	end
 	local board = makePart(world, "BeatGameSign", Vector3.new(14, 7, 0.4), facing * CFrame.new(0, 7, 0), Enum.Material.SmoothPlastic, Color3.fromRGB(20, 20, 20))
-	local text = "HOW TO BEAT THE GAME\nClimb the stairs by the east wall and leave the map. Jump across the buildings to the hill. "
+	local text = "HOW TO BEAT THE GAME\nGet over the east wall (no stairs!) and leave the map. Jump across the buildings to the hill. "
 		.. "Don't touch the lava! Go into the RED portal at the top, then press the red button."
 	-- Readable from both sides
 	addSign(board, Enum.NormalId.Front, text, Color3.fromRGB(255, 70, 70))
