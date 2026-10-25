@@ -449,6 +449,53 @@ local function sell(player, itemId)
 	notify(player, "Sold the " .. item.name .. " for " .. Catalog.FormatNumber(price) .. " money.", true)
 end
 
+-- Sell any other tool from the backpack (see Catalog.BackpackToolSellPrice). Every copy of it goes, and
+-- it's remembered so copies that come back later (after respawning) are removed instead of sold again.
+local function sellTool(player, toolName)
+	if type(toolName) ~= "string" or toolName == CARPET_TOOL_NAME then
+		return -- the Magic Carpet is sold as a shop item
+	end
+	local data = FighterStats.GetPlayerData(player)
+	if data.soldTools[toolName] then
+		notify(player, "You already sold the " .. toolName .. ".", false)
+		return
+	end
+	local found = false
+	for _, container in ipairs({ player:FindFirstChildOfClass("Backpack"), player.Character }) do
+		if container then
+			for _, child in ipairs(container:GetChildren()) do
+				if child:IsA("Tool") and child.Name == toolName then
+					child:Destroy()
+					found = true
+				end
+			end
+		end
+	end
+	if not found then
+		notify(player, "You don't have the " .. toolName .. ".", false)
+		return
+	end
+	data.soldTools[toolName] = true
+	data.money += Catalog.BackpackToolSellPrice
+	sendStats(player)
+	notify(player, "Sold the " .. toolName .. " for " .. Catalog.FormatNumber(Catalog.BackpackToolSellPrice) .. " money.", true)
+end
+
+-- Removes sold tools that show up again in a backpack (StarterPack items come back on every respawn)
+local function watchBackpack(player, backpack)
+	local function check(child)
+		if child:IsA("Tool") and FighterStats.GetPlayerData(player).soldTools[child.Name] then
+			task.defer(function()
+				child:Destroy()
+			end)
+		end
+	end
+	backpack.ChildAdded:Connect(check)
+	for _, child in ipairs(backpack:GetChildren()) do
+		check(child)
+	end
+end
+
 -- Switch between owned color skins, or "none" for the player's normal look
 local function wear(player, colorId)
 	local data = FighterStats.GetPlayerData(player)
@@ -473,6 +520,8 @@ storeEvent.OnServerEvent:Connect(function(player, action, itemId, method)
 		wear(player, itemId)
 	elseif action == "sell" then
 		sell(player, itemId)
+	elseif action == "sellTool" then
+		sellTool(player, itemId)
 	end
 end)
 
@@ -497,10 +546,17 @@ end)
 Players.PlayerAdded:Connect(function(player)
 	-- Each respawn gets a new backpack, so hand the carpet tool back when it appears
 	player.ChildAdded:Connect(function(child)
-		if child:IsA("Backpack") and FighterStats.GetPlayerData(player).carpet then
-			giveCarpetTool(player)
+		if child:IsA("Backpack") then
+			watchBackpack(player, child)
+			if FighterStats.GetPlayerData(player).carpet then
+				giveCarpetTool(player)
+			end
 		end
 	end)
+	local backpack = player:FindFirstChildOfClass("Backpack")
+	if backpack then
+		watchBackpack(player, backpack)
+	end
 	-- Re-apply the worn color skin after each respawn, once the avatar's clothes have loaded
 	player.CharacterAppearanceLoaded:Connect(function()
 		applySkin(player)
@@ -529,6 +585,14 @@ script.Parent:WaitForChild("PlayerDataService"):WaitForChild("DataLoaded").Event
 		giveCarpetTool(player)
 	end
 	applySkin(player)
+	-- Tools sold on an earlier visit may already be back in the backpack from the StarterPack
+	local backpack = player:FindFirstChildOfClass("Backpack")
+	local soldTools = FighterStats.GetPlayerData(player).soldTools or {}
+	for _, child in ipairs(backpack and backpack:GetChildren() or {}) do
+		if child:IsA("Tool") and soldTools[child.Name] then
+			child:Destroy()
+		end
+	end
 end)
 
 -- Riding the Magic Carpet outside the map (over the parkour) kills you unless you have the Carpet

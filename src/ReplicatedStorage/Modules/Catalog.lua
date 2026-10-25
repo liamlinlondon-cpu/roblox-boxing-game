@@ -135,6 +135,10 @@ end
 -- the Robux price as money when there's no money price. Used-up items (money, strength, luck...) can't.
 local SELLABLE_KINDS = { carpet = true, carpetpass = true, treadmill = true, skin = true }
 
+-- Any other tool in a player's backpack (from the StarterPack, admin kits...) sells for this much money.
+-- Once sold it's gone for good: copies that come back later (e.g. after respawning) are removed.
+Catalog.BackpackToolSellPrice = 100
+
 function Catalog.CanSell(item)
 	return item ~= nil and SELLABLE_KINDS[item.kind] == true
 end

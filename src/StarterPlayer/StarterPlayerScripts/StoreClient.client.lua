@@ -149,7 +149,7 @@ local function renderColorShop(state)
 	end
 end
 
--- Sell Shop: every lasting item the player owns, each with a SELL button
+-- Sell Shop: every lasting item the player owns and every tool in their backpack, each with a SELL button
 local function renderSellShop(state)
 	title.Text = "SELL SHOP"
 	local anything = false
@@ -166,6 +166,26 @@ local function renderSellShop(state)
 	end
 	for _, sky in ipairs(Catalog.SkyColors) do
 		offer(Catalog.ById["skin_" .. sky.id], state.ownedSkins and state.ownedSkins[sky.id])
+	end
+	-- Anything else in the backpack (or held)
+	local listed = {}
+	for _, container in ipairs({ player:FindFirstChildOfClass("Backpack"), player.Character }) do
+		if container then
+			for _, tool in ipairs(container:GetChildren()) do
+				if tool:IsA("Tool") and tool.Name ~= "Magic Carpet" and not listed[tool.Name] then
+					listed[tool.Name] = true
+					anything = true
+					addRow(tool.Name .. " (backpack)", {
+						{
+							text = "SELL +" .. Catalog.FormatNumber(Catalog.BackpackToolSellPrice),
+							itemId = tool.Name,
+							action = "sellTool",
+							color = SELL_COLOR,
+						},
+					})
+				end
+			end
+		end
 	end
 	if not anything then
 		addRow("You don't own anything that can be sold yet.", {})
