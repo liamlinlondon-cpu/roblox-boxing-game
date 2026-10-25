@@ -12,6 +12,9 @@ local arenaEvent = events:WaitForChild("ArenaAction")
 local Catalog = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("Catalog"))
 
 local function formatNumber(value)
+	if value == math.huge then
+		return "Infinite" -- owner commands like /infinitywins
+	end
 	return string.format("%.0f", value)
 end
 

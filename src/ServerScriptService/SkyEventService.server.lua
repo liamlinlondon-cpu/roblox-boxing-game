@@ -143,17 +143,24 @@ end)
 -- "/ruby", "/sapphire", ... start that color's event right away (WorldConfig.SkyEvents.Commands);
 -- "/non color" ends the event and turns the sky back to normal.
 
+-- Tells everyone who started it, in the banner next to the stat bars (AnnouncementClient)
+local announcementEvent = ReplicatedStorage:WaitForChild("Events"):WaitForChild("Announcement")
+
 local function runCommand(player, alias)
 	if not Admins.IsAdmin(player) then
 		return
 	end
 	if alias == EVENTS.ClearCommand or alias == EVENTS.ClearCommandAlias then
-		clearEvent()
+		if ReplicatedStorage:GetAttribute("SkyEventColor") then
+			clearEvent()
+			announcementEvent:FireAllClients("👑 " .. player.DisplayName .. " turned the sky back to normal.")
+		end
 		return
 	end
 	local sky = Catalog.SkyColorById[EVENTS.Commands[alias] or ""]
 	if sky then
 		startEvent(sky)
+		announcementEvent:FireAllClients("👑 " .. player.DisplayName .. " started a " .. string.upper(sky.name) .. " SKY event!")
 	end
 end
 

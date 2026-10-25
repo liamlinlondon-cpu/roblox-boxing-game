@@ -31,7 +31,7 @@ if not stateEvent then
 end
 
 -- Other scripts WaitForChild these, so they must exist even though they're used elsewhere
-for _, eventName in ipairs({ "MatchResult", "ShopAction", "ArenaAction", "CombatAction", "VipAuction", "GymTraining", "TreadmillControl" }) do
+for _, eventName in ipairs({ "MatchResult", "ShopAction", "ArenaAction", "CombatAction", "VipAuction", "GymTraining", "TreadmillControl", "Announcement" }) do
 	if not eventsFolder:FindFirstChild(eventName) then
 		local remote = Instance.new("RemoteEvent")
 		remote.Name = eventName

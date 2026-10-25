@@ -7,7 +7,8 @@
 --   /take <name> commands       removes commands given with /give (owner only)
 --   /reset [name]               resets a player (or yourself) to a new player's start
 --   /luck <number> [name]       sets everyone's luck (or one player's with a name), e.g. /luck 64
---   /infinitystrength [name]    infinite strength (also /infinitykick, /infinitystamina, /infinitymoney)
+--   /infinitystrength [name]    infinite strength (also /infinitykick, /infinitystamina, /infinitymoney,
+--                               /infinitywins and /infinitybeatthegame; dashes are fine: /infinity-wins)
 -- <name> is the name shown above a player's head (display name) or their username; the start of it is
 -- enough. Commands with [name] apply to the admin when no name is given. Results are shown to the admin
 -- in chat, and a player who receives something gets a private message too.
@@ -34,6 +35,8 @@ noticeEvent.Parent = eventsFolder
 local flyEvent = Instance.new("RemoteEvent")
 flyEvent.Name = "AdminFly"
 flyEvent.Parent = eventsFolder
+
+local announcementEvent = eventsFolder:WaitForChild("Announcement")
 
 local BAN_MESSAGE = "You have been banned from this game."
 local sessionBans = {} -- [userId] = true: fallback when Players:BanAsync isn't available (Studio)
@@ -327,9 +330,10 @@ local function luck(admin, args)
 	for _, player in ipairs(Players:GetPlayers()) do
 		FighterStats.GetPlayerData(player).luck = amount
 		sendStats(player)
-		tellTarget(admin, player, "Everyone's luck is now " .. amountText .. "!")
 	end
 	notify(admin, "Everyone in the server now has " .. amountText .. " luck.")
+	-- Everyone sees who gave it, in the banner next to the stat bars (AnnouncementClient)
+	announcementEvent:FireAllClients("👑 " .. admin.DisplayName .. " gave everyone " .. amountText .. "x luck!")
 end
 
 local INFINITE_STATS = {
@@ -346,7 +350,15 @@ local INFINITE_STATS = {
 	money = function(data)
 		data.money = math.huge
 	end,
+	wins = function(data)
+		data.arenaWins = math.huge
+	end,
+	beatthegame = function(data)
+		data.gameBeats = math.huge
+	end,
 }
+-- How each stat is named in the messages
+local INFINITE_STAT_NAMES = { wins = "wins", beatthegame = "beat the game" }
 
 local function makeInfinity(stat)
 	return function(admin, args)
@@ -356,8 +368,9 @@ local function makeInfinity(stat)
 		end
 		INFINITE_STATS[stat](FighterStats.GetPlayerData(target))
 		sendStats(target)
-		notify(admin, target.DisplayName .. " now has infinite " .. stat .. ".")
-		tellTarget(admin, target, "You now have infinite " .. stat .. "!")
+		local statName = INFINITE_STAT_NAMES[stat] or stat
+		notify(admin, target.DisplayName .. " now has infinite " .. statName .. ".")
+		tellTarget(admin, target, "You now have infinite " .. statName .. "!")
 	end
 end
 
@@ -446,7 +459,7 @@ local function statLine(data, stat)
 		return "Stamina: " .. Catalog.FormatNumber(data.stamina) .. " / " .. Catalog.FormatNumber(data.maxStamina)
 	elseif stat == "gameBeats" then
 		local beats = data.gameBeats or 0
-		return "Beat the game: " .. beats .. (beats == 1 and " time" or " times")
+		return "Beat the game: " .. Catalog.FormatNumber(beats) .. (beats == 1 and " time" or " times")
 	elseif stat == "arenaWins" then
 		return "Arena wins: " .. Catalog.FormatNumber(data.arenaWins or 0)
 	end
@@ -512,6 +525,14 @@ for stat in pairs(INFINITE_STATS) do
 	COMMANDS["infinity" .. stat] = entry
 	COMMANDS["inifinity" .. stat] = entry -- common misspelling
 end
+COMMANDS.infinitybeatthegames = COMMANDS.infinitybeatthegame -- "/infinity-beat-the-games"
+
+-- Commands can also be typed with dashes, e.g. "/infinity-wins": dashes are ignored
+local DASHED_ALIASES = {
+	infinitywins = "/infinity-wins",
+	infinitybeatthegame = "/infinity-beat-the-game",
+	infinitybeatthegames = "/infinity-beat-the-games",
+}
 
 -- message is the full chat text, e.g. "/give Bob owner treadmill" or "/fly"
 local function runCommand(admin, message)
@@ -525,8 +546,8 @@ local function runCommand(admin, message)
 			table.insert(args, words[i])
 		end
 	end
-	local command = string.match(words[1] or "", "^/(%a+)$")
-	local entry = command and COMMANDS[string.lower(command)]
+	local command = string.match(words[1] or "", "^/([%a%-]+)$")
+	local entry = command and COMMANDS[string.gsub(string.lower(command), "%-", "")]
 	if not entry then
 		return
 	end
@@ -545,6 +566,9 @@ if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
 		local command = Instance.new("TextChatCommand")
 		command.Name = "Admin_" .. name
 		command.PrimaryAlias = "/" .. name
+		if DASHED_ALIASES[name] then
+			command.SecondaryAlias = DASHED_ALIASES[name]
+		end
 		command.Parent = commandsFolder
 		command.Triggered:Connect(function(textSource, message)
 			local admin = Players:GetPlayerByUserId(textSource.UserId)
@@ -557,8 +581,8 @@ else
 	-- Places still on the legacy chat
 	local function listen(player)
 		player.Chatted:Connect(function(message)
-			local command = string.match(string.lower(message), "^/(%a+)")
-			if command and COMMANDS[command] then
+			local command = string.match(string.lower(message), "^/([%a%-]+)")
+			if command and COMMANDS[string.gsub(command, "%-", "")] then
 				runCommand(player, message)
 			end
 		end)
