@@ -395,6 +395,60 @@ ReceiptRouter.Register(function(receipt)
 	return Enum.ProductPurchaseDecision.PurchaseGranted
 end)
 
+-- Sell an owned lasting item back for its price in money (see Catalog.CanSell / Catalog.SellPrice)
+local function sell(player, itemId)
+	local item = type(itemId) == "string" and Catalog.ById[itemId] or nil
+	if not Catalog.CanSell(item) then
+		notify(player, "That can't be sold.", false)
+		return
+	end
+	local data = FighterStats.GetPlayerData(player)
+	local owned
+	if item.kind == "carpet" then
+		owned = data.carpet
+	elseif item.kind == "carpetpass" then
+		owned = data.carpetPass
+	elseif item.kind == "treadmill" then
+		owned = data.treadmills[item.tier]
+	elseif item.kind == "skin" then
+		owned = data.ownedSkins[item.colorId]
+	end
+	if not owned then
+		notify(player, "You don't own the " .. item.name .. ".", false)
+		return
+	end
+
+	if item.kind == "carpet" then
+		data.carpet = false
+		local character = player.Character
+		for _, container in ipairs({ player:FindFirstChildOfClass("Backpack"), character }) do
+			local tool = container and container:FindFirstChild(CARPET_TOOL_NAME)
+			if tool then
+				tool:Destroy()
+			end
+		end
+		removeCarpet(character)
+	elseif item.kind == "carpetpass" then
+		data.carpetPass = false
+	elseif item.kind == "treadmill" then
+		data.treadmills[item.tier] = nil
+		if item.tier == "owner" then
+			data.ownerTreadmillAnywhere = false
+		end
+	elseif item.kind == "skin" then
+		data.ownedSkins[item.colorId] = nil
+		if data.skin == item.colorId then
+			data.skin = nil
+			restoreLook(player)
+		end
+	end
+
+	local price = Catalog.SellPrice(item)
+	data.money += price
+	sendStats(player)
+	notify(player, "Sold the " .. item.name .. " for " .. Catalog.FormatNumber(price) .. " money.", true)
+end
+
 -- Switch between owned color skins, or "none" for the player's normal look
 local function wear(player, colorId)
 	local data = FighterStats.GetPlayerData(player)
@@ -417,6 +471,8 @@ storeEvent.OnServerEvent:Connect(function(player, action, itemId, method)
 		buy(player, itemId, method)
 	elseif action == "wear" then
 		wear(player, itemId)
+	elseif action == "sell" then
+		sell(player, itemId)
 	end
 end)
 

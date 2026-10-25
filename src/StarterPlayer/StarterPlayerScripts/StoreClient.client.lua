@@ -106,6 +106,12 @@ local function robuxButton(item, itemId, price)
 end
 
 local WEAR_COLOR = Color3.fromRGB(75, 110, 180)
+local SELL_COLOR = Color3.fromRGB(170, 60, 60)
+
+-- "SELL +1,000" button for an owned item
+local function sellButton(item)
+	return { text = "SELL +" .. Catalog.FormatNumber(Catalog.SellPrice(item)), itemId = item.id, action = "sell", color = SELL_COLOR }
+end
 local lastState = nil
 
 -- Color Shop: the current sky event's skin is for sale; owned skins can be worn any time
@@ -130,9 +136,12 @@ local function renderColorShop(state)
 	for _, sky in ipairs(Catalog.SkyColors) do
 		if state.ownedSkins and state.ownedSkins[sky.id] then
 			local wearing = state.skin == sky.id
-			addRow(sky.name .. " Skin · " .. Catalog.SkinPerkText(sky) .. (wearing and " (wearing)" or ""), wearing and {} or {
-				{ text = "WEAR", itemId = sky.id, action = "wear", color = WEAR_COLOR },
-			})
+			local buttons = {}
+			if not wearing then
+				table.insert(buttons, { text = "WEAR", itemId = sky.id, action = "wear", color = WEAR_COLOR })
+			end
+			table.insert(buttons, sellButton(Catalog.ById["skin_" .. sky.id]))
+			addRow(sky.name .. " Skin · " .. Catalog.SkinPerkText(sky) .. (wearing and " (wearing)" or ""), buttons)
 		end
 	end
 	if state.skin then
@@ -176,8 +185,10 @@ local function render(state)
 			text = string.format("%s (now %sx)", item.name, Catalog.FormatNumber(state.winMultiplier or 1))
 		end
 		local buttons = {}
-		if item.kind == "carpetpass" and state.carpetPass then
+		local owned = (item.kind == "carpetpass" and state.carpetPass) or (item.kind == "carpet" and state.carpet)
+		if owned then
 			text ..= " (owned)"
+			table.insert(buttons, sellButton(item))
 		else
 			if item.money then
 				table.insert(buttons, { text = Catalog.FormatNumber(item.money) .. " money", itemId = item.id, method = "money", color = MONEY_COLOR })
@@ -195,7 +206,7 @@ local function render(state)
 	end
 	for _, item in ipairs(Catalog.Treadmills) do
 		if state.treadmills and state.treadmills[item.tier] then
-			addRow(item.name .. " (owned)", {})
+			addRow(item.name .. " (owned)", { sellButton(item) })
 		else
 			addRow(item.name, {
 				{ text = Catalog.FormatNumber(item.money) .. " money", itemId = item.id, method = "money", color = MONEY_COLOR },

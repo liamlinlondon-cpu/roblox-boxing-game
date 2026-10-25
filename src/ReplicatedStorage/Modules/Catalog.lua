@@ -130,6 +130,19 @@ for store, list in pairs({ normal = Catalog.Normal, vip = Catalog.Vip, treadmill
 	end
 end
 
+-- Selling back: lasting items (Magic Carpet, Carpet Parkour Pass, treadmills, skins) can be sold for the
+-- same number as their price, always paid in money (Robux can't be given back): the money price, or
+-- the Robux price as money when there's no money price. Used-up items (money, strength, luck...) can't.
+local SELLABLE_KINDS = { carpet = true, carpetpass = true, treadmill = true, skin = true }
+
+function Catalog.CanSell(item)
+	return item ~= nil and SELLABLE_KINDS[item.kind] == true
+end
+
+function Catalog.SellPrice(item)
+	return item.money or item.robux or 0
+end
+
 -- What a skin does while worn, e.g. "+30% STR & KICK, +50 STR/sec"
 function Catalog.SkinPerkText(sky)
 	local text = string.format("+%d%% STR & KICK", math.floor(sky.bonus * 100 + 0.5))
