@@ -41,7 +41,7 @@ carpetNotice.OnClientEvent:Connect(function()
 	pcall(function()
 		StarterGui:SetCore("SendNotification", {
 			Title = "No Carpet Parkour Pass",
-			Text = "Buy the Carpet Parkour Pass (10,000 money) in the shop to fly over the parkour.",
+			Text = "Buy the Carpet Parkour Pass (10,000 money or 10,000 R$) in the shop to fly over the parkour.",
 			Duration = 6,
 		})
 	end)
