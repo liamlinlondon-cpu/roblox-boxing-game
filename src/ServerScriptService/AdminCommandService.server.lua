@@ -57,20 +57,30 @@ local function sendStats(player)
 	})
 end
 
--- Finds a player in this server by name or display name (exact first, then the start of it)
+-- Finds a player in this server, preferring the name shown above their head (display name):
+-- exact display name, then the start of a display name, then the same for usernames
 local function findPlayerInServer(query)
 	query = string.lower(query)
-	for _, player in ipairs(Players:GetPlayers()) do
-		if string.lower(player.Name) == query or string.lower(player.DisplayName) == query then
-			return player
+	local function find(matches)
+		for _, player in ipairs(Players:GetPlayers()) do
+			if matches(player) then
+				return player
+			end
 		end
+		return nil
 	end
-	for _, player in ipairs(Players:GetPlayers()) do
-		if string.sub(string.lower(player.Name), 1, #query) == query or string.sub(string.lower(player.DisplayName), 1, #query) == query then
-			return player
-		end
+	local function startsWith(text)
+		return string.sub(string.lower(text), 1, #query) == query
 	end
-	return nil
+	return find(function(player)
+		return string.lower(player.DisplayName) == query
+	end) or find(function(player)
+		return startsWith(player.DisplayName)
+	end) or find(function(player)
+		return string.lower(player.Name) == query
+	end) or find(function(player)
+		return startsWith(player.Name)
+	end)
 end
 
 -- Returns userId, name for a player in the server or any Roblox username
@@ -398,6 +408,78 @@ local function reset(admin, args)
 	sendStats(target)
 	notify(admin, target.DisplayName .. " has been reset to the start.")
 	tellTarget(admin, target, "Your progress was reset to the start.")
+end
+
+-- ==================== STAT LOOKUP ====================
+-- The owner's search box (AdminLookupClient): "Bob strength" or "/Bob strength" returns that player's
+-- strength; just "Bob" returns all their stats. Called with no query it only answers "is this the owner?".
+
+local lookupFunction = Instance.new("RemoteFunction")
+lookupFunction.Name = "AdminLookup"
+lookupFunction.Parent = eventsFolder
+
+local STAT_WORDS = {
+	strength = "strength",
+	str = "strength",
+	power = "strength",
+	punch = "strength",
+	kick = "kick",
+	money = "money",
+	cash = "money",
+	stamina = "stamina",
+}
+
+local function statLine(data, stat)
+	if stat == "strength" then
+		return "Strength: " .. Catalog.FormatNumber(data.strength)
+	elseif stat == "kick" then
+		return "Kick: " .. Catalog.FormatNumber(data.kick)
+	elseif stat == "money" then
+		return "Money: " .. Catalog.FormatNumber(data.money)
+	elseif stat == "stamina" then
+		return "Stamina: " .. Catalog.FormatNumber(data.stamina) .. " / " .. Catalog.FormatNumber(data.maxStamina)
+	end
+	return nil
+end
+
+lookupFunction.OnServerInvoke = function(player, query)
+	if not Admins.IsOwner(player) then
+		return nil
+	end
+	if query == nil then
+		return true
+	end
+	if type(query) ~= "string" then
+		return nil
+	end
+
+	local words = {}
+	for word in string.gmatch(string.gsub(query, "^%s*/", ""), "%S+") do
+		table.insert(words, word)
+	end
+	if #words == 0 then
+		return "Type a name and a stat, e.g. Bob strength"
+	end
+
+	local target = findPlayerInServer(words[1])
+	if not target then
+		return "Couldn't find \"" .. words[1] .. "\" in this server."
+	end
+	local data = FighterStats.GetPlayerData(target)
+
+	if words[2] then
+		local stat = STAT_WORDS[string.lower(words[2])]
+		if not stat then
+			return "Unknown stat \"" .. words[2] .. "\". Try strength, kick, money or stamina."
+		end
+		return target.DisplayName .. "  ·  " .. statLine(data, stat)
+	end
+
+	local lines = { target.DisplayName }
+	for _, stat in ipairs({ "strength", "kick", "money", "stamina" }) do
+		table.insert(lines, statLine(data, stat))
+	end
+	return table.concat(lines, "\n")
 end
 
 -- ==================== COMMAND TABLE ====================

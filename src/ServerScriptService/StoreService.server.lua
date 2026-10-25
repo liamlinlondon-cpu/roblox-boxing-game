@@ -455,3 +455,12 @@ task.spawn(function()
 		end
 	end
 end)
+
+-- Saved progress arrives a moment after joining (PlayerDataService): give back the Magic Carpet and
+-- put the worn skin back on
+script.Parent:WaitForChild("PlayerDataService"):WaitForChild("DataLoaded").Event:Connect(function(player)
+	if FighterStats.GetPlayerData(player).carpet then
+		giveCarpetTool(player)
+	end
+	applySkin(player)
+end)

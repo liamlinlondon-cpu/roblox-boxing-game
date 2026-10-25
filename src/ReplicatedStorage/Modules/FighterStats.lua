@@ -26,7 +26,7 @@ function FighterStats.CreatePlayerData()
 		strength = 10,
 		kick = 10,
 		luck = 1,
-		money = 0,
+		money = 100, -- every new player starts with 100 money
 		bodyStage = "Skinny Bones",
 		health = 100,
 		stamina = FighterStats.BASE_STAMINA,
