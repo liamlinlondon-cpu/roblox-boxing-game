@@ -8,6 +8,7 @@
 --   /reset [name]               resets a player (or yourself) to a new player's start
 --   /privateserver              teleports the owner to their own private server (owner only)
 --   /clone <count>, /clones ... makes copies of the owner and gives them orders (owner only)
+--   /every_clone <x> treadmill  every clone runs on that treadmill (owner/hacker/admin/regular/any)
 --   /luck <number> [name]       sets everyone's luck (or one player's with a name), e.g. /luck 64
 --   /infinitystrength [name]    infinite strength (also /infinitykick, /infinitystamina, /infinitymoney,
 --                               /infinitywins and /infinitybeatthegame; dashes are fine: /infinity-wins)
@@ -851,12 +852,13 @@ local function nearestVipGymId(owner, position)
 	return bestId
 end
 
--- A gym's stations: "punch" / "kick" bags (their pads) or "treadmill" decks; vip picks the VIP floor's bags
-local function gymStations(gymId, kind, vip)
+-- A gym's stations: "punch" / "kick" bags (their pads) or "treadmill" decks; vip picks the VIP floor's
+-- bags; treadmillTier ("regular", "hacker", "admin", "owner") picks one kind of treadmill
+local function gymStations(gymId, kind, vip, treadmillTier)
 	local stations = {}
 	if kind == "treadmill" then
 		for _, prompt in ipairs(CollectionService:GetTagged("TreadmillStation")) do
-			if prompt:GetAttribute("GymId") == gymId then
+			if prompt:GetAttribute("GymId") == gymId and (not treadmillTier or prompt:GetAttribute("Tier") == treadmillTier) then
 				table.insert(stations, prompt.Parent)
 			end
 		end
@@ -891,8 +893,15 @@ local function trainClone(owner, clone, kind, station, slot, gain)
 		local standPosition = station.Position + toBag.Unit * 1.5 + Vector3.new(0, 3.2, 0)
 		stand = CFrame.lookAt(standPosition, Vector3.new(bag.Position.X, standPosition.Y, bag.Position.Z))
 	end
-	-- Clones sharing a station stand side by side
-	stand = stand * CFrame.new((slot - 1) * 2.5, 0, 0)
+	-- Clones sharing a station: side by side at a bag; rows of three along the belt on a treadmill
+	if kind == "treadmill" then
+		local across = (slot - 1) % 3 - 1
+		local row = math.floor((slot - 1) / 3)
+		local along = (row % 2 == 1 and 1 or -1) * math.ceil(row / 2) * 2.4
+		stand = stand * CFrame.new(across * 1.4, 0, along)
+	else
+		stand = stand * CFrame.new((slot - 1) * 2.5, 0, 0)
+	end
 
 	-- Fly over: up, across, down onto the spot
 	flyCloneTo(root, Vector3.new(root.Position.X, 60, root.Position.Z))
@@ -961,7 +970,7 @@ local function refreshStatsWhileTraining(owner)
 	end)
 end
 
-local function clonesTrain(owner, list, what, vip)
+local function clonesTrain(owner, list, what, vip, treadmillTier)
 	local ownerRoot = rootOf(owner)
 	if not ownerRoot then
 		return
@@ -994,7 +1003,7 @@ local function clonesTrain(owner, list, what, vip)
 		else
 			kind = what == "kick" and "kick" or "punch"
 		end
-		local stations = gymStations(gymId, kind, vip == true)
+		local stations = gymStations(gymId, kind, vip == true, treadmillTier)
 		local station = stations[(i - 1) % math.max(#stations, 1) + 1]
 		if station then
 			used[station] = (used[station] or 0) + 1
@@ -1004,9 +1013,28 @@ local function clonesTrain(owner, list, what, vip)
 			end)
 		end
 	end
-	notify(owner, cloneCountText(#list) .. " training " .. what .. " at " .. WorldConfig.Gyms.List[gymId].name
+	local where = treadmillTier and (" on the " .. FighterStats.TreadmillTiers[treadmillTier].name) or ""
+	notify(owner, cloneCountText(#list) .. " training " .. what .. where .. " at " .. WorldConfig.Gyms.List[gymId].name
 		.. (vip and "'s VIP floor (2x)" or "") .. ". Everything they train goes to you!")
 	refreshStatsWhileTraining(owner)
+end
+
+-- Which treadmill words name: owner / hacker / admin / regular (also "original", "normal");
+-- nil for "any" or nothing, which spreads the clones over every treadmill
+local TREADMILL_WORDS = {
+	owner = "owner", owners = "owner",
+	hacker = "hacker", hackers = "hacker",
+	admin = "admin", admins = "admin",
+	regular = "regular", original = "regular", normal = "regular",
+}
+local function treadmillTierIn(words)
+	for _, word in ipairs(words) do
+		local tier = TREADMILL_WORDS[string.gsub(string.lower(word), "[^%a]", "")]
+		if tier then
+			return tier
+		end
+	end
+	return nil
 end
 
 local function cloneCommand(admin, args)
@@ -1073,7 +1101,9 @@ local function clonesCommand(admin, args)
 		end
 		-- "/clones train strength vip floor": the VIP floor's bags (2x)
 		local vip = string.find(string.lower(table.concat(args, " ", 3)), "vip") ~= nil
-		task.spawn(clonesTrain, admin, pickClones(count), what, vip)
+		-- "/clones train stamina hacker": just that kind of treadmill
+		local treadmillTier = what == "stamina" and treadmillTierIn({ table.unpack(args, 3) }) or nil
+		task.spawn(clonesTrain, admin, pickClones(count), what, vip, treadmillTier)
 	elseif order == "remove" then
 		local list = pickClones(count)
 		removeClones(list)
@@ -1102,6 +1132,25 @@ local function clonesCommand(admin, args)
 	else
 		notify(admin, "Usage: /clones follow | stay | dance | copy | fight <name> | kill <name> | train <strength/kick/both/stamina> | beat the game | stop | remove, plus an optional number")
 	end
+end
+
+-- /every_clone <treadmill> treadmill: every clone runs on that kind of treadmill ("any" spreads them over
+-- all of them). Anything else ("/every_clone dance") works like /clones for every clone.
+local function everyCloneCommand(admin, args)
+	if not Admins.IsOwner(admin) then
+		return
+	end
+	local words = string.lower(table.concat(args, " "))
+	local tier = treadmillTierIn(args)
+	if tier or string.find(words, "treadmill") then
+		if #liveClones() == 0 then
+			notify(admin, "You don't have any clones. Make some with /clone <number>.")
+			return
+		end
+		task.spawn(clonesTrain, admin, pickClones(nil), "stamina", false, tier)
+		return
+	end
+	clonesCommand(admin, args)
 end
 
 -- Moves the clones a few times a second, each by its own order
@@ -1191,6 +1240,7 @@ local COMMANDS = {
 	privateserver = { run = privateServer },
 	clone = { run = cloneCommand, minArgs = 1, usage = "/clone <number>, e.g. /clone 5 (or /clone stop [number])" },
 	clones = { run = clonesCommand },
+	everyclone = { run = everyCloneCommand, minArgs = 1, usage = "/every_clone owner treadmill (or hacker / admin / regular / any)" },
 	private = { run = privateServer }, -- "/private server"
 	luck = { run = luck, minArgs = 1, usage = "/luck <number> [name], e.g. /luck 64 (everyone) or /luck 64 Bob" },
 }
@@ -1206,6 +1256,7 @@ local DASHED_ALIASES = {
 	infinitywins = "/infinity-wins",
 	infinitybeatthegame = "/infinity-beat-the-game",
 	infinitybeatthegames = "/infinity-beat-the-games",
+	everyclone = "/every_clone",
 }
 
 -- message is the full chat text, e.g. "/give Bob owner treadmill" or "/fly"
@@ -1220,8 +1271,8 @@ local function runCommand(admin, message)
 			table.insert(args, words[i])
 		end
 	end
-	local command = string.match(words[1] or "", "^/([%a%-]+)$")
-	local entry = command and COMMANDS[string.gsub(string.lower(command), "%-", "")]
+	local command = string.match(words[1] or "", "^/([%a%-_]+)$")
+	local entry = command and COMMANDS[string.gsub(string.lower(command), "[%-_]", "")]
 	if not entry then
 		return
 	end
@@ -1255,8 +1306,8 @@ else
 	-- Places still on the legacy chat
 	local function listen(player)
 		player.Chatted:Connect(function(message)
-			local command = string.match(string.lower(message), "^/([%a%-]+)")
-			if command and COMMANDS[string.gsub(command, "%-", "")] then
+			local command = string.match(string.lower(message), "^/([%a%-_]+)")
+			if command and COMMANDS[string.gsub(command, "[%-_]", "")] then
 				runCommand(player, message)
 			end
 		end)

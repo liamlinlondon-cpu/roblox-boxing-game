@@ -16,17 +16,17 @@ local hiddenCommands = {
 local function addAliases(instance)
 	if instance:IsA("TextChatCommand") then
 		for _, alias in ipairs({ instance.PrimaryAlias, instance.SecondaryAlias }) do
-			local word = string.match(string.lower(alias), "^/([%w%-]+)$")
+			local word = string.match(string.lower(alias), "^/([%w%-_]+)$")
 			if word then
-				hiddenCommands[(string.gsub(word, "%-", ""))] = true -- dashes ignored: "/infinity-wins"
+				hiddenCommands[(string.gsub(word, "[%-_]", ""))] = true -- dashes/underscores ignored: "/every_clone"
 			end
 		end
 	end
 end
 
 local function isCommand(text)
-	local word = text and string.match(string.lower(text), "^%s*/([%w%-]+)")
-	return word ~= nil and hiddenCommands[(string.gsub(word, "%-", ""))] == true
+	local word = text and string.match(string.lower(text), "^%s*/([%w%-_]+)")
+	return word ~= nil and hiddenCommands[(string.gsub(word, "[%-_]", ""))] == true
 end
 
 -- Anything the owner types starting with "/" is hidden too, so a mistyped command never shows up
