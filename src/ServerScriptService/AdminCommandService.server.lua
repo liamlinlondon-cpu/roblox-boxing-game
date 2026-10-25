@@ -721,9 +721,10 @@ local function cloneCountText(count)
 end
 
 -- /clones beat the game: each clone flies high over the wall and the course, dives into the red portal,
--- comes out in the red button room, walks up and presses the button (each press adds one to the owner's
--- beat the game count). Then they all come back.
+-- comes out in the red button room, walks up and presses the button (each press adds
+-- CLONE_BEATS_PER_PRESS to the owner's beat the game count). Then they all come back.
 local CLONE_FLY_HEIGHT = 90 -- above the walls, buildings and antennas
+local CLONE_BEATS_PER_PRESS = 1000 -- each clone's red button press counts this many beats for the owner
 local CLONE_FLY_SPEED = 90 -- studs per second
 
 local function flyCloneTo(root, position)
@@ -777,11 +778,12 @@ local function clonesBeatTheGame(owner, list)
 				task.delay(0.2, function()
 					button.Color = color
 				end)
-				-- Each clone's press counts as a beat the game for the owner
+				-- Each clone's press counts as CLONE_BEATS_PER_PRESS beats for the owner
 				local ownerData = FighterStats.GetPlayerData(owner)
-				ownerData.gameBeats = (ownerData.gameBeats or 0) + 1
+				ownerData.gameBeats = (ownerData.gameBeats or 0) + CLONE_BEATS_PER_PRESS
 				sendStats(owner)
-				notify(owner, humanoid.DisplayName .. " " .. i .. " pressed the red button! +1 beat the game for you.")
+				notify(owner, humanoid.DisplayName .. " " .. i .. " pressed the red button! +"
+					.. Catalog.FormatNumber(CLONE_BEATS_PER_PRESS) .. " beat the game for you.")
 			end)
 			pending -= 1
 		end)
