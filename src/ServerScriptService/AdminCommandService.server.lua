@@ -7,7 +7,7 @@
 --   /take <name> commands       removes commands given with /give (owner only)
 --   /reset [name]               resets a player (or yourself) to a new player's start
 --   /privateserver              teleports the owner to their own private server (owner only)
---   /clone [count], /clones ... makes copies of the owner and gives them orders (owner only)
+--   /clone <count>, /clones ... makes copies of the owner and gives them orders (owner only)
 --   /luck <number> [name]       sets everyone's luck (or one player's with a name), e.g. /luck 64
 --   /infinitystrength [name]    infinite strength (also /infinitykick, /infinitystamina, /infinitymoney,
 --                               /infinitywins and /infinitybeatthegame; dashes are fine: /infinity-wins)
@@ -556,7 +556,7 @@ local function privateServer(admin)
 end
 
 -- ==================== CLONES ====================
--- /clone [count] makes copies of the owner (their avatar's look, up to MAX_CLONES), and
+-- /clone <count> makes copies of the owner (their avatar's look, up to MAX_CLONES), and
 -- /clones follow | stay | dance | copy | fight <name> | beat the game | remove tells them what to do.
 -- Owner only.
 
@@ -770,7 +770,13 @@ local function cloneCommand(admin, args)
 	if not Admins.IsOwner(admin) then
 		return
 	end
-	local count = math.clamp(math.floor(tonumber(args[1]) or 1), 1, MAX_CLONES)
+	-- A number is required: "/clone" on its own does nothing
+	local requested = tonumber(args[1])
+	if not requested or requested ~= requested then
+		notify(admin, "Usage: /clone <number>, e.g. /clone 5")
+		return
+	end
+	local count = math.clamp(math.floor(requested), 1, MAX_CLONES)
 	count = math.min(count, MAX_CLONES - #liveClones())
 	if count <= 0 then
 		notify(admin, "You already have " .. MAX_CLONES .. " clones (the most). Use /clones remove to clear them.")
@@ -867,7 +873,7 @@ local COMMANDS = {
 	take = { run = take, minArgs = 2, usage = "/take <name> commands" },
 	reset = { run = reset },
 	privateserver = { run = privateServer },
-	clone = { run = cloneCommand },
+	clone = { run = cloneCommand, minArgs = 1, usage = "/clone <number>, e.g. /clone 5" },
 	clones = { run = clonesCommand },
 	private = { run = privateServer }, -- "/private server"
 	luck = { run = luck, minArgs = 1, usage = "/luck <number> [name], e.g. /luck 64 (everyone) or /luck 64 Bob" },
