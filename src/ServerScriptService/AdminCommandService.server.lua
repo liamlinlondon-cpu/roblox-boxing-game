@@ -558,13 +558,16 @@ end
 
 -- ==================== CLONES ====================
 -- /clone <count> makes copies of the owner (their avatar's look, up to MAX_CLONES), and
--- /clones follow | stay | dance | copy | fight <name> | train <what> | beat the game | stop | remove gives
+-- /clones follow | stay | dance | copy | fight <name> | kill <name> | train <what> | beat the game | stop |
+-- remove gives
 -- them orders. Every clone has its own order, so groups can do different things at once: a number at
 -- the end of an order says how many clones do it ("/clones dance 3", "/clone stop 2"), taking idle clones
 -- (following or standing) first. Without a number, every clone gets the order. Owner only.
 
 local MAX_CLONES = 10
-local CLONE_PUNCH_DAMAGE = 5 -- per second while a fighting clone is next to its target
+local CLONE_PUNCH_DAMAGE = 20 -- per second while a fighting clone is next to its target ("kill" is instant)
+local CLONE_WALK_SPEED = 16
+local CLONE_CHASE_SPEED = 24 -- faster than players, so a target can't just run away
 -- Roblox's own default animations (usable in any game)
 local CLONE_ANIMATIONS = {
 	walk = { [Enum.HumanoidRigType.R15] = "rbxassetid://507777826", [Enum.HumanoidRigType.R6] = "rbxassetid://180426354" },
@@ -666,6 +669,7 @@ local function assignClones(list, order, target)
 			clone.danceTrack = nil
 		end
 		clone.root.Anchored = false
+		clone.humanoid.WalkSpeed = (order == "fight" or order == "kill") and CLONE_CHASE_SPEED or CLONE_WALK_SPEED
 		if order == "dance" then
 			clone.humanoid:MoveTo(clone.root.Position)
 			clone.danceTrack = loadTrack(clone.humanoid, "dance")
@@ -1078,17 +1082,21 @@ local function clonesCommand(admin, args)
 		local list = pickClones(count)
 		assignClones(list, order)
 		notify(admin, cloneCountText(#list) .. ": " .. order .. ".")
-	elseif order == "fight" then
+	elseif order == "fight" or order == "kill" then
 		local target = args[2] and findPlayerInServer(args[2])
 		if not target then
-			notify(admin, "Usage: /clones fight <name> (a player in this server)")
+			notify(admin, "Usage: /clones " .. order .. " <name> (a player in this server)")
+			return
+		end
+		if target == admin then
+			notify(admin, "Your clones won't " .. order .. " you.")
 			return
 		end
 		local list = pickClones(count)
-		assignClones(list, "fight", target)
-		notify(admin, cloneCountText(#list) .. " going after " .. target.DisplayName .. "!")
+		assignClones(list, order, target)
+		notify(admin, cloneCountText(#list) .. (order == "kill" and " going to kill " or " going after ") .. target.DisplayName .. "!")
 	else
-		notify(admin, "Usage: /clones follow | stay | dance | copy | fight <name> | train <strength/kick/both/stamina> | beat the game | stop | remove, plus an optional number")
+		notify(admin, "Usage: /clones follow | stay | dance | copy | fight <name> | kill <name> | train <strength/kick/both/stamina> | beat the game | stop | remove, plus an optional number")
 	end
 end
 
@@ -1133,7 +1141,7 @@ task.spawn(function()
 		end
 
 		for _, clone in ipairs(list) do
-			if clone.order == "fight" then
+			if clone.order == "fight" or clone.order == "kill" then
 				local targetRoot = rootOf(clone.target)
 				local targetHumanoid = targetRoot and targetRoot.Parent:FindFirstChildOfClass("Humanoid")
 				if not targetHumanoid or targetHumanoid.Health <= 0 then
@@ -1142,7 +1150,12 @@ task.spawn(function()
 					clone.humanoid:MoveTo(targetRoot.Position)
 					if (clone.root.Position - targetRoot.Position).Magnitude < 5 and now - clone.lastHit >= 1 then
 						clone.lastHit = now
-						targetHumanoid:TakeDamage(CLONE_PUNCH_DAMAGE)
+						-- Health is changed directly (not TakeDamage) so the spawn shield doesn't block it
+						if clone.order == "kill" then
+							targetHumanoid.Health = 0
+						else
+							targetHumanoid.Health -= CLONE_PUNCH_DAMAGE
+						end
 					end
 				end
 			end
