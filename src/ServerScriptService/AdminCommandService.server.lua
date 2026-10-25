@@ -7,6 +7,7 @@
 --   /take <name> commands       removes commands given with /give (owner only)
 --   /reset [name]               resets a player (or yourself) to a new player's start
 --   /privateserver              teleports the owner to their own private server (owner only)
+--   /clone [count], /clones ... makes copies of the owner and gives them orders (owner only)
 --   /luck <number> [name]       sets everyone's luck (or one player's with a name), e.g. /luck 64
 --   /infinitystrength [name]    infinite strength (also /infinitykick, /infinitystamina, /infinitymoney,
 --                               /infinitywins and /infinitybeatthegame; dashes are fine: /infinity-wins)
@@ -552,6 +553,208 @@ local function privateServer(admin)
 	end
 end
 
+-- ==================== CLONES ====================
+-- /clone [count] makes copies of the owner (their avatar's look, up to MAX_CLONES), and
+-- /clones follow | stay | dance | copy | fight <name> | remove tells them what to do. Owner only.
+
+local MAX_CLONES = 10
+local CLONE_PUNCH_DAMAGE = 5 -- per second while a fighting clone is next to its target
+-- Roblox's own default animations (usable in any game)
+local CLONE_ANIMATIONS = {
+	walk = { [Enum.HumanoidRigType.R15] = "rbxassetid://507777826", [Enum.HumanoidRigType.R6] = "rbxassetid://180426354" },
+	dance = { [Enum.HumanoidRigType.R15] = "rbxassetid://507771019", [Enum.HumanoidRigType.R6] = "rbxassetid://182435998" },
+}
+
+local clonesFolder = Instance.new("Folder")
+clonesFolder.Name = "OwnerClones"
+clonesFolder.Parent = workspace
+
+local clones = {} -- { model, humanoid, root, walkTrack, danceTrack, lastHit }
+local cloneOwner = nil -- the player whose clones these are
+local cloneMode = { name = "follow", target = nil }
+
+local function rootOf(player)
+	local character = player and player.Character
+	return character and character:FindFirstChild("HumanoidRootPart")
+end
+
+local function loadTrack(humanoid, kind)
+	local animator = humanoid:FindFirstChildOfClass("Animator")
+	if not animator then
+		animator = Instance.new("Animator")
+		animator.Parent = humanoid
+	end
+	local animation = Instance.new("Animation")
+	animation.AnimationId = CLONE_ANIMATIONS[kind][humanoid.RigType] or CLONE_ANIMATIONS[kind][Enum.HumanoidRigType.R15]
+	local track = animator:LoadAnimation(animation)
+	track.Looped = true
+	return track
+end
+
+-- Drops clones that died or were deleted
+local function liveClones()
+	for i = #clones, 1, -1 do
+		local clone = clones[i]
+		if not clone.model.Parent or clone.humanoid.Health <= 0 then
+			table.remove(clones, i)
+			local model = clone.model
+			task.delay(2, function()
+				model:Destroy()
+			end)
+		end
+	end
+	return clones
+end
+
+local function removeClones()
+	for _, clone in ipairs(clones) do
+		clone.model:Destroy()
+	end
+	table.clear(clones)
+end
+
+local function spawnClone(owner, index)
+	local ownerRoot = rootOf(owner)
+	if not ownerRoot then
+		return
+	end
+	local ok, model = pcall(Players.CreateHumanoidModelFromUserId, Players, owner.UserId)
+	if not ok or not model then
+		notify(owner, "Couldn't make a clone: " .. tostring(model))
+		return
+	end
+	local humanoid = model:FindFirstChildOfClass("Humanoid")
+	local root = model:FindFirstChild("HumanoidRootPart")
+	if not humanoid or not root then
+		model:Destroy()
+		return
+	end
+	model.Name = owner.Name .. "Clone" .. index
+	humanoid.DisplayName = owner.DisplayName .. "'s clone"
+	local angle = index / MAX_CLONES * math.pi * 2
+	model:PivotTo(ownerRoot.CFrame * CFrame.new(math.cos(angle) * 6, 0, math.sin(angle) * 6))
+	model.Parent = clonesFolder
+	pcall(root.SetNetworkOwner, root, nil) -- the server moves them
+
+	local clone = { model = model, humanoid = humanoid, root = root, lastHit = 0 }
+	clone.walkTrack = loadTrack(humanoid, "walk")
+	humanoid.Running:Connect(function(speed)
+		if speed > 0.5 and not clone.danceTrack then
+			if not clone.walkTrack.IsPlaying then
+				clone.walkTrack:Play(0.2)
+			end
+		elseif clone.walkTrack.IsPlaying then
+			clone.walkTrack:Stop(0.2)
+		end
+	end)
+	table.insert(clones, clone)
+end
+
+local function setCloneMode(name, target)
+	cloneMode.name, cloneMode.target = name, target
+	for _, clone in ipairs(liveClones()) do
+		if name == "dance" then
+			clone.humanoid:MoveTo(clone.root.Position)
+			if not clone.danceTrack then
+				clone.danceTrack = loadTrack(clone.humanoid, "dance")
+				clone.danceTrack:Play(0.2)
+			end
+		elseif clone.danceTrack then
+			clone.danceTrack:Stop(0.2)
+			clone.danceTrack = nil
+		end
+		if name == "stay" then
+			clone.humanoid:MoveTo(clone.root.Position)
+		end
+	end
+end
+
+local function cloneCommand(admin, args)
+	if not Admins.IsOwner(admin) then
+		return
+	end
+	local count = math.clamp(math.floor(tonumber(args[1]) or 1), 1, MAX_CLONES)
+	count = math.min(count, MAX_CLONES - #liveClones())
+	if count <= 0 then
+		notify(admin, "You already have " .. MAX_CLONES .. " clones (the most). Use /clones remove to clear them.")
+		return
+	end
+	if cloneOwner ~= admin then
+		removeClones()
+		cloneOwner = admin
+	end
+	for i = 1, count do
+		task.spawn(spawnClone, admin, #clones + i)
+	end
+	notify(admin, "Made " .. count .. (count == 1 and " clone" or " clones") .. ". Try /clones follow, stay, dance, copy, fight <name> or remove.")
+end
+
+local function clonesCommand(admin, args)
+	if not Admins.IsOwner(admin) then
+		return
+	end
+	local order = string.lower(args[1] or "")
+	if order == "remove" then
+		removeClones()
+		notify(admin, "Clones removed.")
+	elseif order == "follow" or order == "stay" or order == "dance" or order == "copy" then
+		setCloneMode(order)
+		notify(admin, "Clones: " .. order .. ".")
+	elseif order == "fight" then
+		local target = args[2] and findPlayerInServer(args[2])
+		if not target then
+			notify(admin, "Usage: /clones fight <name> (a player in this server)")
+			return
+		end
+		setCloneMode("fight", target)
+		notify(admin, "Clones are going after " .. target.DisplayName .. "!")
+	else
+		notify(admin, "Usage: /clones follow | stay | dance | copy | fight <name> | remove")
+	end
+end
+
+-- Moves the clones a few times a second, depending on the current order
+task.spawn(function()
+	while true do
+		task.wait(0.2)
+		local list = liveClones()
+		local ownerRoot = rootOf(cloneOwner)
+		local ownerHumanoid = ownerRoot and ownerRoot.Parent:FindFirstChildOfClass("Humanoid")
+		local now = os.clock()
+		for i, clone in ipairs(list) do
+			if cloneMode.name == "follow" and ownerRoot then
+				-- A loose ring around the owner
+				local angle = i / #list * math.pi * 2
+				local spot = ownerRoot.Position + Vector3.new(math.cos(angle) * 6, 0, math.sin(angle) * 6)
+				if (clone.root.Position - spot).Magnitude > 3 then
+					clone.humanoid:MoveTo(spot)
+				end
+			elseif cloneMode.name == "copy" and ownerRoot then
+				-- Rows of five behind the owner, facing the same way, jumping when the owner jumps
+				local column = (i - 1) % 5 - 2
+				local row = math.floor((i - 1) / 5) + 1
+				clone.humanoid:MoveTo((ownerRoot.CFrame * CFrame.new(column * 4, 0, row * 5)).Position)
+				local state = ownerHumanoid and ownerHumanoid:GetState()
+				if state == Enum.HumanoidStateType.Jumping or state == Enum.HumanoidStateType.Freefall then
+					clone.humanoid.Jump = true
+				end
+			elseif cloneMode.name == "fight" then
+				local targetRoot = rootOf(cloneMode.target)
+				local targetHumanoid = targetRoot and targetRoot.Parent:FindFirstChildOfClass("Humanoid")
+				if not targetHumanoid or targetHumanoid.Health <= 0 then
+					setCloneMode("follow")
+					break
+				end
+				clone.humanoid:MoveTo(targetRoot.Position)
+				if (clone.root.Position - targetRoot.Position).Magnitude < 5 and now - clone.lastHit >= 1 then
+					clone.lastHit = now
+					targetHumanoid:TakeDamage(CLONE_PUNCH_DAMAGE)
+				end
+			end
+		end
+	end
+end)
+
 -- ==================== COMMAND TABLE ====================
 -- minArgs: how many words must follow the command; usage: shown when they're missing
 
@@ -564,6 +767,8 @@ local COMMANDS = {
 	take = { run = take, minArgs = 2, usage = "/take <name> commands" },
 	reset = { run = reset },
 	privateserver = { run = privateServer },
+	clone = { run = cloneCommand },
+	clones = { run = clonesCommand },
 	private = { run = privateServer }, -- "/private server"
 	luck = { run = luck, minArgs = 1, usage = "/luck <number> [name], e.g. /luck 64 (everyone) or /luck 64 Bob" },
 }
@@ -649,6 +854,10 @@ end)
 
 Players.PlayerRemoving:Connect(function(player)
 	flying[player] = nil
+	if player == cloneOwner then
+		removeClones()
+		cloneOwner = nil
+	end
 	Admins.Revoke(player.UserId) -- commands given with /give last until the player leaves
 end)
 
