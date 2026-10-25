@@ -505,6 +505,15 @@ stateEvent.OnClientEvent:Connect(function(data)
 	end
 end)
 
+-- "Opponent: 180 HP · 90 ST" (bots also send their stamina)
+local function opponentText(data)
+	local text = "Opponent: " .. tostring(data.opponentHealth)
+	if data.opponentStamina then
+		text = text .. " HP · " .. tostring(data.opponentStamina) .. " ST"
+	end
+	return text
+end
+
 -- Listen for match events
 matchResultEvent.OnClientEvent:Connect(function(data)
 	if data.type == "stats" then
@@ -539,12 +548,13 @@ matchResultEvent.OnClientEvent:Connect(function(data)
 		arenaMessage.Text = "Fight: " .. data.opponentName
 		arenaYourHealth.Text = "Your Health: 100"
 		setArenaStamina(data.stamina, data.maxStamina)
-		arenaEnemyHealth.Text = "Opponent: " .. tostring(data.opponentHealth)
+		arenaEnemyHealth.Text = opponentText(data)
 	elseif data.type == "fight_update" then
 		setArenaStamina(data.stamina, data.maxStamina)
 		arenaYourHealth.Text = "Your Health: " .. tostring(data.playerHealth)
-		arenaEnemyHealth.Text = "Opponent: " .. tostring(data.opponentHealth)
-		arenaMessage.Text = "Hit for " .. tostring(math.floor(data.damageDealt)) .. " dmg. Took " .. tostring(math.floor(data.damageTaken)) .. "."
+		arenaEnemyHealth.Text = opponentText(data)
+		arenaMessage.Text = data.message
+			or ("Hit for " .. tostring(math.floor(data.damageDealt)) .. " dmg. Took " .. tostring(math.floor(data.damageTaken)) .. ".")
 	elseif data.type == "win" then
 		resultFrame.Visible = true
 		resultLabel.Text = "YOU WIN!"

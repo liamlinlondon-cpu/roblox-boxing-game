@@ -73,11 +73,58 @@ local function handleShopPurchase(player, action, colorName)
     sendPlayerStats(player)
 end
 
+-- ==================== BOT MATCHES ====================
+-- Every fight is against a new random bot: its health, stamina and punching power are rolled when the
+-- match starts (it doesn't copy the player). Its health is based on how hard the player hits, times a
+-- random 5-10 hits, so a fight is never a one-hit win and never impossible. The bot answers each move
+-- with a punch, kick, combo or knee (costing its stamina), sometimes blocks or dodges, and loses when its
+-- health or stamina runs out. The player's BLOCK softens the bot's next hit; a player too tired to even
+-- block loses.
+
+local BOT_NAMES = { "Bot Boxer", "Steel Jab", "Iron Hook", "Rocky Bot", "Tank", "Lightning Fists", "The Wall", "Mad Uppercut" }
+local BOT_MOVES = { -- damage multiplier and stamina cost
+    { name = "punch", multiplier = 1, cost = 10 },
+    { name = "kick", multiplier = 1.3, cost = 15 },
+    { name = "combo", multiplier = 1.8, cost = 25 },
+    { name = "knee", multiplier = 1.6, cost = 20 },
+}
+local BOT_BLOCK_CHANCE = 0.18 -- bot blocks: takes 30% damage
+local BOT_DODGE_CHANCE = 0.08 -- bot dodges: takes no damage
+local PLAYER_BLOCK_REDUCTION = 0.25 -- the player's block lets 25% of the bot's hit through
+
+local botFights = {} -- [player] = { name, health, maxHealth, stamina, maxStamina, power }
+
+local function clampHealth(value)
+    return math.max(0, value)
+end
+
+local function newBot(player)
+    local data = getPlayerData(player)
+    local playerHit = FighterStats.CalculateDamage(data, "punch")
+    local health
+    if playerHit == math.huge then
+        health = 1000 -- infinite strength wins with any hit
+    else
+        health = math.max(60, math.floor(math.max(playerHit, 10) * (5 + math.random() * 5)))
+    end
+    local stamina = math.random(100, 300)
+    return {
+        name = BOT_NAMES[math.random(#BOT_NAMES)],
+        health = health,
+        maxHealth = health,
+        stamina = stamina,
+        maxStamina = stamina,
+        power = math.random(8, 18), -- damage of a plain punch on the player (who has 100 health)
+    }
+end
+
 local function startArenaCountdown(player)
     local data = getPlayerData(player)
     data.isInMatch = true
     data.health = 100
     FighterStats.ResetStamina(data)
+    local bot = newBot(player)
+    botFights[player] = bot
 
     -- Send countdown to client
     for countdown = 3, 1, -1 do
@@ -91,25 +138,12 @@ local function startArenaCountdown(player)
     -- Send match start signal
     matchResultEvent:FireClient(player, {
         type = "match_started",
-        opponentName = "Bot Boxer",
-        opponentHealth = 100,
+        opponentName = string.format("%s (%d HP, %d stamina)", bot.name, bot.health, bot.stamina),
+        opponentHealth = bot.health,
+        opponentStamina = bot.stamina,
         stamina = data.stamina,
         maxStamina = data.maxStamina,
     })
-end
-
-local function getAIEnemy()
-    return {
-        name = "Bot Boxer",
-        health = 100,
-        strength = 40,
-        kick = 45,
-        luck = 1,
-    }
-end
-
-local function clampHealth(value)
-    return math.max(0, value)
 end
 
 local WIN_REWARD = 10
@@ -126,56 +160,109 @@ local function awardLoss(player)
     data.arenaLosses += 1
 end
 
-local function resolveAttack(player, actionType)
+local function endBotFight(player, won, message)
     local data = getPlayerData(player)
-    local enemy = getAIEnemy()
-
-    if actionType == "punch" then
-        data.strength = math.min(1000000000000, data.strength + 1)
-    elseif actionType == "kick" then
-        data.kick = data.kick + 1
-    elseif actionType == "combo" then
-        data.strength = math.min(1000000000000, data.strength + 2)
-        data.kick = data.kick + 2
-    elseif actionType == "knee" then
-        data.strength = math.min(1000000000000, data.strength + 3)
-    end
-
-    local damage = FighterStats.CalculateDamage(data, actionType)
-    local currentEnemyHealth = enemy.health - damage
-    local enemyDamage = 10 + (enemy.strength * 0.2)
-
-    if currentEnemyHealth <= 0 then
+    botFights[player] = nil
+    data.isInMatch = false
+    if won then
         awardWin(player)
-        data.isInMatch = false
         matchResultEvent:FireClient(player, {
             type = "win",
             moneyAward = WIN_REWARD * data.winMultiplier,
             remainingHealth = data.health,
         })
-        data.bodyStage = FighterStats.GetStageFromStrength(data.strength)
-        sendPlayerStats(player)
+    else
+        awardLoss(player)
+        matchResultEvent:FireClient(player, {
+            type = "lose",
+            remainingHealth = data.health,
+        })
+    end
+    if message then
+        matchResultEvent:FireClient(player, { type = "block", message = message })
+    end
+    data.bodyStage = FighterStats.GetStageFromStrength(data.strength)
+    sendPlayerStats(player)
+end
+
+-- The bot's answer to the player's move: a random move it can still afford, or nil when it's exhausted
+local function botAttack(bot)
+    local affordable = {}
+    for _, move in ipairs(BOT_MOVES) do
+        if bot.stamina >= move.cost then
+            table.insert(affordable, move)
+        end
+    end
+    if #affordable == 0 then
+        return nil
+    end
+    local move = affordable[math.random(#affordable)]
+    bot.stamina -= move.cost
+    return move, math.floor(bot.power * move.multiplier * (0.85 + math.random() * 0.3))
+end
+
+-- actionType: punch / kick / combo / knee, or block (no damage, softens the bot's hit)
+local function resolveAttack(player, actionType)
+    local data = getPlayerData(player)
+    local bot = botFights[player]
+    if not bot then
         return
     end
 
-    data.health = clampHealth(data.health - enemyDamage)
+    local damage = 0
+    local note = ""
+    if actionType ~= "block" then
+        -- Training while fighting, as before
+        if actionType == "punch" then
+            data.strength = math.min(1000000000000, data.strength + 1)
+        elseif actionType == "kick" then
+            data.kick = data.kick + 1
+        elseif actionType == "combo" then
+            data.strength = math.min(1000000000000, data.strength + 2)
+            data.kick = data.kick + 2
+        elseif actionType == "knee" then
+            data.strength = math.min(1000000000000, data.strength + 3)
+        end
+
+        damage = FighterStats.CalculateDamage(data, actionType)
+        local roll = math.random()
+        if roll < BOT_DODGE_CHANCE then
+            damage = 0
+            note = bot.name .. " dodged! "
+        elseif roll < BOT_DODGE_CHANCE + BOT_BLOCK_CHANCE then
+            damage = math.floor(damage * 0.3)
+            note = bot.name .. " blocked. "
+        end
+        bot.health = clampHealth(bot.health - damage)
+        if bot.health <= 0 then
+            endBotFight(player, true)
+            return
+        end
+    end
+
+    local move, hit = botAttack(bot)
+    if not move then
+        endBotFight(player, true, bot.name .. " ran out of stamina!")
+        return
+    end
+    if actionType == "block" then
+        hit = math.floor(hit * PLAYER_BLOCK_REDUCTION)
+        note = "You blocked the " .. move.name .. ". "
+    end
+    data.health = clampHealth(data.health - hit)
     if data.health <= 0 then
-        awardLoss(player)
-        data.isInMatch = false
-        matchResultEvent:FireClient(player, {
-            type = "lose",
-            remainingHealth = 0,
-        })
-        sendPlayerStats(player)
+        endBotFight(player, false)
         return
     end
 
     matchResultEvent:FireClient(player, {
         type = "fight_update",
         playerHealth = data.health,
-        opponentHealth = currentEnemyHealth,
+        opponentHealth = bot.health,
+        opponentStamina = bot.stamina,
         damageDealt = damage,
-        damageTaken = enemyDamage,
+        damageTaken = hit,
+        message = string.format("%sHit for %d. %s used %s: took %d.", note, damage, bot.name, move.name, hit),
         stamina = data.stamina,
         maxStamina = data.maxStamina,
     })
@@ -192,7 +279,15 @@ local function handleBotAction(player, actionType)
 
     if actionType == "punch" or actionType == "kick" or actionType == "combo" or actionType == "knee" or actionType == "block" then
         local data = getPlayerData(player)
+        if not botFights[player] then
+            return
+        end
         if not FighterStats.ConsumeStamina(data, actionType) then
+            -- Too tired to even block: the fight is lost
+            if data.stamina < (FighterStats.StaminaCosts.block or 5) then
+                endBotFight(player, false, "You ran out of stamina!")
+                return
+            end
             matchResultEvent:FireClient(player, {
                 type = "no_stamina",
                 message = "Not enough stamina to " .. actionType .. "!",
@@ -201,21 +296,11 @@ local function handleBotAction(player, actionType)
             })
             return
         end
-
-        if actionType == "block" then
-            matchResultEvent:FireClient(player, {
-                type = "block",
-                message = "Blocked the incoming hit.",
-                stamina = data.stamina,
-                maxStamina = data.maxStamina,
-            })
-            return
-        end
-
         resolveAttack(player, actionType)
     end
 
     if actionType == "go_home" then
+        botFights[player] = nil
         getPlayerData(player).isInMatch = false
         matchResultEvent:FireClient(player, {
             type = "go_home",
@@ -408,6 +493,7 @@ local function resolvePvpAttack(player, actionType)
 end
 
 Players.PlayerRemoving:Connect(function(player)
+    botFights[player] = nil
     local data = getPlayerData(player)
     if data.opponent and data.opponent.Parent then
         endPvpMatch(data.opponent, player)
