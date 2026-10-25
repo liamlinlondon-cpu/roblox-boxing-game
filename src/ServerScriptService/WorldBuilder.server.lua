@@ -291,7 +291,9 @@ end
 
 -- ==================== BEAT THE GAME ====================
 -- Parkour course outside the east wall: a hollow diamond of buildings about the size of the whole map,
--- 11 columns long (going away from the map). The back and front tips are one building each; every column
+-- 11 columns long (going away from the map), with every other column missing (columns 2, 4, 6, 8 and 10
+-- are empty), so the gaps are far too wide to jump: it's a course for flying (the owner's /fly or the
+-- Magic Carpet with the Carpet Parkour Pass). The back and front tips are one building each; every column
 -- in between has two, one on each side, spreading apart toward the middle and closing in again, with
 -- nothing in the middle. Players go around either side of the diamond from the back tip to the front
 -- tip, then jump to a three-tier hill. There are no stairs: getting over the 60-stud wall is part of
@@ -340,9 +342,13 @@ do
 		if column > 1 then
 			x += info.gap
 		end
-		-- Steps out from the diamond's center line: 0 at the tips, most in the middle column
+		-- Steps out from the diamond's center line: 0 at the tips, most in the middle column.
+		-- Every other column is left empty (2nd, 4th, ...), so the gaps can only be crossed by flying.
 		local steps = math.min(column - 1, #COURSE_COLUMNS - column)
 		local sides = steps == 0 and { 0 } or { -steps, steps }
+		if column % 2 == 0 then
+			sides = {}
+		end
 		for _, side in ipairs(sides) do
 			local zCenter = side * DIAMOND_STEP
 			table.insert(COURSE_BUILDINGS, {
@@ -503,7 +509,7 @@ local function buildBeatGameSign(world)
 		makePart(world, "BeatGameSignPost", Vector3.new(0.6, 10, 0.6), facing * CFrame.new(side * 7, 5, 0), Enum.Material.Wood, Color3.fromRGB(90, 60, 40))
 	end
 	local board = makePart(world, "BeatGameSign", Vector3.new(14, 7, 0.4), facing * CFrame.new(0, 7, 0), Enum.Material.SmoothPlastic, Color3.fromRGB(20, 20, 20))
-	local text = "HOW TO BEAT THE GAME\nGet over the east wall (no stairs!) and leave the map. Jump across the buildings to the hill. "
+	local text = "HOW TO BEAT THE GAME\nGet over the east wall (no stairs!) and leave the map. Cross the buildings to the hill. "
 		.. "Don't touch the lava! Go into the RED portal at the top, then press the red button."
 	-- Readable from both sides
 	addSign(board, Enum.NormalId.Front, text, Color3.fromRGB(255, 70, 70))
