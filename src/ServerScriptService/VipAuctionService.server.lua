@@ -19,6 +19,7 @@ local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 
 local WorldConfig = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("WorldConfig"))
+local Admins = require(script.Parent:WaitForChild("Admins"))
 local ReceiptRouter = require(script.Parent:WaitForChild("ReceiptRouter"))
 
 local VIP = WorldConfig.Vip
@@ -182,6 +183,8 @@ local function grantVip(gym, userId)
 	gym.vipUsers[userId] = true
 	local player = Players:GetPlayerByUserId(userId)
 	if player then
+		-- Other scripts (e.g. the owner's /clones train ... vip floor) check this attribute
+		player:SetAttribute("VipFloor" .. gym.id, true)
 		notify(player, "VIP unlocked at " .. gym.name .. "! Use the gold elevator pad.")
 	end
 	broadcast()
@@ -248,6 +251,7 @@ local function rotateSession()
 		for userId in pairs(previousVips) do
 			local player = Players:GetPlayerByUserId(userId)
 			if player then
+				player:SetAttribute("VipFloor" .. gym.id, nil)
 				if isInVipZone(gym, player) then
 					teleport(player, WorldConfig.GetGymPoint(gym.id, GYM.Points.GroundArrival))
 				end
@@ -282,10 +286,15 @@ local function expireOffers()
 	end
 end
 
+-- This session's winning bidders, plus the owner, who can use every VIP floor for free
+local function hasVipAccess(gym, player)
+	return gym.vipUsers[player.UserId] == true or Admins.IsOwner(player)
+end
+
 local function enforceVipZones()
 	for _, player in ipairs(Players:GetPlayers()) do
 		for _, gym in ipairs(gyms) do
-			if not gym.vipUsers[player.UserId] and isInVipZone(gym, player) then
+			if not hasVipAccess(gym, player) and isInVipZone(gym, player) then
 				teleport(player, WorldConfig.GetGymPoint(gym.id, GYM.Points.Entrance))
 				notify(player, "The VIP floor is for this session's winning bidders.")
 			end
@@ -410,7 +419,7 @@ hookTag("VipBoard", function(gym, player)
 end)
 
 hookTag("VipElevator", function(gym, player)
-	if gym.vipUsers[player.UserId] then
+	if hasVipAccess(gym, player) then
 		teleport(player, WorldConfig.GetGymPoint(gym.id, GYM.Points.VipArrival))
 	else
 		notify(player, "The VIP floor is for this session's winning bidders.")
@@ -446,5 +455,14 @@ task.spawn(function()
 		end
 		expireOffers()
 		enforceVipZones()
+	end
+end)
+
+-- A VIP who rejoins this server during their session gets their VipFloor attribute back
+Players.PlayerAdded:Connect(function(player)
+	for _, gym in ipairs(gyms) do
+		if gym.vipUsers[player.UserId] then
+			player:SetAttribute("VipFloor" .. gym.id, true)
+		end
 	end
 end)

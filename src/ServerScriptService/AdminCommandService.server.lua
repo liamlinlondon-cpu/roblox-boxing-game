@@ -30,6 +30,7 @@ local TweenService = game:GetService("TweenService")
 local Modules = ReplicatedStorage:WaitForChild("Modules")
 local FighterStats = require(Modules:WaitForChild("FighterStats"))
 local Catalog = require(Modules:WaitForChild("Catalog"))
+local WorldConfig = require(Modules:WaitForChild("WorldConfig"))
 local Admins = require(script.Parent:WaitForChild("Admins"))
 
 local eventsFolder = ReplicatedStorage:WaitForChild("Events")
@@ -557,7 +558,8 @@ end
 
 -- ==================== CLONES ====================
 -- /clone <count> makes copies of the owner (their avatar's look, up to MAX_CLONES), and
--- /clones follow | stay | dance | copy | fight <name> | beat the game | remove tells them what to do.
+-- /clones follow | stay | dance | copy | fight <name> | train <what> | beat the game | remove tells them
+-- what to do.
 -- Owner only.
 
 local MAX_CLONES = 10
@@ -566,6 +568,7 @@ local CLONE_PUNCH_DAMAGE = 5 -- per second while a fighting clone is next to its
 local CLONE_ANIMATIONS = {
 	walk = { [Enum.HumanoidRigType.R15] = "rbxassetid://507777826", [Enum.HumanoidRigType.R6] = "rbxassetid://180426354" },
 	dance = { [Enum.HumanoidRigType.R15] = "rbxassetid://507771019", [Enum.HumanoidRigType.R6] = "rbxassetid://182435998" },
+	run = { [Enum.HumanoidRigType.R15] = "rbxassetid://507767714", [Enum.HumanoidRigType.R6] = "rbxassetid://180426354" },
 }
 
 local clonesFolder = Instance.new("Folder")
@@ -655,7 +658,16 @@ end
 
 local function setCloneMode(name, target)
 	cloneMode.name, cloneMode.target = name, target
+	cloneMode.token = (cloneMode.token or 0) + 1 -- stops anything a previous order was still doing
 	for _, clone in ipairs(liveClones()) do
+		if clone.trainTrack then
+			clone.trainTrack:Stop(0.2)
+			clone.trainTrack = nil
+		end
+		if clone.training then
+			clone.training = nil
+			clone.root.Anchored = false
+		end
 		if name == "dance" then
 			clone.humanoid:MoveTo(clone.root.Position)
 			if not clone.danceTrack then
@@ -771,6 +783,182 @@ local function clonesBeatTheGame(owner)
 	setCloneMode("follow")
 end
 
+-- /clones train strength | kick | both | stamina: the clones fly to the gym nearest the owner and train
+-- on its ground-floor punching bags, kicking bags or treadmills until given another order. What they train
+-- goes to the owner: +1 strength per punch, +1 kick per kick, +50 stamina per second on a treadmill.
+local CLONE_HIT_SECONDS = 0.45 -- same pace as a 10 lbs hit
+local CLONE_STAMINA_PER_SECOND = 50 -- the regular treadmill's rate
+local trainingEvent = eventsFolder:WaitForChild("GymTraining")
+
+local function nearestGymId(position)
+	local bestId, bestDistance = nil, math.huge
+	for id, info in ipairs(WorldConfig.Gyms.List) do
+		if not info.vipShop then
+			local distance = (WorldConfig.GetGymCFrame(id).Position - position).Magnitude
+			if distance < bestDistance then
+				bestId, bestDistance = id, distance
+			end
+		end
+	end
+	return bestId
+end
+
+-- The nearest gym whose VIP floor the owner has access to this session (from VipAuctionService)
+local function nearestVipGymId(owner, position)
+	local bestId, bestDistance = nil, math.huge
+	for id in ipairs(WorldConfig.Gyms.List) do
+		if owner:GetAttribute("VipFloor" .. id) then
+			local distance = (WorldConfig.GetGymCFrame(id).Position - position).Magnitude
+			if distance < bestDistance then
+				bestId, bestDistance = id, distance
+			end
+		end
+	end
+	return bestId
+end
+
+-- A gym's stations: "punch" / "kick" bags (their pads) or "treadmill" decks; vip picks the VIP floor's bags
+local function gymStations(gymId, kind, vip)
+	local stations = {}
+	if kind == "treadmill" then
+		for _, prompt in ipairs(CollectionService:GetTagged("TreadmillStation")) do
+			if prompt:GetAttribute("GymId") == gymId then
+				table.insert(stations, prompt.Parent)
+			end
+		end
+	else
+		for _, prompt in ipairs(CollectionService:GetTagged("GymStation")) do
+			if prompt:GetAttribute("GymId") == gymId and prompt:GetAttribute("Mode") == kind and (prompt:GetAttribute("Vip") == true) == vip then
+				table.insert(stations, prompt.Parent)
+			end
+		end
+	end
+	return stations
+end
+
+local function trainClone(owner, clone, kind, station, slot, token, gain)
+	local root, humanoid = clone.root, clone.humanoid
+	clone.training = true
+	root.Anchored = true
+
+	-- Where to stand: facing the bag on its pad, or on the treadmill belt
+	local bag, stand
+	if kind == "treadmill" then
+		stand = station.CFrame * CFrame.new(0, 3.6, -1.5) * CFrame.Angles(0, math.pi, 0)
+	else
+		bag = station.Parent:FindFirstChild(station.Name .. "Bag")
+		if not bag then
+			return
+		end
+		local toBag = (bag.Position - station.Position) * Vector3.new(1, 0, 1)
+		local standPosition = station.Position + toBag.Unit * 1.5 + Vector3.new(0, 3.2, 0)
+		stand = CFrame.lookAt(standPosition, Vector3.new(bag.Position.X, standPosition.Y, bag.Position.Z))
+	end
+	-- Clones sharing a station stand side by side
+	stand = stand * CFrame.new((slot - 1) * 2.5, 0, 0)
+
+	-- Fly over: up, across, down onto the spot
+	flyCloneTo(root, Vector3.new(root.Position.X, 60, root.Position.Z))
+	flyCloneTo(root, Vector3.new(stand.Position.X, 60, stand.Position.Z))
+	flyCloneTo(root, stand.Position)
+	if cloneMode.token ~= token then
+		return
+	end
+	root.CFrame = stand
+
+	local data = FighterStats.GetPlayerData(owner)
+	if kind == "treadmill" then
+		clone.trainTrack = loadTrack(humanoid, "run")
+		clone.trainTrack:Play(0.2)
+		clone.trainTrack:AdjustSpeed(1.6)
+		while cloneMode.token == token and clone.model.Parent and owner.Parent do
+			task.wait(1)
+			if cloneMode.token == token then
+				data.maxStamina += CLONE_STAMINA_PER_SECOND
+				data.stamina = data.maxStamina
+			end
+		end
+	else
+		local side = "Right"
+		while cloneMode.token == token and clone.model.Parent and owner.Parent do
+			task.wait(CLONE_HIT_SECONDS)
+			if cloneMode.token ~= token then
+				break
+			end
+			side = side == "Right" and "Left" or "Right"
+			trainingEvent:FireAllClients("punch", clone.model, bag, side, 10, kind)
+			if kind == "kick" then
+				FighterStats.TrainKick(data, gain)
+			else
+				FighterStats.TrainStrength(data, gain)
+			end
+		end
+	end
+end
+
+local function clonesTrain(owner, what, vip)
+	local ownerRoot = rootOf(owner)
+	local list = { table.unpack(liveClones()) }
+	if #list == 0 then
+		notify(owner, "You don't have any clones. Make some with /clone <number>.")
+		return
+	end
+	if not ownerRoot then
+		return
+	end
+	local gymId
+	if vip then
+		if what == "stamina" then
+			notify(owner, "There are no treadmills on the VIP floor. Use /clones train stamina without vip floor.")
+			return
+		end
+		-- The owner uses any VIP floor for free; anyone else needs this session's VIP access
+		gymId = Admins.IsOwner(owner) and nearestGymId(ownerRoot.Position) or nearestVipGymId(owner, ownerRoot.Position)
+		if not gymId then
+			notify(owner, "You need VIP floor access first: win a VIP bid at a gym's VIP board.")
+			return
+		end
+	else
+		gymId = nearestGymId(ownerRoot.Position)
+	end
+	local gain = vip and WorldConfig.Training.VipMultiplier or 1
+	setCloneMode("train")
+	local token = cloneMode.token
+
+	local kinds = {}
+	for i = 1, #list do
+		if what == "both" then
+			kinds[i] = i % 2 == 1 and "punch" or "kick"
+		elseif what == "stamina" then
+			kinds[i] = "treadmill"
+		else
+			kinds[i] = what == "kick" and "kick" or "punch"
+		end
+	end
+
+	local used = {} -- [station] = how many clones are on it
+	for i, clone in ipairs(list) do
+		local stations = gymStations(gymId, kinds[i], vip == true)
+		local station = stations[(i - 1) % math.max(#stations, 1) + 1]
+		if station then
+			used[station] = (used[station] or 0) + 1
+			task.spawn(function()
+				pcall(trainClone, owner, clone, kinds[i], station, used[station], token, gain)
+			end)
+		end
+	end
+	notify(owner, "Your clones are training " .. what .. " at " .. WorldConfig.Gyms.List[gymId].name
+		.. (vip and "'s VIP floor (2x)" or "") .. ". Everything they train goes to you!")
+
+	-- Refresh the owner's stats once a second while the clones train
+	task.spawn(function()
+		while cloneMode.token == token and owner.Parent do
+			task.wait(1)
+			sendStats(owner)
+		end
+	end)
+end
+
 local function cloneCommand(admin, args)
 	if not Admins.IsOwner(admin) then
 		return
@@ -805,6 +993,18 @@ local function clonesCommand(admin, args)
 	local wholeOrder = string.gsub(string.lower(table.concat(args, "")), "[^%a]", "")
 	if wholeOrder == "beatthegame" or order == "beat" then
 		task.spawn(clonesBeatTheGame, admin)
+	elseif order == "train" then
+		local what = string.lower(args[2] or "")
+		if what == "power" or what == "punch" then
+			what = "strength"
+		end
+		if what ~= "strength" and what ~= "kick" and what ~= "both" and what ~= "stamina" then
+			notify(admin, "Usage: /clones train strength | kick | both | stamina, add \"vip floor\" for the VIP floor")
+			return
+		end
+		-- "/clones train strength vip floor": the VIP floor's bags (2x), if the owner has VIP access
+		local vip = string.find(string.lower(table.concat(args, " ", 3)), "vip") ~= nil
+		task.spawn(clonesTrain, admin, what, vip)
 	elseif order == "remove" then
 		removeClones()
 		notify(admin, "Clones removed.")
@@ -820,7 +1020,7 @@ local function clonesCommand(admin, args)
 		setCloneMode("fight", target)
 		notify(admin, "Clones are going after " .. target.DisplayName .. "!")
 	else
-		notify(admin, "Usage: /clones follow | stay | dance | copy | fight <name> | beat the game | remove")
+		notify(admin, "Usage: /clones follow | stay | dance | copy | fight <name> | train <strength/kick/both/stamina> | beat the game | remove")
 	end
 end
 
