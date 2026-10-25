@@ -58,6 +58,11 @@ WorldConfig.BeatGame = {
 	SignPosition = Vector3.new(-14, 0, 48),
 }
 
+-- Sell Shop kiosk next to the ring (between the normal shop and the Color Shop): buys back owned items
+WorldConfig.SellShop = {
+	Position = Vector3.new(27.5, 0, -47.6),
+}
+
 -- Color Shop kiosk next to the ring, opposite the normal shop. It sells the current sky event's skin.
 WorldConfig.ColorShop = {
 	Position = Vector3.new(-27.5, 0, -47.6),

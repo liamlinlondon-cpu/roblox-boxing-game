@@ -652,6 +652,10 @@ local function buildWorld()
 	local shopPosition = center + WorldConfig.Shop.Position
 	buildKiosk(world, CFrame.lookAt(shopPosition, Vector3.new(center.X, shopPosition.Y, center.Z)) * CFrame.Angles(0, math.pi, 0), "SHOP", Color3.fromRGB(60, 120, 220), "normal")
 
+	-- Sell Shop kiosk with a big SELL sign: buys back things players own
+	local sellShopPosition = center + WorldConfig.SellShop.Position
+	buildKiosk(world, CFrame.lookAt(sellShopPosition, Vector3.new(center.X, sellShopPosition.Y, center.Z)) * CFrame.Angles(0, math.pi, 0), "SELL", Color3.fromRGB(200, 50, 50), "sell")
+
 	-- Color Shop kiosk on the other side of the ring: sells the current sky event's color skin
 	local colorShopPosition = center + WorldConfig.ColorShop.Position
 	buildKiosk(world, CFrame.lookAt(colorShopPosition, Vector3.new(center.X, colorShopPosition.Y, center.Z)) * CFrame.Angles(0, math.pi, 0), "COLOR SHOP", Color3.fromRGB(200, 60, 200), "color")

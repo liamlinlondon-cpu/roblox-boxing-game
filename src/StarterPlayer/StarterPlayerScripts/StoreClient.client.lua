@@ -149,6 +149,29 @@ local function renderColorShop(state)
 	end
 end
 
+-- Sell Shop: every lasting item the player owns, each with a SELL button
+local function renderSellShop(state)
+	title.Text = "SELL SHOP"
+	local anything = false
+	local function offer(item, owned)
+		if owned then
+			anything = true
+			addRow(item.name, { sellButton(item) })
+		end
+	end
+	offer(Catalog.ById.carpet, state.carpet)
+	offer(Catalog.ById.carpetpass, state.carpetPass)
+	for _, item in ipairs(Catalog.Treadmills) do
+		offer(item, state.treadmills and state.treadmills[item.tier])
+	end
+	for _, sky in ipairs(Catalog.SkyColors) do
+		offer(Catalog.ById["skin_" .. sky.id], state.ownedSkins and state.ownedSkins[sky.id])
+	end
+	if not anything then
+		addRow("You don't own anything that can be sold yet.", {})
+	end
+end
+
 local function render(state)
 	lastState = state
 	for _, child in ipairs(list:GetChildren()) do
@@ -159,6 +182,11 @@ local function render(state)
 
 	if currentStore == "color" then
 		renderColorShop(state)
+		return
+	end
+
+	if currentStore == "sell" then
+		renderSellShop(state)
 		return
 	end
 
