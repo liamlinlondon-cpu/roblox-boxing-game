@@ -558,9 +558,10 @@ end
 
 -- ==================== CLONES ====================
 -- /clone <count> makes copies of the owner (their avatar's look, up to MAX_CLONES), and
--- /clones follow | stay | dance | copy | fight <name> | train <what> | beat the game | remove tells them
--- what to do.
--- Owner only.
+-- /clones follow | stay | dance | copy | fight <name> | train <what> | beat the game | stop | remove gives
+-- them orders. Every clone has its own order, so groups can do different things at once: a number at
+-- the end of an order says how many clones do it ("/clones dance 3", "/clone stop 2"), taking idle clones
+-- (following or standing) first. Without a number, every clone gets the order. Owner only.
 
 local MAX_CLONES = 10
 local CLONE_PUNCH_DAMAGE = 5 -- per second while a fighting clone is next to its target
@@ -575,9 +576,11 @@ local clonesFolder = Instance.new("Folder")
 clonesFolder.Name = "OwnerClones"
 clonesFolder.Parent = workspace
 
-local clones = {} -- { model, humanoid, root, walkTrack, danceTrack, lastHit }
+-- Each clone: { model, humanoid, root, walkTrack, danceTrack, trainTrack, lastHit, order, target, token }
+-- order: "follow", "stay", "dance", "copy", "fight", "train" or "busy" (beating the game).
+-- token goes up with every new order, which stops whatever the clone was still doing for the old one.
+local clones = {}
 local cloneOwner = nil -- the player whose clones these are
-local cloneMode = { name = "follow", target = nil }
 
 local function rootOf(player)
 	local character = player and player.Character
@@ -612,13 +615,6 @@ local function liveClones()
 	return clones
 end
 
-local function removeClones()
-	for _, clone in ipairs(clones) do
-		clone.model:Destroy()
-	end
-	table.clear(clones)
-end
-
 local function spawnClone(owner, index)
 	local ownerRoot = rootOf(owner)
 	if not ownerRoot then
@@ -642,7 +638,7 @@ local function spawnClone(owner, index)
 	model.Parent = clonesFolder
 	pcall(root.SetNetworkOwner, root, nil) -- the server moves them
 
-	local clone = { model = model, humanoid = humanoid, root = root, lastHit = 0 }
+	local clone = { model = model, humanoid = humanoid, root = root, lastHit = 0, order = "follow", token = 0 }
 	clone.walkTrack = loadTrack(humanoid, "walk")
 	humanoid.Running:Connect(function(speed)
 		if speed > 0.5 and not clone.danceTrack then
@@ -656,32 +652,66 @@ local function spawnClone(owner, index)
 	table.insert(clones, clone)
 end
 
-local function setCloneMode(name, target)
-	cloneMode.name, cloneMode.target = name, target
-	cloneMode.token = (cloneMode.token or 0) + 1 -- stops anything a previous order was still doing
-	for _, clone in ipairs(liveClones()) do
+-- Gives these clones a new order, ending whatever they were doing
+local function assignClones(list, order, target)
+	for _, clone in ipairs(list) do
+		clone.token += 1
+		clone.order, clone.target = order, target
 		if clone.trainTrack then
 			clone.trainTrack:Stop(0.2)
 			clone.trainTrack = nil
 		end
-		if clone.training then
-			clone.training = nil
-			clone.root.Anchored = false
-		end
-		if name == "dance" then
-			clone.humanoid:MoveTo(clone.root.Position)
-			if not clone.danceTrack then
-				clone.danceTrack = loadTrack(clone.humanoid, "dance")
-				clone.danceTrack:Play(0.2)
-			end
-		elseif clone.danceTrack then
+		if clone.danceTrack then
 			clone.danceTrack:Stop(0.2)
 			clone.danceTrack = nil
 		end
-		if name == "stay" then
+		clone.root.Anchored = false
+		if order == "dance" then
+			clone.humanoid:MoveTo(clone.root.Position)
+			clone.danceTrack = loadTrack(clone.humanoid, "dance")
+			clone.danceTrack:Play(0.2)
+		elseif order == "stay" then
 			clone.humanoid:MoveTo(clone.root.Position)
 		end
 	end
+end
+
+local function isIdle(clone)
+	return clone.order == "follow" or clone.order == "stay"
+end
+
+-- Which clones an order goes to: all of them without a count; otherwise that many, idle ones first
+-- (or busy ones first, for stopping)
+local function pickClones(count, busyFirst)
+	local list = liveClones()
+	if not count then
+		return { table.unpack(list) }
+	end
+	local first, second = {}, {}
+	for _, clone in ipairs(list) do
+		local wantedFirst = (busyFirst and not isIdle(clone)) or (not busyFirst and isIdle(clone))
+		table.insert(wantedFirst and first or second, clone)
+	end
+	local picked = {}
+	for _, group in ipairs({ first, second }) do
+		for _, clone in ipairs(group) do
+			if #picked < count then
+				table.insert(picked, clone)
+			end
+		end
+	end
+	return picked
+end
+
+local function removeClones(list)
+	for _, clone in ipairs(list) do
+		clone.model:Destroy()
+	end
+	liveClones()
+end
+
+local function cloneCountText(count)
+	return count .. (count == 1 and " clone" or " clones")
 end
 
 -- /clones beat the game: each clone flies high over the wall and the course, dives into the red portal,
@@ -699,7 +729,7 @@ local function flyCloneTo(root, position)
 	tween.Completed:Wait()
 end
 
-local function clonesBeatTheGame(owner)
+local function clonesBeatTheGame(owner, list)
 	local portal = CollectionService:GetTagged("BeatGamePortal")[1]
 	local arrival = CollectionService:GetTagged("BeatGameArrival")[1]
 	local prompt = CollectionService:GetTagged("BeatGameButton")[1]
@@ -708,14 +738,8 @@ local function clonesBeatTheGame(owner)
 		notify(owner, "The beat-the-game course isn't there.")
 		return
 	end
-
-	local list = { table.unpack(liveClones()) }
-	if #list == 0 then
-		notify(owner, "You don't have any clones. Make some with /clone.")
-		return
-	end
-	setCloneMode("busy") -- the movement loop leaves them alone
-	notify(owner, "Your clones are flying off to beat the game!")
+	assignClones(list, "busy") -- the movement loop leaves them alone
+	notify(owner, cloneCountText(#list) .. " flying off to beat the game!")
 
 	local pending = #list
 	for i, clone in ipairs(list) do
@@ -762,25 +786,30 @@ local function clonesBeatTheGame(owner)
 	while pending > 0 and os.clock() < giveUpAt do
 		task.wait(0.25)
 	end
-	notify(owner, "All your clones beat the game!")
+	notify(owner, "Your clones beat the game!")
 	announcementEvent:FireAllClients("👑 " .. owner.DisplayName .. "'s clones beat the game!")
 	task.wait(3)
 
 	local ownerRoot = rootOf(owner)
+	local back = {}
+	for _, clone in ipairs(list) do
+		if clone.model.Parent and clone.humanoid.Health > 0 then
+			table.insert(back, clone)
+		end
+	end
 	if ownerRoot then
-		for j, clone in ipairs(liveClones()) do
+		for j, clone in ipairs(back) do
 			clone.root.Anchored = false
 			local angle = j / MAX_CLONES * math.pi * 2
 			clone.model:PivotTo(ownerRoot.CFrame * CFrame.new(math.cos(angle) * 6, 0, math.sin(angle) * 6))
 			clone.humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
 		end
 		-- Replace any clone that was lost on the way, so the owner gets the same number back
-		local missing = math.min(#list, MAX_CLONES) - #liveClones()
-		for k = 1, missing do
+		for k = 1, math.min(#list - #back, MAX_CLONES - #liveClones()) do
 			task.spawn(spawnClone, owner, #clones + k)
 		end
 	end
-	setCloneMode("follow")
+	assignClones(back, "follow")
 end
 
 -- /clones train strength | kick | both | stamina: the clones fly to the gym nearest the owner and train
@@ -836,9 +865,12 @@ local function gymStations(gymId, kind, vip)
 	return stations
 end
 
-local function trainClone(owner, clone, kind, station, slot, token, gain)
+local function trainClone(owner, clone, kind, station, slot, gain)
+	local token = clone.token
+	local function stillTraining()
+		return clone.token == token and clone.model.Parent and owner.Parent
+	end
 	local root, humanoid = clone.root, clone.humanoid
-	clone.training = true
 	root.Anchored = true
 
 	-- Where to stand: facing the bag on its pad, or on the treadmill belt
@@ -861,7 +893,7 @@ local function trainClone(owner, clone, kind, station, slot, token, gain)
 	flyCloneTo(root, Vector3.new(root.Position.X, 60, root.Position.Z))
 	flyCloneTo(root, Vector3.new(stand.Position.X, 60, stand.Position.Z))
 	flyCloneTo(root, stand.Position)
-	if cloneMode.token ~= token then
+	if not stillTraining() then
 		return
 	end
 	root.CFrame = stand
@@ -871,18 +903,18 @@ local function trainClone(owner, clone, kind, station, slot, token, gain)
 		clone.trainTrack = loadTrack(humanoid, "run")
 		clone.trainTrack:Play(0.2)
 		clone.trainTrack:AdjustSpeed(1.6)
-		while cloneMode.token == token and clone.model.Parent and owner.Parent do
+		while stillTraining() do
 			task.wait(1)
-			if cloneMode.token == token then
+			if stillTraining() then
 				data.maxStamina += CLONE_STAMINA_PER_SECOND
 				data.stamina = data.maxStamina
 			end
 		end
 	else
 		local side = "Right"
-		while cloneMode.token == token and clone.model.Parent and owner.Parent do
+		while stillTraining() do
 			task.wait(CLONE_HIT_SECONDS)
-			if cloneMode.token ~= token then
+			if not stillTraining() then
 				break
 			end
 			side = side == "Right" and "Left" or "Right"
@@ -896,13 +928,33 @@ local function trainClone(owner, clone, kind, station, slot, token, gain)
 	end
 end
 
-local function clonesTrain(owner, what, vip)
-	local ownerRoot = rootOf(owner)
-	local list = { table.unpack(liveClones()) }
-	if #list == 0 then
-		notify(owner, "You don't have any clones. Make some with /clone <number>.")
+-- Refreshes the owner's stats once a second while any clone trains
+local statsRefreshRunning = false
+local function refreshStatsWhileTraining(owner)
+	if statsRefreshRunning then
 		return
 	end
+	statsRefreshRunning = true
+	task.spawn(function()
+		while owner.Parent do
+			task.wait(1)
+			local anyTraining = false
+			for _, clone in ipairs(liveClones()) do
+				if clone.order == "train" then
+					anyTraining = true
+				end
+			end
+			if not anyTraining then
+				break
+			end
+			sendStats(owner)
+		end
+		statsRefreshRunning = false
+	end)
+end
+
+local function clonesTrain(owner, list, what, vip)
+	local ownerRoot = rootOf(owner)
 	if not ownerRoot then
 		return
 	end
@@ -922,51 +974,49 @@ local function clonesTrain(owner, what, vip)
 		gymId = nearestGymId(ownerRoot.Position)
 	end
 	local gain = vip and WorldConfig.Training.VipMultiplier or 1
-	setCloneMode("train")
-	local token = cloneMode.token
-
-	local kinds = {}
-	for i = 1, #list do
-		if what == "both" then
-			kinds[i] = i % 2 == 1 and "punch" or "kick"
-		elseif what == "stamina" then
-			kinds[i] = "treadmill"
-		else
-			kinds[i] = what == "kick" and "kick" or "punch"
-		end
-	end
+	assignClones(list, "train")
 
 	local used = {} -- [station] = how many clones are on it
 	for i, clone in ipairs(list) do
-		local stations = gymStations(gymId, kinds[i], vip == true)
+		local kind
+		if what == "both" then
+			kind = i % 2 == 1 and "punch" or "kick"
+		elseif what == "stamina" then
+			kind = "treadmill"
+		else
+			kind = what == "kick" and "kick" or "punch"
+		end
+		local stations = gymStations(gymId, kind, vip == true)
 		local station = stations[(i - 1) % math.max(#stations, 1) + 1]
 		if station then
 			used[station] = (used[station] or 0) + 1
+			local slot = used[station]
 			task.spawn(function()
-				pcall(trainClone, owner, clone, kinds[i], station, used[station], token, gain)
+				pcall(trainClone, owner, clone, kind, station, slot, gain)
 			end)
 		end
 	end
-	notify(owner, "Your clones are training " .. what .. " at " .. WorldConfig.Gyms.List[gymId].name
+	notify(owner, cloneCountText(#list) .. " training " .. what .. " at " .. WorldConfig.Gyms.List[gymId].name
 		.. (vip and "'s VIP floor (2x)" or "") .. ". Everything they train goes to you!")
-
-	-- Refresh the owner's stats once a second while the clones train
-	task.spawn(function()
-		while cloneMode.token == token and owner.Parent do
-			task.wait(1)
-			sendStats(owner)
-		end
-	end)
+	refreshStatsWhileTraining(owner)
 end
 
 local function cloneCommand(admin, args)
 	if not Admins.IsOwner(admin) then
 		return
 	end
+	-- "/clone stop [count]": stops that many clones (all without a number); they stand still
+	if string.lower(args[1] or "") == "stop" then
+		local count = tonumber(args[2])
+		local list = pickClones(count and math.max(0, math.floor(count)) or nil, true)
+		assignClones(list, "stay")
+		notify(admin, count and ("Stopped " .. cloneCountText(#list) .. ".") or "All clones stopped.")
+		return
+	end
 	-- A number is required: "/clone" on its own does nothing
 	local requested = tonumber(args[1])
 	if not requested or requested ~= requested then
-		notify(admin, "Usage: /clone <number>, e.g. /clone 5")
+		notify(admin, "Usage: /clone <number>, e.g. /clone 5 (or /clone stop [number])")
 		return
 	end
 	local count = math.clamp(math.floor(requested), 1, MAX_CLONES)
@@ -976,23 +1026,34 @@ local function cloneCommand(admin, args)
 		return
 	end
 	if cloneOwner ~= admin then
-		removeClones()
+		removeClones(liveClones())
 		cloneOwner = admin
 	end
 	for i = 1, count do
 		task.spawn(spawnClone, admin, #clones + i)
 	end
-	notify(admin, "Made " .. count .. (count == 1 and " clone" or " clones") .. ". Try /clones follow, stay, dance, copy, fight <name> or remove.")
+	notify(admin, "Made " .. cloneCountText(count) .. ". Give orders with /clones, and add a number to order just some of them.")
 end
 
 local function clonesCommand(admin, args)
 	if not Admins.IsOwner(admin) then
 		return
 	end
+	-- A number at the end says how many clones get the order
+	local count = nil
+	if #args > 1 and tonumber(args[#args]) then
+		count = math.max(0, math.floor(tonumber(args[#args])))
+		args = { table.unpack(args, 1, #args - 1) }
+	end
+	if #liveClones() == 0 then
+		notify(admin, "You don't have any clones. Make some with /clone <number>.")
+		return
+	end
+
 	local order = string.lower(args[1] or "")
 	local wholeOrder = string.gsub(string.lower(table.concat(args, "")), "[^%a]", "")
 	if wholeOrder == "beatthegame" or order == "beat" then
-		task.spawn(clonesBeatTheGame, admin)
+		task.spawn(clonesBeatTheGame, admin, pickClones(count))
 	elseif order == "train" then
 		local what = string.lower(args[2] or "")
 		if what == "power" or what == "punch" then
@@ -1002,29 +1063,36 @@ local function clonesCommand(admin, args)
 			notify(admin, "Usage: /clones train strength | kick | both | stamina, add \"vip floor\" for the VIP floor")
 			return
 		end
-		-- "/clones train strength vip floor": the VIP floor's bags (2x), if the owner has VIP access
+		-- "/clones train strength vip floor": the VIP floor's bags (2x)
 		local vip = string.find(string.lower(table.concat(args, " ", 3)), "vip") ~= nil
-		task.spawn(clonesTrain, admin, what, vip)
+		task.spawn(clonesTrain, admin, pickClones(count), what, vip)
 	elseif order == "remove" then
-		removeClones()
-		notify(admin, "Clones removed.")
+		local list = pickClones(count)
+		removeClones(list)
+		notify(admin, "Removed " .. cloneCountText(#list) .. ".")
+	elseif order == "stop" then
+		local list = pickClones(count, true)
+		assignClones(list, "stay")
+		notify(admin, "Stopped " .. cloneCountText(#list) .. ".")
 	elseif order == "follow" or order == "stay" or order == "dance" or order == "copy" then
-		setCloneMode(order)
-		notify(admin, "Clones: " .. order .. ".")
+		local list = pickClones(count)
+		assignClones(list, order)
+		notify(admin, cloneCountText(#list) .. ": " .. order .. ".")
 	elseif order == "fight" then
 		local target = args[2] and findPlayerInServer(args[2])
 		if not target then
 			notify(admin, "Usage: /clones fight <name> (a player in this server)")
 			return
 		end
-		setCloneMode("fight", target)
-		notify(admin, "Clones are going after " .. target.DisplayName .. "!")
+		local list = pickClones(count)
+		assignClones(list, "fight", target)
+		notify(admin, cloneCountText(#list) .. " going after " .. target.DisplayName .. "!")
 	else
-		notify(admin, "Usage: /clones follow | stay | dance | copy | fight <name> | train <strength/kick/both/stamina> | beat the game | remove")
+		notify(admin, "Usage: /clones follow | stay | dance | copy | fight <name> | train <strength/kick/both/stamina> | beat the game | stop | remove, plus an optional number")
 	end
 end
 
--- Moves the clones a few times a second, depending on the current order
+-- Moves the clones a few times a second, each by its own order
 task.spawn(function()
 	while true do
 		task.wait(0.2)
@@ -1032,34 +1100,50 @@ task.spawn(function()
 		local ownerRoot = rootOf(cloneOwner)
 		local ownerHumanoid = ownerRoot and ownerRoot.Parent:FindFirstChildOfClass("Humanoid")
 		local now = os.clock()
-		for i, clone in ipairs(list) do
-			if cloneMode.name == "follow" and ownerRoot then
-				-- A loose ring around the owner
-				local angle = i / #list * math.pi * 2
+
+		-- Followers spread around the owner, copiers line up behind
+		local followers, copiers = {}, {}
+		for _, clone in ipairs(list) do
+			if clone.order == "follow" then
+				table.insert(followers, clone)
+			elseif clone.order == "copy" then
+				table.insert(copiers, clone)
+			end
+		end
+
+		if ownerRoot then
+			for i, clone in ipairs(followers) do
+				local angle = i / #followers * math.pi * 2
 				local spot = ownerRoot.Position + Vector3.new(math.cos(angle) * 6, 0, math.sin(angle) * 6)
 				if (clone.root.Position - spot).Magnitude > 3 then
 					clone.humanoid:MoveTo(spot)
 				end
-			elseif cloneMode.name == "copy" and ownerRoot then
+			end
+			local state = ownerHumanoid and ownerHumanoid:GetState()
+			local ownerJumping = state == Enum.HumanoidStateType.Jumping or state == Enum.HumanoidStateType.Freefall
+			for i, clone in ipairs(copiers) do
 				-- Rows of five behind the owner, facing the same way, jumping when the owner jumps
 				local column = (i - 1) % 5 - 2
 				local row = math.floor((i - 1) / 5) + 1
 				clone.humanoid:MoveTo((ownerRoot.CFrame * CFrame.new(column * 4, 0, row * 5)).Position)
-				local state = ownerHumanoid and ownerHumanoid:GetState()
-				if state == Enum.HumanoidStateType.Jumping or state == Enum.HumanoidStateType.Freefall then
+				if ownerJumping then
 					clone.humanoid.Jump = true
 				end
-			elseif cloneMode.name == "fight" then
-				local targetRoot = rootOf(cloneMode.target)
+			end
+		end
+
+		for _, clone in ipairs(list) do
+			if clone.order == "fight" then
+				local targetRoot = rootOf(clone.target)
 				local targetHumanoid = targetRoot and targetRoot.Parent:FindFirstChildOfClass("Humanoid")
 				if not targetHumanoid or targetHumanoid.Health <= 0 then
-					setCloneMode("follow")
-					break
-				end
-				clone.humanoid:MoveTo(targetRoot.Position)
-				if (clone.root.Position - targetRoot.Position).Magnitude < 5 and now - clone.lastHit >= 1 then
-					clone.lastHit = now
-					targetHumanoid:TakeDamage(CLONE_PUNCH_DAMAGE)
+					assignClones({ clone }, "follow") -- target gone: back to the owner
+				else
+					clone.humanoid:MoveTo(targetRoot.Position)
+					if (clone.root.Position - targetRoot.Position).Magnitude < 5 and now - clone.lastHit >= 1 then
+						clone.lastHit = now
+						targetHumanoid:TakeDamage(CLONE_PUNCH_DAMAGE)
+					end
 				end
 			end
 		end
@@ -1078,7 +1162,7 @@ local COMMANDS = {
 	take = { run = take, minArgs = 2, usage = "/take <name> commands" },
 	reset = { run = reset },
 	privateserver = { run = privateServer },
-	clone = { run = cloneCommand, minArgs = 1, usage = "/clone <number>, e.g. /clone 5" },
+	clone = { run = cloneCommand, minArgs = 1, usage = "/clone <number>, e.g. /clone 5 (or /clone stop [number])" },
 	clones = { run = clonesCommand },
 	private = { run = privateServer }, -- "/private server"
 	luck = { run = luck, minArgs = 1, usage = "/luck <number> [name], e.g. /luck 64 (everyone) or /luck 64 Bob" },
@@ -1166,7 +1250,7 @@ end)
 Players.PlayerRemoving:Connect(function(player)
 	flying[player] = nil
 	if player == cloneOwner then
-		removeClones()
+		removeClones(liveClones())
 		cloneOwner = nil
 	end
 	Admins.Revoke(player.UserId) -- commands given with /give last until the player leaves
