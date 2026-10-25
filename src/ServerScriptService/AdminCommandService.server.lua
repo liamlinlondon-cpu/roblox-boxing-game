@@ -566,8 +566,9 @@ end
 
 local MAX_CLONES = 10
 local CLONE_PUNCH_DAMAGE = 20 -- per second while a fighting clone is next to its target ("kill" is instant)
-local CLONE_WALK_SPEED = 16
-local CLONE_CHASE_SPEED = 24 -- faster than players, so a target can't just run away
+-- Clones walk at the owner's speed (their Humanoid.WalkSpeed), so a fast owner has fast clones.
+-- This is the last speed seen while the owner could move (it's 0 while they're held on a station).
+local cloneWalkSpeed = 16
 -- Roblox's own default animations (usable in any game)
 local CLONE_ANIMATIONS = {
 	walk = { [Enum.HumanoidRigType.R15] = "rbxassetid://507777826", [Enum.HumanoidRigType.R6] = "rbxassetid://180426354" },
@@ -669,7 +670,7 @@ local function assignClones(list, order, target)
 			clone.danceTrack = nil
 		end
 		clone.root.Anchored = false
-		clone.humanoid.WalkSpeed = (order == "fight" or order == "kill") and CLONE_CHASE_SPEED or CLONE_WALK_SPEED
+		clone.humanoid.WalkSpeed = cloneWalkSpeed
 		if order == "dance" then
 			clone.humanoid:MoveTo(clone.root.Position)
 			clone.danceTrack = loadTrack(clone.humanoid, "dance")
@@ -1108,6 +1109,16 @@ task.spawn(function()
 		local ownerRoot = rootOf(cloneOwner)
 		local ownerHumanoid = ownerRoot and ownerRoot.Parent:FindFirstChildOfClass("Humanoid")
 		local now = os.clock()
+
+		-- Match the owner's walking speed
+		if ownerHumanoid and ownerHumanoid.WalkSpeed > 0 then
+			cloneWalkSpeed = ownerHumanoid.WalkSpeed
+		end
+		for _, clone in ipairs(list) do
+			if clone.humanoid.WalkSpeed ~= cloneWalkSpeed then
+				clone.humanoid.WalkSpeed = cloneWalkSpeed
+			end
+		end
 
 		-- Followers spread around the owner, copiers line up behind
 		local followers, copiers = {}, {}
