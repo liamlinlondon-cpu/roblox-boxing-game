@@ -52,6 +52,12 @@ WorldConfig.Shop = {
 }
 WorldConfig.ArenaEntrance = Vector3.new(0, 4, 24)
 
+-- Beat the game: a parkour course outside the east wall (built by WorldBuilder), ending at a hill whose
+-- red portal leads to the red button. The sign explaining it stands by the arena plaza.
+WorldConfig.BeatGame = {
+	SignPosition = Vector3.new(-14, 0, 48),
+}
+
 -- Color Shop kiosk next to the ring, opposite the normal shop. It sells the current sky event's skin.
 WorldConfig.ColorShop = {
 	Position = Vector3.new(-27.5, 0, -47.6),

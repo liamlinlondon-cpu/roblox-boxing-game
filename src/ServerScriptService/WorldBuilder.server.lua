@@ -47,6 +47,7 @@ local function addSign(part, face, text, textColor)
 	label.TextColor3 = textColor
 	label.Font = Enum.Font.GothamBlack
 	label.TextScaled = true
+	label.TextWrapped = true
 	label.Parent = gui
 end
 
@@ -288,6 +289,196 @@ local function buildGym(world, index)
 	return model
 end
 
+-- ==================== BEAT THE GAME ====================
+-- Parkour course outside the east wall. Climb the stairs inside the map to the top of the wall, then
+-- jump across four buildings in a diamond (back, middle-left, middle-right, front) to a three-tier hill.
+-- The ground outside is lava. Each building is lower than the last so the longer jumps can be made with
+-- a normal Roblox jump (about 8 studs on flat ground):
+--   wall top 60 -> back 56 (gap 4) -> mid-left 50 (gap 6) -> mid-right 43 (gap 7) -> front 35 (gap 9)
+--   -> hill top 23 (gap 10, the big one)
+-- The hill: yellow pad on the bottom tier, blue on the middle and a red round portal on top, which
+-- teleports you inside the front building, where the red button wins the game. The tiers are 10 studs
+-- apart so they can't be climbed: missing the last jump leaves you on a decoy tier.
+-- BeatGameService handles the lava, pads, portal and button.
+
+local LAVA_COLOR = Color3.fromRGB(255, 90, 20)
+local BUILDING_COLOR = Color3.fromRGB(120, 120, 130)
+local RED = Color3.fromRGB(255, 40, 40)
+
+-- Footprints (x from/to, z from/to, relative to the arena center) and roof heights
+local COURSE_BUILDINGS = {
+	{ name = "BackBuilding", x = { 218, 232 }, z = { -9, 9 }, roof = 56 },
+	{ name = "MidLeftBuilding", x = { 238, 252 }, z = { 3.5, 17.5 }, roof = 50 },
+	{ name = "MidRightBuilding", x = { 238, 252 }, z = { -17.5, -3.5 }, roof = 43 },
+	{ name = "FrontBuilding", x = { 261, 275 }, z = { -9, 9 }, roof = 35, hollow = true },
+}
+local HILL_CENTER = Vector3.new(292, 0, 0)
+local HILL_TIERS = { -- bottom to top
+	{ radius = 20, top = 3, pad = { color = "yellow", rgb = Color3.fromRGB(255, 220, 40), offset = 16.5 } },
+	{ radius = 13, top = 13, pad = { color = "blue", rgb = Color3.fromRGB(40, 90, 255), offset = 10 } },
+	{ radius = 7, top = 23 },
+}
+
+-- Stairs along the inside of the east wall, 1 stud per step, up to the top of the 60-stud wall
+local function buildWallStairs(model)
+	local wallX = WorldConfig.GroundSize / 2
+	local steps = WorldConfig.WallHeight
+	for i = 1, steps do
+		makePart(
+			model,
+			"Step" .. i,
+			Vector3.new(8, i, 1.6),
+			CFrame.new(ARENA.Center + Vector3.new(wallX - 4, i / 2, -steps * 1.6 + (i - 0.5) * 1.6)),
+			Enum.Material.Concrete,
+			Color3.fromRGB(150, 150, 155)
+		)
+	end
+end
+
+local function buildCourseBuilding(model, info)
+	local x1, x2, z1, z2 = info.x[1], info.x[2], info.z[1], info.z[2]
+	local width, depth = x2 - x1, z2 - z1
+	local center = ARENA.Center + Vector3.new((x1 + x2) / 2, 0, (z1 + z2) / 2)
+	if not info.hollow then
+		makePart(model, info.name, Vector3.new(width, info.roof, depth), CFrame.new(center + Vector3.new(0, info.roof / 2, 0)), Enum.Material.Concrete, BUILDING_COLOR)
+		return
+	end
+
+	-- The front building is hollow: a closed room at the bottom holds the red button
+	local roomTop = 12
+	local function slab(name, y)
+		makePart(model, name, Vector3.new(width, 1, depth), CFrame.new(center + Vector3.new(0, y, 0)), Enum.Material.Concrete, BUILDING_COLOR)
+	end
+	slab(info.name .. "Floor", 1) -- floor top at 1.5, above the lava
+	slab(info.name .. "RoomCeiling", roomTop)
+	slab(info.name .. "Roof", info.roof - 0.5)
+	for _, wall in ipairs({
+		{ Vector3.new(width, info.roof, 1), Vector3.new(0, info.roof / 2, -depth / 2 + 0.5) },
+		{ Vector3.new(width, info.roof, 1), Vector3.new(0, info.roof / 2, depth / 2 - 0.5) },
+		{ Vector3.new(1, info.roof, depth), Vector3.new(-width / 2 + 0.5, info.roof / 2, 0) },
+		{ Vector3.new(1, info.roof, depth), Vector3.new(width / 2 - 0.5, info.roof / 2, 0) },
+	}) do
+		makePart(model, info.name .. "Wall", wall[1], CFrame.new(center + wall[2]), Enum.Material.Concrete, BUILDING_COLOR)
+	end
+
+	-- The red button on a pedestal in the middle of the room
+	makePart(model, "ButtonPedestal", Vector3.new(2, 3, 2), CFrame.new(center + Vector3.new(0, 3, 0)), Enum.Material.Metal, Color3.fromRGB(60, 60, 65))
+	local button = makePart(
+		model,
+		"RedButton",
+		Vector3.new(0.5, 1.6, 1.6),
+		CFrame.new(center + Vector3.new(0, 4.75, 0)) * CFrame.Angles(0, 0, math.pi / 2),
+		Enum.Material.Neon,
+		RED,
+		Enum.PartType.Cylinder
+	)
+	local light = Instance.new("PointLight")
+	light.Color = RED
+	light.Range = 14
+	light.Parent = button
+	local prompt = addPrompt(button, "Press", "Red Button", "BeatGameButton", {})
+	prompt.MaxActivationDistance = 8
+
+	-- Where the red portal drops players: inside the room, facing the button
+	local arrival = makePart(model, "BeatGameArrival", Vector3.new(1, 1, 1), CFrame.lookAt(center + Vector3.new(-4, 4.5, 0), center + Vector3.new(0, 4.5, 0)))
+	arrival.Transparency = 1
+	arrival.CanCollide = false
+	arrival.CanQuery = false
+	CollectionService:AddTag(arrival, "BeatGameArrival")
+end
+
+local function buildHill(model)
+	local center = ARENA.Center + HILL_CENTER
+	for i, tier in ipairs(HILL_TIERS) do
+		makePart(
+			model,
+			"HillTier" .. i,
+			Vector3.new(tier.top, tier.radius * 2, tier.radius * 2),
+			CFrame.new(center + Vector3.new(0, tier.top / 2, 0)) * CFrame.Angles(0, 0, math.pi / 2),
+			Enum.Material.Grass,
+			Color3.fromRGB(76, 140, 60),
+			Enum.PartType.Cylinder
+		)
+		if tier.pad then
+			-- Decoy pads on the ring of each lower tier
+			local pad = makePart(
+				model,
+				tier.pad.color .. "Pad",
+				Vector3.new(0.4, 5, 5),
+				CFrame.new(center + Vector3.new(0, tier.top + 0.2, tier.pad.offset)) * CFrame.Angles(0, 0, math.pi / 2),
+				Enum.Material.Neon,
+				tier.pad.rgb,
+				Enum.PartType.Cylinder
+			)
+			pad:SetAttribute("PadColor", tier.pad.color)
+			CollectionService:AddTag(pad, "BeatGamePad")
+		end
+	end
+
+	-- The red round portal standing on top of the hill, facing the buildings
+	local top = HILL_TIERS[#HILL_TIERS].top
+	local portal = makePart(
+		model,
+		"RedPortal",
+		Vector3.new(0.6, 8, 8),
+		CFrame.new(center + Vector3.new(0, top + 4.5, 0)),
+		Enum.Material.Neon,
+		RED,
+		Enum.PartType.Cylinder
+	)
+	portal.Transparency = 0.25
+	portal.CanCollide = false
+	local sparkles = Instance.new("ParticleEmitter")
+	sparkles.Color = ColorSequence.new(RED)
+	sparkles.LightEmission = 1
+	sparkles.Size = NumberSequence.new(0.4, 0)
+	sparkles.Lifetime = NumberRange.new(0.6, 1.2)
+	sparkles.Rate = 30
+	sparkles.Speed = NumberRange.new(1, 3)
+	sparkles.SpreadAngle = Vector2.new(180, 180)
+	sparkles.Parent = portal
+	CollectionService:AddTag(portal, "BeatGamePortal")
+end
+
+local function buildBeatGameCourse(world)
+	local model = Instance.new("Model")
+	model.Name = "BeatGameCourse"
+	model.Parent = world
+
+	buildWallStairs(model)
+
+	-- Lava covering the ground outside the east wall, under the whole course
+	local wallOuter = WorldConfig.GroundSize / 2 + WorldConfig.WallThickness
+	local lava = makePart(
+		model,
+		"Lava",
+		Vector3.new(340 - wallOuter, 1, 140),
+		CFrame.new(ARENA.Center + Vector3.new((wallOuter + 340) / 2, 0, 0)),
+		Enum.Material.CrackedLava,
+		LAVA_COLOR
+	)
+	CollectionService:AddTag(lava, "KillFloor")
+
+	for _, info in ipairs(COURSE_BUILDINGS) do
+		buildCourseBuilding(model, info)
+	end
+	buildHill(model)
+end
+
+local function buildBeatGameSign(world)
+	local position = ARENA.Center + WorldConfig.BeatGame.SignPosition
+	local facing = CFrame.lookAt(position, Vector3.new(ARENA.Center.X, position.Y, ARENA.Center.Z))
+	for _, side in ipairs({ -1, 1 }) do
+		makePart(world, "BeatGameSignPost", Vector3.new(0.6, 10, 0.6), facing * CFrame.new(side * 7, 5, 0), Enum.Material.Wood, Color3.fromRGB(90, 60, 40))
+	end
+	local board = makePart(world, "BeatGameSign", Vector3.new(14, 7, 0.4), facing * CFrame.new(0, 7, 0), Enum.Material.SmoothPlastic, Color3.fromRGB(20, 20, 20))
+	local text = "HOW TO BEAT THE GAME\nClimb the stairs by the east wall and leave the map. Jump across the buildings to the hill. "
+		.. "Don't touch the lava! Go into the RED portal at the top, then press the red button."
+	-- Readable from both sides
+	addSign(board, Enum.NormalId.Front, text, Color3.fromRGB(255, 70, 70))
+	addSign(board, Enum.NormalId.Back, text, Color3.fromRGB(255, 70, 70))
+end
+
 local function buildWorld()
 	local existing = Workspace:FindFirstChild(WORLD_NAME)
 	if existing then
@@ -320,6 +511,9 @@ local function buildWorld()
 		makePart(world, "BoundaryWallZ" .. side, Vector3.new(wallLength, wallHeight, wallThickness), CFrame.new(center + Vector3.new(0, wallHeight / 2, side * (half + wallThickness / 2))), Enum.Material.Concrete, wallColor)
 		makePart(world, "BoundaryWallX" .. side, Vector3.new(wallThickness, wallHeight, WorldConfig.GroundSize), CFrame.new(center + Vector3.new(side * (half + wallThickness / 2), wallHeight / 2, 0)), Enum.Material.Concrete, wallColor)
 	end
+
+	buildBeatGameCourse(world)
+	buildBeatGameSign(world)
 
 	-- Normal shop kiosk, facing the arena
 	local shopPosition = center + WorldConfig.Shop.Position
