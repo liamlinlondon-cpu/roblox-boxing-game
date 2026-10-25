@@ -819,9 +819,9 @@ end
 
 -- /clones train strength | kick | both | stamina: the clones fly to the gym nearest the owner and train
 -- on its ground-floor punching bags, kicking bags or treadmills until given another order. What they train
--- goes to the owner: +1 strength per punch, +1 kick per kick, +50 stamina per second on a treadmill.
+-- goes to the owner: +1 strength per punch, +1 kick per kick, and each second on a treadmill that
+-- treadmill's own stamina rate (regular +50, hacker +50,000, admin +50,000,000, owner +5 trillion).
 local CLONE_HIT_SECONDS = 0.45 -- same pace as a 10 lbs hit
-local CLONE_STAMINA_PER_SECOND = 50 -- the regular treadmill's rate
 local trainingEvent = eventsFolder:WaitForChild("GymTraining")
 
 local function nearestGymId(position)
@@ -905,13 +905,16 @@ local function trainClone(owner, clone, kind, station, slot, gain)
 
 	local data = FighterStats.GetPlayerData(owner)
 	if kind == "treadmill" then
+		-- The stamina per second of the treadmill this clone is on (the tier is set on its prompt)
+		local prompt = station:FindFirstChildOfClass("ProximityPrompt")
+		local tier = FighterStats.TreadmillTiers[prompt and prompt:GetAttribute("Tier") or "regular"] or FighterStats.TreadmillTiers.regular
 		clone.trainTrack = loadTrack(humanoid, "run")
 		clone.trainTrack:Play(0.2)
 		clone.trainTrack:AdjustSpeed(1.6)
 		while stillTraining() do
 			task.wait(1)
 			if stillTraining() then
-				data.maxStamina += CLONE_STAMINA_PER_SECOND
+				data.maxStamina += tier.gain
 				data.stamina = data.maxStamina
 			end
 		end
