@@ -146,6 +146,35 @@ end)
 -- Tells everyone who started it, in the banner next to the stat bars (AnnouncementClient)
 local announcementEvent = ReplicatedStorage:WaitForChild("Events"):WaitForChild("Announcement")
 
+-- The owner's VIP ADMIN panel starts events with buttons: invoke with a color id ("red", "rainbow", ...)
+-- or "clear" for a normal sky. Invoked with nothing it only answers "is this the owner?".
+local adminSkyEvent = Instance.new("RemoteFunction")
+adminSkyEvent.Name = "AdminSkyEvent"
+adminSkyEvent.Parent = ReplicatedStorage:WaitForChild("Events")
+
+adminSkyEvent.OnServerInvoke = function(player, colorId)
+	if not Admins.IsOwner(player) then
+		return nil
+	end
+	if colorId == nil then
+		return true
+	end
+	if colorId == "clear" then
+		if ReplicatedStorage:GetAttribute("SkyEventColor") then
+			clearEvent()
+			announcementEvent:FireAllClients("👑 " .. player.DisplayName .. " turned the sky back to normal.")
+		end
+		return "The sky is back to normal."
+	end
+	local sky = type(colorId) == "string" and Catalog.SkyColorById[colorId]
+	if not sky then
+		return "Unknown event."
+	end
+	startEvent(sky)
+	announcementEvent:FireAllClients("👑 " .. player.DisplayName .. " started a " .. string.upper(sky.name) .. " SKY event!")
+	return sky.name .. " sky event started!"
+end
+
 local function runCommand(player, alias)
 	if not Admins.IsAdmin(player) then
 		return

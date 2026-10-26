@@ -179,11 +179,17 @@ teleportFunction.Parent = eventsFolder
 -- No target: "may I teleport?"; with a target: teleport there if allowed
 -- Pointing at the side of something (a wall, a building) means "go on top of it": find the highest
 -- surface in that spot by looking straight down from high above
-local function landingSpot(player, target, normal)
-	if typeof(normal) ~= "Vector3" or math.abs(normal.Y) >= 0.5 then
+-- fromAbove: the target only says where on the map (from the VIP ADMIN panel's map); land on whatever is
+-- highest there
+local function landingSpot(player, target, normal, fromAbove)
+	local inside
+	if fromAbove then
+		inside = target
+	elseif typeof(normal) ~= "Vector3" or math.abs(normal.Y) >= 0.5 then
 		return target -- pointing at the floor or a roof: land right there
+	else
+		inside = target - normal.Unit * 1.5 -- step into the wall so the downward look hits its top
 	end
-	local inside = target - normal.Unit * 1.5 -- step into the wall so the downward look hits its top
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Exclude
 	params.FilterDescendantsInstances = { player.Character }
@@ -191,7 +197,7 @@ local function landingSpot(player, target, normal)
 	return result and result.Position or target
 end
 
-teleportFunction.OnServerInvoke = function(player, target, normal)
+teleportFunction.OnServerInvoke = function(player, target, normal, fromAbove)
 	if not canTeleport(player) then
 		return false, "Teleporting unlocks when your rebirth speed goes past " .. FighterStats.MaxMoveValue .. "."
 	end
@@ -201,7 +207,7 @@ teleportFunction.OnServerInvoke = function(player, target, normal)
 	if typeof(target) ~= "Vector3" or target.X ~= target.X or target.Y ~= target.Y or target.Z ~= target.Z then
 		return false, "Point at the ground to teleport."
 	end
-	target = landingSpot(player, target, normal)
+	target = landingSpot(player, target, normal, fromAbove == true)
 	local now = os.clock()
 	if lastTeleport[player] and now - lastTeleport[player] < TELEPORT_COOLDOWN then
 		return false, nil
