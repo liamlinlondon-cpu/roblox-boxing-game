@@ -55,11 +55,17 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	if gameProcessed or not unlocked or input.KeyCode ~= Enum.KeyCode.T then
 		return
 	end
-	if not mouse.Target then
+	-- Find what the mouse points at (ignoring your own character), and which way that surface faces
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = { player.Character }
+	local ray = mouse.UnitRay
+	local result = workspace:Raycast(ray.Origin, ray.Direction * 3000, params)
+	if not result then
 		showMessage("Point at the ground to teleport.")
 		return
 	end
-	local ok, allowed, message = pcall(teleportFunction.InvokeServer, teleportFunction, mouse.Hit.Position)
+	local ok, allowed, message = pcall(teleportFunction.InvokeServer, teleportFunction, result.Position, result.Normal)
 	if ok and not allowed and message then
 		showMessage(message)
 	end
