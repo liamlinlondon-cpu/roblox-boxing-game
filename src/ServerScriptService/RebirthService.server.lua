@@ -1,6 +1,7 @@
 -- Rebirths (see FighterStats.RebirthRequirements). The ♻ button (RebirthClient) asks for the player's
 -- rebirth info and asks to rebirth. Rebirthing needs the next rebirth's strength, kick and max stamina;
--- it resets those three to a new player's values, adds +1x to training gains for good, and gives a walk
+-- it resets those three, wins and the beat the game count to a new player's values (money stays), adds +1x to
+-- training gains for good, and gives a walk
 -- speed and jump boost (+15, doubling each rebirth). Max 5.
 
 local Players = game:GetService("Players")
@@ -81,12 +82,16 @@ local function rebirth(player)
 		return false, "You don't have enough strength, kick and stamina yet."
 	end
 
-	-- Back to a new player's strength, kick and stamina; everything else stays
+	-- Back to a new player's strength, kick, stamina, wins and beat the game count.
+	-- Money, items, skins, treadmills, luck and upgrades stay.
 	local fresh = FighterStats.CreatePlayerData()
 	data.strength = fresh.strength
 	data.kick = fresh.kick
 	data.maxStamina = fresh.maxStamina
 	data.stamina = fresh.stamina
+	data.arenaWins = fresh.arenaWins
+	data.arenaLosses = fresh.arenaLosses
+	data.gameBeats = fresh.gameBeats
 	data.bodyStage = FighterStats.GetStageFromStrength(data.strength)
 	data.rebirths = rebirths + 1
 	applySpeedBoost(player)

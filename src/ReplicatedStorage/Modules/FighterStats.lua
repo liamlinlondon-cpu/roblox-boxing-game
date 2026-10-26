@@ -122,8 +122,9 @@ function FighterStats.TrainStamina(data, tierKey, multiplier)
 end
 
 -- ==================== REBIRTHS ====================
--- Up to MaxRebirths. Each needs the strength, kick and max stamina below; rebirthing resets those three
--- to the start and adds +1x to training gains (bags and treadmills) for good.
+-- Up to MaxRebirths. Each needs the strength, kick and max stamina below; rebirthing resets those three,
+-- wins and the beat the game count to the start (money stays), and adds +1x to training gains (bags and
+-- treadmills) for good.
 FighterStats.MaxRebirths = 5
 FighterStats.RebirthRequirements = {
 	{ strength = 100, kick = 100, stamina = 1000 },

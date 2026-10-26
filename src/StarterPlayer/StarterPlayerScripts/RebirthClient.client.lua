@@ -77,7 +77,7 @@ for i = 1, 3 do
 	row.TextXAlignment = Enum.TextXAlignment.Left
 	rows[i] = row
 end
-local note = label("Rebirthing resets your strength, kick and stamina, and gives +1x training for good.",
+local note = label("Rebirthing resets your strength, kick, stamina, wins and beat the game (you keep your money), and gives +1x training for good.",
 	UDim2.new(1, -24, 0, 36), UDim2.new(0, 12, 0, 184), Color3.fromRGB(170, 170, 170), Enum.Font.Gotham)
 note.TextWrapped = true
 
@@ -128,7 +128,7 @@ local function show(info, message)
 	rebirthButton.BackgroundColor3 = canRebirth and RED or GREY
 	rebirthButton.AutoButtonColor = canRebirth
 	local boostText = info.rebirths >= info.max and ("You have +" .. info.speedBoost .. " speed and jump.")
-		or ("Next rebirth: +" .. info.nextSpeedBoost .. " speed and jump, and +1x training. Resets strength, kick and stamina.")
+		or ("Next rebirth: +" .. info.nextSpeedBoost .. " speed and jump, and +1x training. Resets strength, kick, stamina, wins and beat the game (you keep your money).")
 	note.Text = message or boostText
 end
 
