@@ -152,7 +152,7 @@ local function build()
 	status.Size = UDim2.new(1, -24, 0, 24)
 	status.Position = UDim2.new(0, 12, 1, -30)
 	status.BackgroundTransparency = 1
-	status.Text = "Type a number (up to 1 nonillion) and press SET."
+	status.Text = "Type a number and press SET (speed and jump up to 1,000, the rest up to 1 nonillion)."
 	status.TextColor3 = Color3.fromRGB(200, 200, 200)
 	status.Font = Enum.Font.Gotham
 	status.TextScaled = true

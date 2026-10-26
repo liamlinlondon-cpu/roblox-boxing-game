@@ -1499,6 +1499,9 @@ end)
 -- attributes so respawning (RebirthService) puts them back.
 
 local ADMIN_PANEL_MAX = 1e30 -- 1 nonillion
+-- Speed and jump move the character, and Roblox's physics freezes or flings characters far beyond this,
+-- so those two are capped here (1,000 speed covers the whole map in under a second)
+local ADMIN_PANEL_MOVE_MAX = 1000
 
 local adminPanelFunction = Instance.new("RemoteFunction")
 adminPanelFunction.Name = "AdminPanel"
@@ -1515,13 +1518,13 @@ local function setHumanoid(player, property, value)
 	end
 end
 
--- stat -> how to set it, and the name shown back
+-- stat -> how to set it, and the name shown back; moves = capped at ADMIN_PANEL_MOVE_MAX
 local ADMIN_PANEL_STATS = {
-	speed = { name = "Speed", set = function(player, _, value)
+	speed = { name = "Speed", moves = true, set = function(player, _, value)
 		player:SetAttribute("AdminWalkSpeed", value)
 		setHumanoid(player, "WalkSpeed", value)
 	end },
-	jump = { name = "Jump", set = function(player, _, value)
+	jump = { name = "Jump", moves = true, set = function(player, _, value)
 		player:SetAttribute("AdminJumpPower", value)
 		setHumanoid(player, "JumpPower", value)
 	end },
@@ -1577,10 +1580,15 @@ adminPanelFunction.OnServerInvoke = function(player, stat, value)
 	if not entry or type(value) ~= "number" or value ~= value or value < 0 then
 		return "Type a number of 0 or more."
 	end
-	value = math.min(value, ADMIN_PANEL_MAX)
+	local limit = entry.moves and ADMIN_PANEL_MOVE_MAX or ADMIN_PANEL_MAX
+	local capped = value > limit
+	value = math.min(value, limit)
 	local data = FighterStats.GetPlayerData(player)
 	entry.set(player, data, value)
 	sendStats(player)
+	if capped and entry.moves then
+		return entry.name .. " set to " .. Catalog.FormatNumber(value) .. " (the fastest Roblox can handle)."
+	end
 	return entry.name .. " set to " .. Catalog.FormatNumber(value) .. "."
 end
 
