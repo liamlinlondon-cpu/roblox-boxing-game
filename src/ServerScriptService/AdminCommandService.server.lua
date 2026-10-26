@@ -579,8 +579,8 @@ end
 
 -- ==================== CLONES ====================
 -- /clone <count> makes copies of the owner (their avatar's look, up to OWNER_MAX_CLONES), and
--- /clones follow | stay | dance | copy | fight <name> | kill <name> | train <what> | beat the game | stop |
--- remove gives
+-- /clones follow | stay | dance | copy | fly | fight <name> | kill <name> | train <what> | beat the game |
+-- stop | remove gives
 -- them orders. Every clone has its own order, so groups can do different things at once: a number at
 -- the end of an order says how many clones do it ("/clones dance 3", "/clone stop 2"), taking idle clones
 -- (following or standing) first. Without a number, every clone gets the order. Owner only.
@@ -714,7 +714,7 @@ local function assignClones(list, order, target)
 			clone.danceTrack:Stop(0.2)
 			clone.danceTrack = nil
 		end
-		clone.root.Anchored = false
+		clone.root.Anchored = order == "fly" -- flying clones are moved by the fly loop below
 		if order == "dance" then
 			clone.humanoid:MoveTo(clone.root.Position)
 			clone.danceTrack = loadTrack(clone.humanoid, "dance")
@@ -1255,7 +1255,7 @@ local function clonesCommand(admin, args, controller, forcing)
 		local list = take(pickClones(controller, count, true, forcing))
 		assignClones(list, "stay")
 		notify(admin, "Stopped " .. #list .. " of " .. whose .. "clones.")
-	elseif order == "follow" or order == "stay" or order == "dance" or order == "copy" then
+	elseif order == "follow" or order == "stay" or order == "dance" or order == "copy" or order == "fly" then
 		local list = take(pickClones(controller, count, false, forcing))
 		assignClones(list, order)
 		notify(admin, #list .. " of " .. whose .. "clones: " .. order .. ".")
@@ -1277,7 +1277,7 @@ local function clonesCommand(admin, args, controller, forcing)
 		assignClones(list, order, target)
 		notify(admin, #list .. " of " .. whose .. "clones" .. (order == "kill" and " going to kill " or " going after ") .. target.DisplayName .. "!")
 	else
-		notify(admin, "Usage: /clones follow | stay | dance | copy | fight <name> | kill <name> | train <strength/kick/both/stamina> | beat the game | stop | remove, plus an optional number")
+		notify(admin, "Usage: /clones follow | stay | dance | copy | fly | fight <name> | kill <name> | train <strength/kick/both/stamina/wins> | beat the game | stop | remove, plus an optional number")
 	end
 end
 
@@ -1351,6 +1351,35 @@ local function everyCloneCommand(admin, args)
 	end
 	clonesCommand(admin, args)
 end
+
+-- /clones fly: the clones fly after their controller in a straight line, single file behind them and a
+-- little above, facing the same way and following them anywhere (also up in the air). Each clone glides
+-- toward its place every frame, so the line trails smoothly behind.
+local FLY_SPACING = 5 -- studs between clones in the line
+local FLY_HEIGHT = 2 -- above the controller
+local FLY_SMOOTHING = 0.2 -- how quickly each clone catches up to its place (0-1 per frame)
+
+RunService.Heartbeat:Connect(function()
+	local flyers = {} -- [controller] = list
+	for _, clone in ipairs(clones) do
+		if clone.order == "fly" and clone.model.Parent then
+			flyers[clone.controller] = flyers[clone.controller] or {}
+			table.insert(flyers[clone.controller], clone)
+		end
+	end
+	for controller, list in pairs(flyers) do
+		local controllerRoot = rootOf(controller)
+		if controllerRoot then
+			-- Flat facing, so the line stays level even when the controller looks up or down
+			local look = controllerRoot.CFrame.LookVector * Vector3.new(1, 0, 1)
+			local facing = look.Magnitude > 0.01 and CFrame.lookAt(controllerRoot.Position, controllerRoot.Position + look) or controllerRoot.CFrame
+			for i, clone in ipairs(list) do
+				local place = facing * CFrame.new(0, FLY_HEIGHT, i * FLY_SPACING) -- +Z is behind
+				clone.root.CFrame = clone.root.CFrame:Lerp(place, FLY_SMOOTHING)
+			end
+		end
+	end
+end)
 
 -- Moves the clones a few times a second, each by its own order, around whoever controls it
 local lastWalkSpeed = {} -- [controller] = their last walking speed while able to move
