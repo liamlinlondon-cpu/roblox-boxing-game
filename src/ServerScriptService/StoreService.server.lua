@@ -52,6 +52,7 @@ local function sendStats(player)
 		maxStamina = data.maxStamina,
 		arenaWins = data.arenaWins,
 		gameBeats = data.gameBeats,
+		rebirths = data.rebirths,
 	})
 end
 

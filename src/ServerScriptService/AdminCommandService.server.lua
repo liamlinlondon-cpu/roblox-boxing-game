@@ -74,6 +74,7 @@ local function sendStats(player)
 		maxStamina = data.maxStamina,
 		arenaWins = data.arenaWins,
 		gameBeats = data.gameBeats,
+		rebirths = data.rebirths,
 	})
 end
 
@@ -446,6 +447,10 @@ local function reset(admin, args)
 			pcall(function()
 				humanoid:ApplyDescription(Players:GetHumanoidDescriptionFromUserId(target.UserId))
 			end)
+			-- Rebirths are reset, so is their speed and jump boost
+			humanoid.WalkSpeed = FighterStats.BaseWalkSpeed
+			humanoid.UseJumpPower = true
+			humanoid.JumpPower = FighterStats.BaseJumpPower
 		end
 	end
 
@@ -475,6 +480,8 @@ local STAT_WORDS = {
 	beatgame = "gameBeats",
 	beat = "gameBeats",
 	wins = "arenaWins",
+	rebirth = "rebirths",
+	rebirths = "rebirths",
 }
 
 local function statLine(data, stat)
@@ -491,6 +498,8 @@ local function statLine(data, stat)
 		return "Beat the game: " .. Catalog.FormatNumber(beats) .. (beats == 1 and " time" or " times")
 	elseif stat == "arenaWins" then
 		return "Arena wins: " .. Catalog.FormatNumber(data.arenaWins or 0)
+	elseif stat == "rebirths" then
+		return "Rebirths: " .. (data.rebirths or 0) .. "/" .. FighterStats.MaxRebirths
 	end
 	return nil
 end
@@ -524,13 +533,13 @@ lookupFunction.OnServerInvoke = function(player, query)
 		local statText = table.concat({ table.unpack(words, 2) }, " ")
 		local stat = STAT_WORDS[string.gsub(string.lower(statText), "[^%a]", "")]
 		if not stat then
-			return "Unknown stat \"" .. statText .. "\". Try strength, kick, money, stamina, beat the game or wins."
+			return "Unknown stat \"" .. statText .. "\". Try strength, kick, money, stamina, beat the game, wins or rebirths."
 		end
 		return target.DisplayName .. "  ·  " .. statLine(data, stat)
 	end
 
 	local lines = { target.DisplayName }
-	for _, stat in ipairs({ "strength", "kick", "money", "stamina", "gameBeats", "arenaWins" }) do
+	for _, stat in ipairs({ "strength", "kick", "money", "stamina", "gameBeats", "arenaWins", "rebirths" }) do
 		table.insert(lines, statLine(data, stat))
 	end
 	return table.concat(lines, "\n")

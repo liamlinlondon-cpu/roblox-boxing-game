@@ -40,6 +40,7 @@ function FighterStats.CreatePlayerData()
 		carpet = false,
 		carpetPass = false, -- may ride the Magic Carpet outside the map, over the parkour
 		gameBeats = 0, -- times the player pressed the red button and beat the game
+		rebirths = 0, -- 0 to FighterStats.MaxRebirths
 		soldTools = {}, -- [toolName] = true: backpack tools sold at the Sell Shop, removed if they come back
 		ownedSkins = {}, -- [colorId] = true, bought in the Color Shop during sky events
 		ownerTreadmillAnywhere = false, -- given with the owner's /give: may use the Owner's Treadmill in public servers
@@ -108,19 +109,44 @@ function FighterStats.TrainKick(data, amount)
 	data.health = 100
 end
 
-function FighterStats.TrainStamina(data, tierKey)
+-- Adds one treadmill payout (times `multiplier`, e.g. the rebirth boost). Who may use which treadmill is
+-- checked before running (FlowService), so the owner and gifted players get paid too.
+function FighterStats.TrainStamina(data, tierKey, multiplier)
 	local tier = FighterStats.TreadmillTiers[tierKey]
 	if not tier then
 		return false
 	end
-
-	if not data.treadmills[tierKey] then
-		return false
-	end
-
-	data.maxStamina = data.maxStamina + tier.gain
+	data.maxStamina = data.maxStamina + tier.gain * (multiplier or 1)
 	data.stamina = data.maxStamina
 	return true, tier
+end
+
+-- ==================== REBIRTHS ====================
+-- Up to MaxRebirths. Each needs the strength, kick and max stamina below; rebirthing resets those three
+-- to the start and adds +1x to training gains (bags and treadmills) for good.
+FighterStats.MaxRebirths = 5
+FighterStats.RebirthRequirements = {
+	{ strength = 100, kick = 100, stamina = 1000 },
+	{ strength = 1000, kick = 1000, stamina = 10000 },
+	{ strength = 10000, kick = 10000, stamina = 100000 },
+	{ strength = 100000, kick = 100000, stamina = 500000 },
+	{ strength = 1000000, kick = 1000000, stamina = 1000000 },
+}
+
+-- Training gain boost from rebirths: 1x with none, 2x after one, ... 6x after five
+function FighterStats.RebirthMultiplier(data)
+	return 1 + (data.rebirths or 0)
+end
+
+-- Walk speed and jump power boost from rebirths: +15 after the first, doubling each time
+-- (+30, +60, +120, +240). Normal walk speed is 16 and jump power 50.
+FighterStats.BaseWalkSpeed = 16
+FighterStats.BaseJumpPower = 50
+function FighterStats.RebirthSpeedBoost(rebirths)
+	if (rebirths or 0) <= 0 then
+		return 0
+	end
+	return 15 * 2 ^ (rebirths - 1)
 end
 
 function FighterStats.ResetStamina(data)

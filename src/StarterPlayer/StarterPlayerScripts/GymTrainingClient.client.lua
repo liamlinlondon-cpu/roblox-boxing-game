@@ -223,8 +223,10 @@ local function formatStat(value)
 	return value == math.huge and "Infinite" or string.format("%d", value)
 end
 
+local rebirthMultiplier = 1 -- training boost from rebirths, sent when a bag is opened
+
 local function gainPerHit(weight)
-	return weight.power * (isVip and TRAINING.VipMultiplier or 1)
+	return weight.power * (isVip and TRAINING.VipMultiplier or 1) * rebirthMultiplier
 end
 
 local function refresh()
@@ -327,6 +329,7 @@ trainingEvent.OnClientEvent:Connect(function(kind, ...)
 		local info = ...
 		mode = TRAINING.Modes[info.mode] and info.mode or "punch"
 		isVip = info.isVip
+		rebirthMultiplier = info.rebirthMultiplier or 1
 		statValue = info.statValue
 		running = false
 		autoTrain = false

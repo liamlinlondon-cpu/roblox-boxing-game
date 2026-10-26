@@ -29,7 +29,7 @@ screenGui.Parent = player:WaitForChild("PlayerGui")
 local homeFrame = Instance.new("Frame")
 homeFrame.Name = "HomeFrame"
 homeFrame.AnchorPoint = Vector2.new(0, 0.5)
-homeFrame.Size = UDim2.new(0.18, 0, 0.42, 0)
+homeFrame.Size = UDim2.new(0.18, 0, 0.46, 0)
 homeFrame.Position = UDim2.new(0, 12, 0.5, 0)
 homeFrame.BackgroundColor3 = Color3.fromRGB(24, 24, 24)
 homeFrame.BackgroundTransparency = 0.35
@@ -38,8 +38,8 @@ homeFrame.BorderColor3 = Color3.fromRGB(255, 215, 0)
 homeFrame.Parent = screenGui
 
 local homeSizeConstraint = Instance.new("UISizeConstraint")
-homeSizeConstraint.MinSize = Vector2.new(190, 260)
-homeSizeConstraint.MaxSize = Vector2.new(280, 380)
+homeSizeConstraint.MinSize = Vector2.new(190, 280)
+homeSizeConstraint.MaxSize = Vector2.new(280, 410)
 homeSizeConstraint.Parent = homeFrame
 
 local homeTitle = Instance.new("TextLabel")
@@ -62,7 +62,7 @@ homeStatFrame.BorderColor3 = Color3.fromRGB(255, 255, 255)
 homeStatFrame.Parent = homeFrame
 
 local homeMoneyLabel = Instance.new("TextLabel")
-homeMoneyLabel.Size = UDim2.new(1, 0, 0.125, 0)
+homeMoneyLabel.Size = UDim2.new(1, 0, 1 / 9, 0)
 homeMoneyLabel.BackgroundTransparency = 1
 homeMoneyLabel.Text = "Robux: 0"
 homeMoneyLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -71,8 +71,8 @@ homeMoneyLabel.TextScaled = true
 homeMoneyLabel.Parent = homeStatFrame
 
 local homeStrengthLabel = Instance.new("TextLabel")
-homeStrengthLabel.Size = UDim2.new(1, 0, 0.125, 0)
-homeStrengthLabel.Position = UDim2.new(0, 0, 0.125, 0)
+homeStrengthLabel.Size = UDim2.new(1, 0, 1 / 9, 0)
+homeStrengthLabel.Position = UDim2.new(0, 0, 1 / 9, 0)
 homeStrengthLabel.BackgroundTransparency = 1
 homeStrengthLabel.Text = "Strength: 0"
 homeStrengthLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -81,8 +81,8 @@ homeStrengthLabel.TextScaled = true
 homeStrengthLabel.Parent = homeStatFrame
 
 local homeKickLabel = Instance.new("TextLabel")
-homeKickLabel.Size = UDim2.new(1, 0, 0.125, 0)
-homeKickLabel.Position = UDim2.new(0, 0, 0.25, 0)
+homeKickLabel.Size = UDim2.new(1, 0, 1 / 9, 0)
+homeKickLabel.Position = UDim2.new(0, 0, 2 / 9, 0)
 homeKickLabel.BackgroundTransparency = 1
 homeKickLabel.Text = "Kick: 0"
 homeKickLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -91,8 +91,8 @@ homeKickLabel.TextScaled = true
 homeKickLabel.Parent = homeStatFrame
 
 local homeLuckLabel = Instance.new("TextLabel")
-homeLuckLabel.Size = UDim2.new(1, 0, 0.125, 0)
-homeLuckLabel.Position = UDim2.new(0, 0, 0.375, 0)
+homeLuckLabel.Size = UDim2.new(1, 0, 1 / 9, 0)
+homeLuckLabel.Position = UDim2.new(0, 0, 3 / 9, 0)
 homeLuckLabel.BackgroundTransparency = 1
 homeLuckLabel.Text = "Luck: 1"
 homeLuckLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -101,8 +101,8 @@ homeLuckLabel.TextScaled = true
 homeLuckLabel.Parent = homeStatFrame
 
 local homeStageLabel = Instance.new("TextLabel")
-homeStageLabel.Size = UDim2.new(1, 0, 0.125, 0)
-homeStageLabel.Position = UDim2.new(0, 0, 0.5, 0)
+homeStageLabel.Size = UDim2.new(1, 0, 1 / 9, 0)
+homeStageLabel.Position = UDim2.new(0, 0, 4 / 9, 0)
 homeStageLabel.BackgroundTransparency = 1
 homeStageLabel.Text = "Stage: Skinny Bones"
 homeStageLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -111,8 +111,8 @@ homeStageLabel.TextScaled = true
 homeStageLabel.Parent = homeStatFrame
 
 local homeStaminaLabel = Instance.new("TextLabel")
-homeStaminaLabel.Size = UDim2.new(1, 0, 0.125, 0)
-homeStaminaLabel.Position = UDim2.new(0, 0, 0.625, 0)
+homeStaminaLabel.Size = UDim2.new(1, 0, 1 / 9, 0)
+homeStaminaLabel.Position = UDim2.new(0, 0, 5 / 9, 0)
 homeStaminaLabel.BackgroundTransparency = 1
 homeStaminaLabel.Text = "Max Stamina: 100"
 homeStaminaLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -121,8 +121,8 @@ homeStaminaLabel.TextScaled = true
 homeStaminaLabel.Parent = homeStatFrame
 
 local homeWinsLabel = Instance.new("TextLabel")
-homeWinsLabel.Size = UDim2.new(1, 0, 0.125, 0)
-homeWinsLabel.Position = UDim2.new(0, 0, 0.75, 0)
+homeWinsLabel.Size = UDim2.new(1, 0, 1 / 9, 0)
+homeWinsLabel.Position = UDim2.new(0, 0, 6 / 9, 0)
 homeWinsLabel.BackgroundTransparency = 1
 homeWinsLabel.Text = "Wins: 0"
 homeWinsLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -131,14 +131,24 @@ homeWinsLabel.TextScaled = true
 homeWinsLabel.Parent = homeStatFrame
 
 local homeBeatsLabel = Instance.new("TextLabel")
-homeBeatsLabel.Size = UDim2.new(1, 0, 0.125, 0)
-homeBeatsLabel.Position = UDim2.new(0, 0, 0.875, 0)
+homeBeatsLabel.Size = UDim2.new(1, 0, 1 / 9, 0)
+homeBeatsLabel.Position = UDim2.new(0, 0, 7 / 9, 0)
 homeBeatsLabel.BackgroundTransparency = 1
 homeBeatsLabel.Text = "Beat the game: 0"
 homeBeatsLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 homeBeatsLabel.Font = Enum.Font.GothamBold
 homeBeatsLabel.TextScaled = true
 homeBeatsLabel.Parent = homeStatFrame
+
+local homeRebirthsLabel = Instance.new("TextLabel")
+homeRebirthsLabel.Size = UDim2.new(1, 0, 1 / 9, 0)
+homeRebirthsLabel.Position = UDim2.new(0, 0, 8 / 9, 0)
+homeRebirthsLabel.BackgroundTransparency = 1
+homeRebirthsLabel.Text = "Rebirths: 0/5"
+homeRebirthsLabel.TextColor3 = Color3.fromRGB(255, 120, 120)
+homeRebirthsLabel.Font = Enum.Font.GothamBold
+homeRebirthsLabel.TextScaled = true
+homeRebirthsLabel.Parent = homeStatFrame
 
 local function createMainButton(parent, name, text, position, callback)
 	local btn = Instance.new("TextButton")
@@ -530,6 +540,9 @@ matchResultEvent.OnClientEvent:Connect(function(data)
 		end
 		if data.gameBeats then
 			homeBeatsLabel.Text = "Beat the game: " .. formatNumber(data.gameBeats)
+		end
+		if data.rebirths then
+			homeRebirthsLabel.Text = "Rebirths: " .. tostring(data.rebirths) .. "/5"
 		end
 	elseif data.type == "treadmill_result" then
 		gymStatus.Text = data.message

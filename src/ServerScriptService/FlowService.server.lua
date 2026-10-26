@@ -68,6 +68,7 @@ local function sendPlayerStats(player)
 			maxStamina = data.maxStamina,
 			arenaWins = data.arenaWins,
 			gameBeats = data.gameBeats,
+			rebirths = data.rebirths,
 		})
 	end
 end
@@ -209,6 +210,7 @@ local function claimStation(prompt, player)
 		mode = session.mode,
 		isVip = session.isVip,
 		statValue = getPlayerData(player)[TRAINING.Modes[session.mode].stat],
+		rebirthMultiplier = FighterStats.RebirthMultiplier(getPlayerData(player)),
 	})
 end
 
@@ -244,7 +246,7 @@ end
 -- Awards one hit, plays it for nearby players and returns the set's running total
 local function landPunch(player, session, weight, punch, total, gained)
 	local data = getPlayerData(player)
-	local gain = weight.power * (session.isVip and TRAINING.VipMultiplier or 1)
+	local gain = weight.power * (session.isVip and TRAINING.VipMultiplier or 1) * FighterStats.RebirthMultiplier(data)
 	if session.mode == "kick" then
 		FighterStats.TrainKick(data, gain)
 	else
@@ -403,7 +405,7 @@ local function runOnTreadmill(player, deck, tierKey)
 	treadmillEvent:FireClient(player, "start", {
 		tierName = tier.name,
 		auto = autoRun[player] == true,
-		gainPerSecond = tier.gain,
+		gainPerSecond = tier.gain * FighterStats.RebirthMultiplier(getPlayerData(player)),
 		runSeconds = RUN_SECONDS,
 	})
 
@@ -426,12 +428,13 @@ local function runOnTreadmill(player, deck, tierKey)
 
 		seconds += 1
 		local data = getPlayerData(player)
-		FighterStats.TrainStamina(data, tierKey)
-		gained += tier.gain
+		local multiplier = FighterStats.RebirthMultiplier(data)
+		FighterStats.TrainStamina(data, tierKey, multiplier)
+		gained += tier.gain * multiplier
 		sendPlayerStats(player)
 		treadmillEvent:FireClient(player, "tick", {
 			seconds = seconds,
-			gain = tier.gain,
+			gain = tier.gain * multiplier,
 			gained = gained,
 			maxStamina = data.maxStamina,
 		})

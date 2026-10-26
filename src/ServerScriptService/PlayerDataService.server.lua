@@ -28,7 +28,7 @@ local store = DataStoreService:GetDataStore("BoxingPlayerData_v1")
 -- Everything that's kept between visits (match state and health aren't)
 local SAVED_FIELDS = {
 	"strength", "kick", "luck", "money", "stamina", "maxStamina", "arenaWins", "arenaLosses",
-	"treadmills", "luckPurchases", "winMultiplier", "carpet", "carpetPass", "gameBeats", "soldTools", "ownedSkins", "skin", "ownerTreadmillAnywhere",
+	"treadmills", "luckPurchases", "winMultiplier", "carpet", "carpetPass", "gameBeats", "soldTools", "rebirths", "ownedSkins", "skin", "ownerTreadmillAnywhere",
 }
 
 -- Players whose data loaded properly. Only they are saved, so a failed load never overwrites
@@ -80,6 +80,7 @@ local function sendStats(player)
 		maxStamina = data.maxStamina,
 		arenaWins = data.arenaWins,
 		gameBeats = data.gameBeats,
+		rebirths = data.rebirths,
 	})
 end
 
