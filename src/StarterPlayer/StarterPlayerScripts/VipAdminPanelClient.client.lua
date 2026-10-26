@@ -18,6 +18,8 @@ local events = ReplicatedStorage:WaitForChild("Events")
 local adminSkyEvent = events:WaitForChild("AdminSkyEvent")
 local adminPanelFunction = events:WaitForChild("AdminPanel")
 local teleportFunction = events:WaitForChild("Teleport")
+local wheelFunction = events:WaitForChild("HulkWheel")
+local wheelNotice = events:WaitForChild("HulkWheelNotice")
 
 local player = Players.LocalPlayer
 
@@ -511,12 +513,246 @@ RunService.Heartbeat:Connect(function()
 	end
 end)
 
+-- ==================== MESSAGES PAGE ====================
+-- Chats from players (HulkWheelService), from any server: the list on the left, the open chat on the
+-- right with a reply box and buttons to join their server, reset their Hulk Wheel, or finish the chat.
+local refreshMessages = nil -- set by buildMessagesPage
+local newMessageDot = nil -- red dot on the VIP button while there are unread messages
+
+local function buildMessagesPage(page)
+	local chats = Instance.new("ScrollingFrame")
+	chats.Size = UDim2.new(0, 170, 1, 0)
+	chats.BackgroundColor3 = Color3.fromRGB(32, 32, 40)
+	chats.BorderSizePixel = 0
+	chats.ScrollBarThickness = 4
+	chats.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	chats.CanvasSize = UDim2.new()
+	chats.Parent = page
+	corner(chats)
+	local chatsLayout = Instance.new("UIListLayout")
+	chatsLayout.Padding = UDim.new(0, 4)
+	chatsLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	chatsLayout.Parent = chats
+
+	local right = Instance.new("Frame")
+	right.Size = UDim2.new(1, -180, 1, 0)
+	right.Position = UDim2.new(0, 180, 0, 0)
+	right.BackgroundTransparency = 1
+	right.Parent = page
+
+	local heading = text(right, { text = "Pick a chat on the left.", size = UDim2.new(1, 0, 0, 22), alignX = Enum.TextXAlignment.Left })
+	local whereLabel = text(right, { text = "", size = UDim2.new(1, 0, 0, 18), position = UDim2.new(0, 0, 0, 22), color = Color3.fromRGB(180, 180, 190), font = Enum.Font.Gotham, alignX = Enum.TextXAlignment.Left })
+
+	local lines = Instance.new("ScrollingFrame")
+	lines.Size = UDim2.new(1, 0, 1, -128)
+	lines.Position = UDim2.new(0, 0, 0, 44)
+	lines.BackgroundColor3 = Color3.fromRGB(32, 32, 40)
+	lines.BorderSizePixel = 0
+	lines.ScrollBarThickness = 4
+	lines.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	lines.CanvasSize = UDim2.new()
+	lines.Parent = right
+	corner(lines)
+	local linesLayout = Instance.new("UIListLayout")
+	linesLayout.Padding = UDim.new(0, 4)
+	linesLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	linesLayout.Parent = lines
+	local linesPadding = Instance.new("UIPadding")
+	linesPadding.PaddingTop = UDim.new(0, 4)
+	linesPadding.PaddingLeft = UDim.new(0, 6)
+	linesPadding.PaddingRight = UDim.new(0, 6)
+	linesPadding.Parent = lines
+
+	local actions = Instance.new("Frame")
+	actions.Size = UDim2.new(1, 0, 0, 34)
+	actions.Position = UDim2.new(0, 0, 1, -78)
+	actions.BackgroundTransparency = 1
+	actions.Parent = right
+	local actionsLayout = Instance.new("UIListLayout")
+	actionsLayout.FillDirection = Enum.FillDirection.Horizontal
+	actionsLayout.Padding = UDim.new(0, 6)
+	actionsLayout.Parent = actions
+	local function actionButton(label, color)
+		local button = text(actions, { button = true, text = label, size = UDim2.new(1 / 3, -4, 1, 0), background = color })
+		corner(button, UDim.new(0, 6))
+		return button
+	end
+	local joinButton = actionButton("🚀 Join them", Color3.fromRGB(50, 90, 200))
+	local resetButton = actionButton("🔄 Reset wheel", Color3.fromRGB(40, 160, 70))
+	local doneButton = actionButton("🗑 Done", Color3.fromRGB(120, 50, 50))
+
+	local replyBox = Instance.new("TextBox")
+	replyBox.Size = UDim2.new(1, -86, 0, 36)
+	replyBox.Position = UDim2.new(0, 0, 1, -38)
+	replyBox.BackgroundColor3 = Color3.fromRGB(45, 45, 52)
+	replyBox.TextColor3 = WHITE
+	replyBox.PlaceholderText = "Write back... (e.g. what's your private server?)"
+	replyBox.Text = ""
+	replyBox.ClearTextOnFocus = false
+	replyBox.TextScaled = true
+	replyBox.Font = Enum.Font.Gotham
+	replyBox.Parent = right
+	corner(replyBox, UDim.new(0, 6))
+	local sendButton = text(right, { button = true, text = "SEND", size = UDim2.new(0, 80, 0, 36), position = UDim2.new(1, -80, 1, -38), background = Color3.fromRGB(50, 90, 200) })
+	corner(sendButton, UDim.new(0, 6))
+
+	local openUserId = nil
+
+	local function clear(frame)
+		for _, child in ipairs(frame:GetChildren()) do
+			if child:IsA("GuiObject") then
+				child:Destroy()
+			end
+		end
+	end
+
+	local function showChat(userId, name)
+		openUserId = userId
+		heading.Text = "💬 " .. (name or ("Player " .. userId))
+		whereLabel.Text = "Loading..."
+		clear(lines)
+		local ok, chat = pcall(wheelFunction.InvokeServer, wheelFunction, "open", userId)
+		if openUserId ~= userId then
+			return
+		end
+		if not ok or type(chat) ~= "table" then
+			whereLabel.Text = "This chat can't load right now."
+			return
+		end
+		local where = chat.where
+		if not where then
+			whereLabel.Text = "📍 Not sure where they are."
+		elseif where.private then
+			whereLabel.Text = "📍 In " .. (where.privateOwner and (where.privateOwner .. "'s ") or "a ") .. "private server (ask them to let you in)"
+		else
+			whereLabel.Text = "📍 In a public server (Join them works)"
+		end
+		for order, line in ipairs(chat.lines or {}) do
+			local label = text(lines, {
+				text = (line.owner and "👑 You: " or "💬 ") .. line.text,
+				size = UDim2.new(1, 0, 0, 0),
+				color = line.owner and GOLD or WHITE,
+				font = Enum.Font.Gotham,
+				alignX = Enum.TextXAlignment.Left,
+			})
+			label.TextScaled = false
+			label.TextSize = 15
+			label.TextWrapped = true
+			label.AutomaticSize = Enum.AutomaticSize.Y
+			label.LayoutOrder = order
+		end
+		task.defer(function()
+			lines.CanvasPosition = Vector2.new(0, 1e6)
+		end)
+	end
+
+	refreshMessages = function()
+		local ok, list = pcall(wheelFunction.InvokeServer, wheelFunction, "inbox")
+		clear(chats)
+		if not ok or type(list) ~= "table" then
+			say("Messages can't load right now (in Studio, turn on API access).")
+			return
+		end
+		local unread = 0
+		for order, item in ipairs(list) do
+			local row = text(chats, {
+				button = true,
+				text = (item.unread and "🔴 " or "") .. (item.name or "?") .. "\n" .. (item.preview or ""),
+				size = UDim2.new(1, -4, 0, 44),
+				background = item.userId == openUserId and Color3.fromRGB(70, 70, 90) or Color3.fromRGB(45, 45, 55),
+				font = item.unread and Enum.Font.GothamBold or Enum.Font.Gotham,
+				alignX = Enum.TextXAlignment.Left,
+			})
+			row.TextScaled = false
+			row.TextSize = 13
+			row.TextWrapped = true
+			row.TextTruncate = Enum.TextTruncate.AtEnd
+			row.LayoutOrder = order
+			corner(row, UDim.new(0, 6))
+			row.Activated:Connect(function()
+				showChat(item.userId, item.name)
+				refreshMessages()
+			end)
+			if item.unread then
+				unread += 1
+			end
+		end
+		if #list == 0 then
+			text(chats, { text = "No messages yet.", size = UDim2.new(1, 0, 0, 30), color = Color3.fromRGB(170, 170, 170), font = Enum.Font.Gotham })
+		end
+		if newMessageDot then
+			newMessageDot.Visible = unread > 0
+		end
+		if openUserId then
+			showChat(openUserId, string.match(heading.Text, "^💬 (.+)$"))
+		end
+	end
+
+	local function act(action, extra)
+		if not openUserId then
+			say("Pick a chat first.")
+			return nil
+		end
+		local ok, answer = pcall(wheelFunction.InvokeServer, wheelFunction, action, openUserId, extra)
+		if not ok then
+			say("That didn't work. Try again.")
+			return nil
+		end
+		return answer
+	end
+
+	local function sendReply()
+		if not string.find(replyBox.Text, "%S") then
+			return
+		end
+		local answer = act("reply", replyBox.Text)
+		if answer == true then
+			replyBox.Text = ""
+			say("Sent!")
+			refreshMessages()
+		elseif answer then
+			say(tostring(answer))
+		end
+	end
+	sendButton.Activated:Connect(sendReply)
+	replyBox.FocusLost:Connect(function(enterPressed)
+		if enterPressed then
+			sendReply()
+		end
+	end)
+	joinButton.Activated:Connect(function()
+		local answer = act("join")
+		if answer then
+			say(tostring(answer))
+		end
+	end)
+	resetButton.Activated:Connect(function()
+		local answer = act("reset")
+		if answer then
+			say(tostring(answer))
+		end
+	end)
+	doneButton.Activated:Connect(function()
+		if act("close") then
+			openUserId = nil
+			heading.Text = "Pick a chat on the left."
+			whereLabel.Text = ""
+			clear(lines)
+			say("Chat finished and removed.")
+			refreshMessages()
+		end
+	end)
+end
+
 -- ==================== MENU ====================
 local PAGES = { -- add more pages here later
 	{ name = "⚡ EVENTS", build = buildEventsPage },
 	{ name = "📊 SETS", build = buildSetsPage },
 	{ name = "🗺️ TELEPORT", build = buildTeleportPage, onShow = function()
 		refreshMap()
+	end },
+	{ name = "📨 MESSAGES", build = buildMessagesPage, onShow = function()
+		refreshMessages()
 	end },
 }
 
@@ -566,4 +802,25 @@ openButton.Activated:Connect(function()
 end)
 closeButton.Activated:Connect(function()
 	panel.Visible = false
+end)
+
+-- New messages: a red dot on the VIP button, and the list updates if it's open
+newMessageDot = Instance.new("Frame")
+newMessageDot.AnchorPoint = Vector2.new(0.5, 0.5)
+newMessageDot.Size = UDim2.new(0, 18, 0, 18)
+newMessageDot.Position = UDim2.new(0.85, 0, 0.15, 0)
+newMessageDot.BackgroundColor3 = Color3.fromRGB(255, 40, 40)
+newMessageDot.ZIndex = 5
+newMessageDot.Visible = false
+newMessageDot.Parent = openButton
+corner(newMessageDot, UDim.new(0.5, 0))
+
+wheelNotice.OnClientEvent:Connect(function(kind)
+	if kind ~= "inbox" then
+		return
+	end
+	newMessageDot.Visible = true
+	if panel.Visible and PAGES[currentPage].build == buildMessagesPage then
+		refreshMessages()
+	end
 end)

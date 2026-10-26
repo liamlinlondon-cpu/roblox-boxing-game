@@ -183,6 +183,18 @@ adminSkyEvent.OnServerInvoke = function(player, colorId)
 	return sky.name .. " sky event started!"
 end
 
+-- Other server scripts start events with this (e.g. the Hulk Wheel's rainbow slice)
+local startSkyEvent = Instance.new("BindableFunction")
+startSkyEvent.Name = "StartSkyEvent"
+startSkyEvent.Parent = script
+startSkyEvent.OnInvoke = function(colorId)
+	local sky = Catalog.SkyColorById[colorId]
+	if sky then
+		startEvent(sky)
+	end
+	return sky ~= nil
+end
+
 local function runCommand(player, alias)
 	if not Admins.IsAdmin(player) then
 		return

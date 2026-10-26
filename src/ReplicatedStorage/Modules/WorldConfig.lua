@@ -101,6 +101,27 @@ WorldConfig.SkyEvents = {
 	ClearCommandAlias = "noncolor",
 }
 
+-- Hulk Wheel: the first time a player turns Hulk (Strength strength), they get Spins spins of a color wheel.
+-- `chance` is each slice's share of the wheel (they add up to 100). Slices with `wasted` win nothing; the
+-- rainbow slice starts a Rainbow sky event for the whole server instead of giving the skin. Every other
+-- slice gives that color's skin (HulkWheelService).
+WorldConfig.HulkWheel = {
+	Strength = 500000,
+	Spins = 5,
+	Slices = {
+		{ color = "magenta", chance = 50, wasted = true },
+		{ color = "purple", chance = 20, wasted = true },
+		{ color = "red", chance = 12, wasted = true },
+		{ color = "blue", chance = 7, wasted = true },
+		{ color = "orange", chance = 4 },
+		{ color = "yellow", chance = 3 },
+		{ color = "rainbow", chance = 2, event = true },
+		{ color = "pink", chance = 1 },
+		{ color = "cyan", chance = 0.7 },
+		{ color = "green", chance = 0.3 },
+	},
+}
+
 -- The only account that can use the chat commands (sky events, /ban, /unban): Liantw1.
 -- Everyone else, including test players in Studio, gets nothing when they type them.
 WorldConfig.OwnerUserId = 11702564473
