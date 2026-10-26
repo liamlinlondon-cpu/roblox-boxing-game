@@ -594,9 +594,17 @@ end
 -- the end of an order says how many clones do it ("/clones dance 3", "/clone stop 2"), taking idle clones
 -- (following or standing) first. Without a number, every clone gets the order. Owner only.
 
-local OWNER_MAX_CLONES = 20 -- the owner can have this many clones
+local OWNER_MAX_CLONES = 100 -- the owner can have this many clones
 local PLAYER_MAX_CLONES = 10 -- anyone the owner gives clones to can have this many
-local RING_SLOTS = 20 -- clones spawn and come back spread around a ring with this many places
+local RING_SLOTS = 20 -- clones stand in rings of this many around their controller, each ring wider
+
+-- Where the nth clone stands around its controller: rings of RING_SLOTS, 6 studs out, then 10, 14...
+local function ringOffset(index)
+	local ring = math.floor((index - 1) / RING_SLOTS)
+	local angle = ((index - 1) % RING_SLOTS) / RING_SLOTS * math.pi * 2
+	local radius = 6 + ring * 4
+	return Vector3.new(math.cos(angle) * radius, 0, math.sin(angle) * radius)
+end
 
 local function maxClonesFor(player)
 	return Admins.IsOwner(player) and OWNER_MAX_CLONES or PLAYER_MAX_CLONES
@@ -691,8 +699,7 @@ local function spawnClone(owner, index)
 	root.Anchored = false -- a copied character may have been held still on a station
 	model.Name = owner.Name .. "Clone" .. index
 	humanoid.DisplayName = owner.DisplayName .. "'s clone"
-	local angle = index / RING_SLOTS * math.pi * 2
-	model:PivotTo(ownerRoot.CFrame * CFrame.new(math.cos(angle) * 6, 0, math.sin(angle) * 6))
+	model:PivotTo(ownerRoot.CFrame * CFrame.new(ringOffset(index)))
 	model.Parent = clonesFolder
 	pcall(root.SetNetworkOwner, root, nil) -- the server moves them
 
@@ -872,8 +879,7 @@ local function clonesBeatTheGame(owner, list)
 	if ownerRoot then
 		for j, clone in ipairs(back) do
 			clone.root.Anchored = false
-			local angle = j / RING_SLOTS * math.pi * 2
-			clone.model:PivotTo(ownerRoot.CFrame * CFrame.new(math.cos(angle) * 6, 0, math.sin(angle) * 6))
+			clone.model:PivotTo(ownerRoot.CFrame * CFrame.new(ringOffset(j)))
 			clone.humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
 		end
 		-- Replace any clone that was lost on the way, so the owner gets the same number back
@@ -1430,8 +1436,7 @@ task.spawn(function()
 
 			if controllerRoot then
 				for i, clone in ipairs(group.followers) do
-					local angle = i / #group.followers * math.pi * 2
-					local spot = controllerRoot.Position + Vector3.new(math.cos(angle) * 6, 0, math.sin(angle) * 6)
+					local spot = controllerRoot.Position + ringOffset(i)
 					if (clone.root.Position - spot).Magnitude > 3 then
 						clone.humanoid:MoveTo(spot)
 					end
