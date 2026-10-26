@@ -309,55 +309,43 @@ local function buildSetsPage(page)
 end
 
 -- ==================== TELEPORT PAGE (MAP) ====================
--- The world from above: the map (420 x 420) and the parkour outside its east wall
+-- A real picture of the world from straight above: the map, gyms, boxing ring, leaderboards, and the
+-- lava, buildings and hill of the beat-the-game parkour outside the east wall. It's a copy of the world
+-- in a ViewportFrame, filmed by a camera high up looking down. Clicking sends a ray from that camera
+-- into the real world, so you land on whatever you clicked (a roof, the hill, the ground).
+local MAP_SOURCES = { "BoxingWorld", "BoxingArena", "Leaderboards" }
+local CAMERA_HEIGHT = 5000 -- very high with a narrow lens, so the picture is almost flat
+local REMOVE_FROM_COPY = { "LuaSourceContainer", "ProximityPrompt", "ClickDetector", "Sound", "ParticleEmitter", "Light", "LayerCollector", "Beam", "Trail", "Fire", "Smoke", "Sparkles" }
+
 local WORLD_MIN = Vector2.new(-215, -215) -- x, z
 local WORLD_MAX = Vector2.new(775, 215)
 
 local mapDot = nil
-local mapFrame = nil
 
 local function toMap(x, z)
 	local size = WORLD_MAX - WORLD_MIN
 	return UDim2.fromScale((x - WORLD_MIN.X) / size.X, (z - WORLD_MIN.Y) / size.Y)
 end
 
-local function mapBox(parent, x, z, sizeX, sizeZ, color, rotation, round)
-	local box = Instance.new("Frame")
-	local size = WORLD_MAX - WORLD_MIN
-	box.AnchorPoint = Vector2.new(0.5, 0.5)
-	box.Position = toMap(x, z)
-	box.Size = UDim2.fromScale(sizeX / size.X, sizeZ / size.Y)
-	box.BackgroundColor3 = color
-	box.BorderSizePixel = 0
-	box.Rotation = rotation or 0
-	box.Parent = parent
-	if round then
-		corner(box, UDim.new(0.5, 0))
-	end
-	return box
+local function worldCenter()
+	local middle = (WORLD_MIN + WORLD_MAX) / 2
+	return Vector3.new(middle.X, CAMERA_HEIGHT, middle.Y)
 end
+
+local refreshMap = nil -- set by buildTeleportPage; called whenever the page opens
 
 local function buildTeleportPage(page)
 	local hint = text(page, { text = "Click anywhere on the map to teleport there.", size = UDim2.new(1, 0, 0, 24) })
 	table.insert(colorCycling, { object = hint, property = "TextColor3" })
 
-	-- Stretch the map east to the end of the lava, wherever the parkour ends
-	local course = Workspace:WaitForChild("BoxingWorld"):WaitForChild("BeatGameCourse", 10)
-	local lava = course and course:FindFirstChild("Lava")
-	if lava then
-		WORLD_MAX = Vector2.new(lava.Position.X + lava.Size.X / 2 + 5, WORLD_MAX.Y)
-	end
-
-	-- Keep the map's real shape
 	local holder = Instance.new("Frame")
 	holder.Size = UDim2.new(1, 0, 1, -30)
 	holder.Position = UDim2.new(0, 0, 0, 30)
 	holder.BackgroundTransparency = 1
 	holder.Parent = page
 
-	mapFrame = Instance.new("TextButton")
-	mapFrame.Text = ""
-	mapFrame.AutoButtonColor = false
+	-- Keeps the world's real shape
+	local mapFrame = Instance.new("Frame")
 	mapFrame.AnchorPoint = Vector2.new(0.5, 0.5)
 	mapFrame.Position = UDim2.fromScale(0.5, 0.5)
 	mapFrame.Size = UDim2.fromScale(1, 1)
@@ -365,65 +353,147 @@ local function buildTeleportPage(page)
 	mapFrame.ClipsDescendants = true
 	mapFrame.Parent = holder
 	local aspect = Instance.new("UIAspectRatioConstraint")
-	local worldSize = WORLD_MAX - WORLD_MIN
-	aspect.AspectRatio = worldSize.X / worldSize.Y
 	aspect.Parent = mapFrame
 	corner(mapFrame)
+	local mapRing = Instance.new("UIStroke")
+	mapRing.Thickness = 2
+	mapRing.Parent = mapFrame
+	table.insert(colorCycling, { object = mapRing, property = "Color", offset = 0.25 })
 
-	local half = WorldConfig.GroundSize / 2
-	mapBox(mapFrame, 0, 0, half * 2, half * 2, Color3.fromRGB(70, 120, 60)) -- the grass
-	if lava then -- the lava outside the east wall
-		mapBox(mapFrame, lava.Position.X, lava.Position.Z, lava.Size.X, lava.Size.Z, Color3.fromRGB(200, 80, 20))
+	local viewport = Instance.new("ViewportFrame")
+	viewport.Size = UDim2.fromScale(1, 1)
+	viewport.BackgroundColor3 = Color3.fromRGB(110, 160, 210)
+	viewport.Ambient = Color3.fromRGB(170, 170, 170)
+	viewport.LightColor = Color3.fromRGB(255, 250, 240)
+	viewport.LightDirection = Vector3.new(-0.4, -1, -0.6)
+	viewport.Parent = mapFrame
+	corner(viewport)
+	local camera = Instance.new("Camera")
+	camera.Parent = viewport
+	viewport.CurrentCamera = camera
+
+	-- Name tags on top of the picture
+	local tags = Instance.new("Frame")
+	tags.Size = UDim2.fromScale(1, 1)
+	tags.BackgroundTransparency = 1
+	tags.ZIndex = 2
+	tags.Parent = mapFrame
+	local function tag(name, x, z)
+		local label = text(tags, { text = name, size = UDim2.new(0, 110, 0, 16) })
+		label.AnchorPoint = Vector2.new(0.5, 0.5)
+		label.Position = toMap(x, z)
+		label.TextStrokeTransparency = 0.2
+		label.ZIndex = 3
+		label:SetAttribute("WorldX", x)
+		label:SetAttribute("WorldZ", z)
 	end
-	mapBox(mapFrame, 0, 0, WorldConfig.Arena.DistrictRadius * 2, WorldConfig.Arena.DistrictRadius * 2, Color3.fromRGB(150, 150, 155), 0, true) -- plaza
-	mapBox(mapFrame, 0, 0, 30, 30, Color3.fromRGB(40, 70, 160)) -- the ring
-
-	-- Gyms, with their names
 	for i, info in ipairs(WorldConfig.Gyms.List) do
-		local cframe = WorldConfig.GetGymCFrame(i)
-		local _, yRotation = cframe:ToOrientation()
-		local gym = mapBox(mapFrame, cframe.Position.X, cframe.Position.Z, WorldConfig.Gyms.Width, WorldConfig.Gyms.Depth, info.color, -math.deg(yRotation))
-		local label = text(gym, { text = info.name, size = UDim2.fromScale(1, 1), color = WHITE })
-		label.TextStrokeTransparency = 0.3
-		label.Rotation = math.deg(yRotation)
+		local position = WorldConfig.GetGymCFrame(i).Position
+		tag(info.name, position.X, position.Z)
 	end
-
-	-- Parkour buildings and the hill, read from the world
-	if course then
-		for _, part in ipairs(course:GetChildren()) do
-			if part:IsA("BasePart") then
-				if string.match(part.Name, "^Building%d+%a*$") or string.match(part.Name, "Floor$") then
-					mapBox(mapFrame, part.Position.X, part.Position.Z, part.Size.X, part.Size.Z, Color3.fromRGB(120, 120, 130))
-				elseif string.match(part.Name, "^HillTier") then
-					mapBox(mapFrame, part.Position.X, part.Position.Z, part.Size.Y, part.Size.Z, Color3.fromRGB(76, 140, 60), 0, true)
-				end
-			end
-		end
-		local portal = course:FindFirstChild("RedPortal")
-		if portal then
-			mapBox(mapFrame, portal.Position.X, portal.Position.Z, 10, 10, Color3.fromRGB(255, 40, 40), 0, true)
-		end
-	end
+	tag("🥊 Boxing Ring", WorldConfig.Arena.Center.X, WorldConfig.Arena.Center.Z + 20)
+	local center = WorldConfig.Arena.Center + WorldConfig.Leaderboards.Position
+	tag("🏆 Leaderboards", center.X - 8, center.Z)
+	local parkourTag = text(tags, { text = "🔥 Beat the Game", size = UDim2.new(0, 130, 0, 18) })
+	parkourTag.AnchorPoint = Vector2.new(0.5, 0)
+	parkourTag.TextStrokeTransparency = 0.2
+	parkourTag.ZIndex = 3
 
 	-- You
-	mapDot = mapBox(mapFrame, 0, 0, 12, 12, GOLD, 0, true)
+	local size = WORLD_MAX - WORLD_MIN
+	mapDot = Instance.new("Frame")
+	mapDot.AnchorPoint = Vector2.new(0.5, 0.5)
+	mapDot.Size = UDim2.new(0, 12, 0, 12)
+	mapDot.BackgroundColor3 = GOLD
 	mapDot.ZIndex = 5
+	mapDot.Parent = mapFrame
+	corner(mapDot, UDim.new(0.5, 0))
 	local dotRing = Instance.new("UIStroke")
 	dotRing.Color = Color3.new(0, 0, 0)
 	dotRing.Thickness = 2
 	dotRing.Parent = mapDot
 
-	-- Click: teleport there (the server finds the ground or roof at that spot)
-	mapFrame.InputBegan:Connect(function(input)
+	-- Copies the world into the picture again (things far away may only load in later)
+	local lastRefresh = -math.huge
+	refreshMap = function()
+		if os.clock() - lastRefresh < 5 then
+			return
+		end
+		lastRefresh = os.clock()
+		viewport:ClearAllChildren()
+		camera = Instance.new("Camera")
+		camera.Parent = viewport
+		viewport.CurrentCamera = camera
+
+		-- Stretch the map east to the end of the lava, wherever the parkour ends
+		local world = Workspace:FindFirstChild("BoxingWorld")
+		local course = world and world:FindFirstChild("BeatGameCourse")
+		local lava = course and course:FindFirstChild("Lava")
+		if lava then
+			WORLD_MAX = Vector2.new(lava.Position.X + lava.Size.X / 2 + 5, WORLD_MAX.Y)
+			parkourTag.Position = toMap(lava.Position.X, WORLD_MIN.Y + 4)
+		else
+			parkourTag.Position = toMap((WorldConfig.GroundSize / 2 + WORLD_MAX.X) / 2, WORLD_MIN.Y + 4)
+		end
+		size = WORLD_MAX - WORLD_MIN
+		aspect.AspectRatio = size.X / size.Y
+		for _, label in ipairs(tags:GetChildren()) do
+			if label:GetAttribute("WorldX") then
+				label.Position = toMap(label:GetAttribute("WorldX"), label:GetAttribute("WorldZ"))
+			end
+		end
+
+		-- Camera straight above the middle, looking down (top of the picture is north, -Z)
+		camera.CFrame = CFrame.new(worldCenter()) * CFrame.Angles(-math.pi / 2, 0, 0)
+		camera.FieldOfView = math.deg(2 * math.atan((size.Y / 2) / CAMERA_HEIGHT))
+
+		for _, name in ipairs(MAP_SOURCES) do
+			local source = Workspace:FindFirstChild(name)
+			if source then
+				local wasArchivable = source.Archivable
+				source.Archivable = true
+				local ok, copy = pcall(source.Clone, source)
+				source.Archivable = wasArchivable
+				if ok and copy then
+					for _, item in ipairs(copy:GetDescendants()) do
+						for _, className in ipairs(REMOVE_FROM_COPY) do
+							if item:IsA(className) then
+								item:Destroy()
+								break
+							end
+						end
+					end
+					copy.Parent = viewport
+				end
+			end
+		end
+	end
+
+	-- Click: teleport to what's under that spot in the picture
+	local clickLayer = Instance.new("TextButton")
+	clickLayer.Text = ""
+	clickLayer.BackgroundTransparency = 1
+	clickLayer.Size = UDim2.fromScale(1, 1)
+	clickLayer.ZIndex = 10
+	clickLayer.Parent = mapFrame
+	clickLayer.InputBegan:Connect(function(input)
 		if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then
 			return
 		end
 		local relative = (Vector2.new(input.Position.X, input.Position.Y) - mapFrame.AbsolutePosition) / mapFrame.AbsoluteSize
-		local x = WORLD_MIN.X + relative.X * (WORLD_MAX.X - WORLD_MIN.X)
-		local z = WORLD_MIN.Y + relative.Y * (WORLD_MAX.Y - WORLD_MIN.Y)
-		local ok, allowed, message = pcall(teleportFunction.InvokeServer, teleportFunction, Vector3.new(x, 0, z), nil, true)
+		local ground = Vector3.new(WORLD_MIN.X + relative.X * size.X, 0, WORLD_MIN.Y + relative.Y * size.Y)
+
+		-- Follow the camera's line of sight down into the real world to find the roof or ground clicked
+		local params = RaycastParams.new()
+		params.FilterType = Enum.RaycastFilterType.Exclude
+		params.FilterDescendantsInstances = { player.Character }
+		local from = worldCenter()
+		local hit = Workspace:Raycast(from, (ground - from).Unit * (CAMERA_HEIGHT + 200), params)
+		local target = hit and hit.Position or ground
+
+		local ok, allowed, message = pcall(teleportFunction.InvokeServer, teleportFunction, Vector3.new(target.X, 0, target.Z), nil, true)
 		if ok and allowed then
-			say(string.format("Teleported to (%d, %d).", x, z))
+			say(string.format("Teleported to (%d, %d).", target.X, target.Z))
 		else
 			say(ok and message or "That didn't work. Try again.")
 		end
@@ -445,10 +515,13 @@ end)
 local PAGES = { -- add more pages here later
 	{ name = "⚡ EVENTS", build = buildEventsPage },
 	{ name = "📊 SETS", build = buildSetsPage },
-	{ name = "🗺️ TELEPORT", build = buildTeleportPage },
+	{ name = "🗺️ TELEPORT", build = buildTeleportPage, onShow = function()
+		refreshMap()
+	end },
 }
 
 local pageFrames, menuButtons = {}, {}
+local currentPage = 1
 local chosenTab = { property = "BackgroundColor3" } -- the open page's tab glows rainbow
 table.insert(colorCycling, chosenTab)
 
@@ -459,7 +532,11 @@ local function showPage(index)
 		menuButtons[i].TextColor3 = i == index and Color3.new(0, 0, 0) or WHITE
 	end
 	chosenTab.object = menuButtons[index]
+	currentPage = index
 	say("")
+	if PAGES[index].onShow then
+		PAGES[index].onShow()
+	end
 end
 
 for i, page in ipairs(PAGES) do
@@ -483,6 +560,9 @@ showPage(1)
 
 openButton.Activated:Connect(function()
 	panel.Visible = not panel.Visible
+	if panel.Visible and PAGES[currentPage].onShow then
+		PAGES[currentPage].onShow() -- e.g. the map picks up anything that loaded in since
+	end
 end)
 closeButton.Activated:Connect(function()
 	panel.Visible = false
