@@ -9,6 +9,9 @@
 --   /privateserver              teleports the owner to their own private server (owner only)
 --   /clone <count>, /clones ... makes copies of the owner and gives them orders (owner only)
 --   /every_clone <x> treadmill  every clone runs on that treadmill (owner/hacker/admin/regular/any)
+--   /give <name> clones <n>     gives a player clones of themselves they can order with /clones (owner only)
+--   /force <name> <order>       the owner orders a player's clones, which then ignore that player
+--                               until /force <name> release; /take <name> clones removes them
 --   /luck <number> [name]       sets everyone's luck (or one player's with a name), e.g. /luck 64
 --   /infinitystrength [name]    infinite strength (also /infinitykick, /infinitystamina, /infinitymoney,
 --                               /infinitywins and /infinitybeatthegame; dashes are fine: /infinity-wins)
@@ -53,6 +56,9 @@ local sessionBans = {} -- [userId] = true: fallback when Players:BanAsync isn't 
 local function notify(player, text)
 	noticeEvent:FireClient(player, text)
 end
+
+-- Set in the CLONES section; used by /give <name> clones <n> and /take <name> clones
+local giveClonesTo, takeClonesFrom
 
 local function sendStats(player)
 	local data = FighterStats.GetPlayerData(player)
@@ -267,6 +273,16 @@ local function give(admin, args)
 		notify(admin, "Couldn't find \"" .. args[1] .. "\" in this server.")
 		return
 	end
+	-- "/give Bob clones 3": clones of Bob that Bob can order (owner only)
+	local giftWord = string.lower(args[2] or "")
+	if giftWord == "clones" or giftWord == "clone" then
+		if not Admins.IsOwner(admin) then
+			notify(admin, "Only the owner can give clones.")
+			return
+		end
+		giveClonesTo(admin, target, tonumber(args[3]) or 1)
+		return
+	end
 	local gift = findGift({ table.unpack(args, 2) })
 	if not gift then
 		notify(admin, "Unknown item. You can give: " .. giftList())
@@ -294,8 +310,12 @@ local function take(admin, args)
 		return
 	end
 	local key = string.gsub(string.lower(table.concat({ table.unpack(args, 2) }, "")), "[^%w]", "")
+	if key == "clones" or key == "clone" then
+		takeClonesFrom(admin, target)
+		return
+	end
 	if key ~= "commands" then
-		notify(admin, "Usage: /take <name> commands")
+		notify(admin, "Usage: /take <name> commands (or clones)")
 		return
 	end
 	if Admins.IsOwner(target) then
@@ -558,18 +578,22 @@ local function privateServer(admin)
 end
 
 -- ==================== CLONES ====================
--- /clone <count> makes copies of the owner (their avatar's look, up to MAX_CLONES), and
+-- /clone <count> makes copies of the owner (their avatar's look, up to OWNER_MAX_CLONES), and
 -- /clones follow | stay | dance | copy | fight <name> | kill <name> | train <what> | beat the game | stop |
 -- remove gives
 -- them orders. Every clone has its own order, so groups can do different things at once: a number at
 -- the end of an order says how many clones do it ("/clones dance 3", "/clone stop 2"), taking idle clones
 -- (following or standing) first. Without a number, every clone gets the order. Owner only.
 
-local MAX_CLONES = 10
+local OWNER_MAX_CLONES = 20 -- the owner can have this many clones
+local PLAYER_MAX_CLONES = 10 -- anyone the owner gives clones to can have this many
+local RING_SLOTS = 20 -- clones spawn and come back spread around a ring with this many places
+
+local function maxClonesFor(player)
+	return Admins.IsOwner(player) and OWNER_MAX_CLONES or PLAYER_MAX_CLONES
+end
 local CLONE_PUNCH_DAMAGE = 20 -- per second while a fighting clone is next to its target ("kill" is instant)
--- Clones walk at the owner's speed (their Humanoid.WalkSpeed), so a fast owner has fast clones.
--- This is the last speed seen while the owner could move (it's 0 while they're held on a station).
-local cloneWalkSpeed = 16
+-- Clones walk at their controller's speed (see the movement loop), so a fast player has fast clones
 -- Roblox's own default animations (usable in any game)
 local CLONE_ANIMATIONS = {
 	walk = { [Enum.HumanoidRigType.R15] = "rbxassetid://507777826", [Enum.HumanoidRigType.R6] = "rbxassetid://180426354" },
@@ -581,11 +605,12 @@ local clonesFolder = Instance.new("Folder")
 clonesFolder.Name = "OwnerClones"
 clonesFolder.Parent = workspace
 
--- Each clone: { model, humanoid, root, walkTrack, danceTrack, trainTrack, lastHit, order, target, token }
+-- Each clone: { model, humanoid, root, controller, forced, walkTrack, danceTrack, trainTrack, lastHit,
+-- order, target, token }. controller is the player who orders it: the owner for their own clones, or a
+-- player the owner gave clones to. forced = the owner took over with /force, so the controller is ignored.
 -- order: "follow", "stay", "dance", "copy", "fight", "train" or "busy" (beating the game).
 -- token goes up with every new order, which stops whatever the clone was still doing for the old one.
 local clones = {}
-local cloneOwner = nil -- the player whose clones these are
 
 local function rootOf(player)
 	local character = player and player.Character
@@ -620,6 +645,7 @@ local function liveClones()
 	return clones
 end
 
+-- Makes a clone of `owner` (their avatar's look) that `owner` controls
 local function spawnClone(owner, index)
 	local ownerRoot = rootOf(owner)
 	if not ownerRoot then
@@ -627,8 +653,25 @@ local function spawnClone(owner, index)
 	end
 	local ok, model = pcall(Players.CreateHumanoidModelFromUserId, Players, owner.UserId)
 	if not ok or not model then
-		notify(owner, "Couldn't make a clone: " .. tostring(model))
-		return
+		-- No avatar to load (e.g. Studio test players): copy the player's current character instead
+		local character = owner.Character
+		if character then
+			character.Archivable = true
+			model = character:Clone()
+			for _, child in ipairs(model:GetDescendants()) do
+				if child:IsA("LuaSourceContainer") or child:IsA("Tool") or child:IsA("BillboardGui") then
+					child:Destroy()
+				end
+			end
+			local carpet = model:FindFirstChild("MagicCarpet")
+			if carpet then
+				carpet:Destroy()
+			end
+		end
+		if not model then
+			notify(owner, "Couldn't make a clone.")
+			return
+		end
 	end
 	local humanoid = model:FindFirstChildOfClass("Humanoid")
 	local root = model:FindFirstChild("HumanoidRootPart")
@@ -636,14 +679,15 @@ local function spawnClone(owner, index)
 		model:Destroy()
 		return
 	end
+	root.Anchored = false -- a copied character may have been held still on a station
 	model.Name = owner.Name .. "Clone" .. index
 	humanoid.DisplayName = owner.DisplayName .. "'s clone"
-	local angle = index / MAX_CLONES * math.pi * 2
+	local angle = index / RING_SLOTS * math.pi * 2
 	model:PivotTo(ownerRoot.CFrame * CFrame.new(math.cos(angle) * 6, 0, math.sin(angle) * 6))
 	model.Parent = clonesFolder
 	pcall(root.SetNetworkOwner, root, nil) -- the server moves them
 
-	local clone = { model = model, humanoid = humanoid, root = root, lastHit = 0, order = "follow", token = 0 }
+	local clone = { model = model, humanoid = humanoid, root = root, controller = owner, lastHit = 0, order = "follow", token = 0 }
 	clone.walkTrack = loadTrack(humanoid, "walk")
 	humanoid.Running:Connect(function(speed)
 		if speed > 0.5 and not clone.danceTrack then
@@ -671,7 +715,6 @@ local function assignClones(list, order, target)
 			clone.danceTrack = nil
 		end
 		clone.root.Anchored = false
-		clone.humanoid.WalkSpeed = cloneWalkSpeed
 		if order == "dance" then
 			clone.humanoid:MoveTo(clone.root.Position)
 			clone.danceTrack = loadTrack(clone.humanoid, "dance")
@@ -686,12 +729,23 @@ local function isIdle(clone)
 	return clone.order == "follow" or clone.order == "stay"
 end
 
--- Which clones an order goes to: all of them without a count; otherwise that many, idle ones first
--- (or busy ones first, for stopping)
-local function pickClones(count, busyFirst)
-	local list = liveClones()
+-- A controller's clones; forced ones (taken over by the owner) only when `forcing`
+local function clonesOf(controller, forcing)
+	local list = {}
+	for _, clone in ipairs(liveClones()) do
+		if clone.controller == controller and (forcing or not clone.forced) then
+			table.insert(list, clone)
+		end
+	end
+	return list
+end
+
+-- Which of a controller's clones an order goes to: all of them without a count; otherwise that many,
+-- idle ones first (or busy ones first, for stopping)
+local function pickClones(controller, count, busyFirst, forcing)
+	local list = clonesOf(controller, forcing)
 	if not count then
-		return { table.unpack(list) }
+		return list
 	end
 	local first, second = {}, {}
 	for _, clone in ipairs(list) do
@@ -778,12 +832,13 @@ local function clonesBeatTheGame(owner, list)
 				task.delay(0.2, function()
 					button.Color = color
 				end)
-				-- Each clone's press counts as CLONE_BEATS_PER_PRESS beats for the owner
+				-- Each press counts for whoever controls the clone: CLONE_BEATS_PER_PRESS for the owner, 1 for others
+				local beats = Admins.IsOwner(owner) and CLONE_BEATS_PER_PRESS or 1
 				local ownerData = FighterStats.GetPlayerData(owner)
-				ownerData.gameBeats = (ownerData.gameBeats or 0) + CLONE_BEATS_PER_PRESS
+				ownerData.gameBeats = (ownerData.gameBeats or 0) + beats
 				sendStats(owner)
 				notify(owner, humanoid.DisplayName .. " " .. i .. " pressed the red button! +"
-					.. Catalog.FormatNumber(CLONE_BEATS_PER_PRESS) .. " beat the game for you.")
+					.. Catalog.FormatNumber(beats) .. " beat the game for you.")
 			end)
 			pending -= 1
 		end)
@@ -808,12 +863,12 @@ local function clonesBeatTheGame(owner, list)
 	if ownerRoot then
 		for j, clone in ipairs(back) do
 			clone.root.Anchored = false
-			local angle = j / MAX_CLONES * math.pi * 2
+			local angle = j / RING_SLOTS * math.pi * 2
 			clone.model:PivotTo(ownerRoot.CFrame * CFrame.new(math.cos(angle) * 6, 0, math.sin(angle) * 6))
 			clone.humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
 		end
 		-- Replace any clone that was lost on the way, so the owner gets the same number back
-		for k = 1, math.min(#list - #back, MAX_CLONES - #liveClones()) do
+		for k = 1, math.min(#list - #back, maxClonesFor(owner) - #clonesOf(owner, true)) do
 			task.spawn(spawnClone, owner, #clones + k)
 		end
 	end
@@ -947,18 +1002,18 @@ local function trainClone(owner, clone, kind, station, slot, gain)
 	end
 end
 
--- Refreshes the owner's stats once a second while any clone trains
-local statsRefreshRunning = false
+-- Refreshes a controller's stats once a second while any of their clones trains
+local statsRefreshRunning = {} -- [player] = true
 local function refreshStatsWhileTraining(owner)
-	if statsRefreshRunning then
+	if statsRefreshRunning[owner] then
 		return
 	end
-	statsRefreshRunning = true
+	statsRefreshRunning[owner] = true
 	task.spawn(function()
 		while owner.Parent do
 			task.wait(1)
 			local anyTraining = false
-			for _, clone in ipairs(liveClones()) do
+			for _, clone in ipairs(clonesOf(owner, true)) do
 				if clone.order == "train" then
 					anyTraining = true
 				end
@@ -968,7 +1023,7 @@ local function refreshStatsWhileTraining(owner)
 			end
 			sendStats(owner)
 		end
-		statsRefreshRunning = false
+		statsRefreshRunning[owner] = nil
 	end)
 end
 
@@ -1046,7 +1101,7 @@ local function cloneCommand(admin, args)
 	-- "/clone stop [count]": stops that many clones (all without a number); they stand still
 	if string.lower(args[1] or "") == "stop" then
 		local count = tonumber(args[2])
-		local list = pickClones(count and math.max(0, math.floor(count)) or nil, true)
+		local list = pickClones(admin, count and math.max(0, math.floor(count)) or nil, true, true)
 		assignClones(list, "stay")
 		notify(admin, count and ("Stopped " .. cloneCountText(#list) .. ".") or "All clones stopped.")
 		return
@@ -1057,15 +1112,12 @@ local function cloneCommand(admin, args)
 		notify(admin, "Usage: /clone <number>, e.g. /clone 5 (or /clone stop [number])")
 		return
 	end
-	local count = math.clamp(math.floor(requested), 1, MAX_CLONES)
-	count = math.min(count, MAX_CLONES - #liveClones())
+	local max = maxClonesFor(admin)
+	local count = math.clamp(math.floor(requested), 1, max)
+	count = math.min(count, max - #clonesOf(admin, true))
 	if count <= 0 then
-		notify(admin, "You already have " .. MAX_CLONES .. " clones (the most). Use /clones remove to clear them.")
+		notify(admin, "You already have " .. max .. " clones (the most). Use /clones remove to clear them.")
 		return
-	end
-	if cloneOwner ~= admin then
-		removeClones(liveClones())
-		cloneOwner = admin
 	end
 	for i = 1, count do
 		task.spawn(spawnClone, admin, #clones + i)
@@ -1073,8 +1125,12 @@ local function cloneCommand(admin, args)
 	notify(admin, "Made " .. cloneCountText(count) .. ". Give orders with /clones, and add a number to order just some of them.")
 end
 
-local function clonesCommand(admin, args)
-	if not Admins.IsOwner(admin) then
+-- Orders a controller's clones. Normally the commander is the controller ("/clones dance" from Bob orders
+-- Bob's clones); with `forcing` the owner orders someone else's clones (/force), and those clones then
+-- ignore their controller until the owner releases them.
+local function clonesCommand(admin, args, controller, forcing)
+	controller = controller or admin
+	if not (Admins.IsOwner(admin) or (controller == admin and #clonesOf(admin, true) > 0)) then
 		return
 	end
 	-- A number at the end says how many clones get the order
@@ -1083,15 +1139,32 @@ local function clonesCommand(admin, args)
 		count = math.max(0, math.floor(tonumber(args[#args])))
 		args = { table.unpack(args, 1, #args - 1) }
 	end
-	if #liveClones() == 0 then
-		notify(admin, "You don't have any clones. Make some with /clone <number>.")
+	local available = clonesOf(controller, forcing)
+	if #available == 0 then
+		if #clonesOf(controller, true) > 0 then
+			notify(admin, "The owner has taken over your clones, so they only listen to the owner right now.")
+		elseif controller == admin then
+			notify(admin, Admins.IsOwner(admin) and "You don't have any clones. Make some with /clone <number>." or "You don't have any clones.")
+		else
+			notify(admin, controller.DisplayName .. " doesn't have any clones.")
+		end
 		return
+	end
+	local whose = controller == admin and "" or (controller.DisplayName .. "'s ")
+	-- Forced clones listen only to the owner from now on
+	local function take(list)
+		if forcing then
+			for _, clone in ipairs(list) do
+				clone.forced = true
+			end
+		end
+		return list
 	end
 
 	local order = string.lower(args[1] or "")
 	local wholeOrder = string.gsub(string.lower(table.concat(args, "")), "[^%a]", "")
 	if wholeOrder == "beatthegame" or order == "beat" then
-		task.spawn(clonesBeatTheGame, admin, pickClones(count))
+		task.spawn(clonesBeatTheGame, controller, take(pickClones(controller, count, false, forcing)))
 	elseif order == "train" then
 		local what = string.lower(args[2] or "")
 		if what == "power" or what == "punch" then
@@ -1105,35 +1178,90 @@ local function clonesCommand(admin, args)
 		local vip = string.find(string.lower(table.concat(args, " ", 3)), "vip") ~= nil
 		-- "/clones train stamina hacker": just that kind of treadmill
 		local treadmillTier = what == "stamina" and treadmillTierIn({ table.unpack(args, 3) }) or nil
-		task.spawn(clonesTrain, admin, pickClones(count), what, vip, treadmillTier)
+		task.spawn(clonesTrain, controller, take(pickClones(controller, count, false, forcing)), what, vip, treadmillTier)
 	elseif order == "remove" then
-		local list = pickClones(count)
+		local list = pickClones(controller, count, false, forcing)
 		removeClones(list)
-		notify(admin, "Removed " .. cloneCountText(#list) .. ".")
+		notify(admin, "Removed " .. #list .. " of " .. whose .. "clones.")
 	elseif order == "stop" then
-		local list = pickClones(count, true)
+		local list = take(pickClones(controller, count, true, forcing))
 		assignClones(list, "stay")
-		notify(admin, "Stopped " .. cloneCountText(#list) .. ".")
+		notify(admin, "Stopped " .. #list .. " of " .. whose .. "clones.")
 	elseif order == "follow" or order == "stay" or order == "dance" or order == "copy" then
-		local list = pickClones(count)
+		local list = take(pickClones(controller, count, false, forcing))
 		assignClones(list, order)
-		notify(admin, cloneCountText(#list) .. ": " .. order .. ".")
+		notify(admin, #list .. " of " .. whose .. "clones: " .. order .. ".")
 	elseif order == "fight" or order == "kill" then
 		local target = args[2] and findPlayerInServer(args[2])
 		if not target then
 			notify(admin, "Usage: /clones " .. order .. " <name> (a player in this server)")
 			return
 		end
-		if target == admin then
-			notify(admin, "Your clones won't " .. order .. " you.")
+		if target == controller then
+			notify(admin, "Clones won't " .. order .. " the person they belong to.")
 			return
 		end
-		local list = pickClones(count)
+		if Admins.IsOwner(target) and not Admins.IsOwner(admin) then
+			notify(admin, "Clones won't " .. order .. " the owner.")
+			return
+		end
+		local list = take(pickClones(controller, count, false, forcing))
 		assignClones(list, order, target)
-		notify(admin, cloneCountText(#list) .. (order == "kill" and " going to kill " or " going after ") .. target.DisplayName .. "!")
+		notify(admin, #list .. " of " .. whose .. "clones" .. (order == "kill" and " going to kill " or " going after ") .. target.DisplayName .. "!")
 	else
 		notify(admin, "Usage: /clones follow | stay | dance | copy | fight <name> | kill <name> | train <strength/kick/both/stamina> | beat the game | stop | remove, plus an optional number")
 	end
+end
+
+-- /give <name> clones <n>: the owner makes clones of that player, which the player can order with /clones
+function giveClonesTo(admin, target, count)
+	local max = maxClonesFor(target)
+	count = math.clamp(math.floor(count), 1, max)
+	count = math.min(count, max - #clonesOf(target, true))
+	if count <= 0 then
+		notify(admin, target.DisplayName .. " already has " .. max .. " clones (the most).")
+		return
+	end
+	for i = 1, count do
+		task.spawn(spawnClone, target, #clones + i)
+	end
+	notify(admin, "Gave " .. target.DisplayName .. " " .. cloneCountText(count) .. ". Take over with /force " .. target.DisplayName .. " <order>.")
+	if target ~= admin then
+		notify(target, "You got " .. cloneCountText(count) .. "! Order them with /clones follow, dance, train strength, fight <name> and more.")
+	end
+end
+
+-- /take <name> clones: the owner removes that player's clones
+function takeClonesFrom(admin, target)
+	local list = clonesOf(target, true)
+	removeClones(list)
+	notify(admin, "Removed " .. target.DisplayName .. "'s " .. cloneCountText(#list) .. ".")
+	if target ~= admin and #list > 0 then
+		notify(target, "Your clones were taken away.")
+	end
+end
+
+-- /force <name> <order> [number]: the owner orders that player's clones, which then ignore the player
+-- until "/force <name> release"
+local function forceCommand(admin, args)
+	if not Admins.IsOwner(admin) then
+		return
+	end
+	local target = findPlayerInServer(args[1])
+	if not target then
+		notify(admin, "Couldn't find \"" .. args[1] .. "\" in this server.")
+		return
+	end
+	local rest = { table.unpack(args, 2) }
+	if string.lower(rest[1] or "") == "release" then
+		local list = clonesOf(target, true)
+		for _, clone in ipairs(list) do
+			clone.forced = nil
+		end
+		notify(admin, target.DisplayName .. "'s clones listen to " .. target.DisplayName .. " again.")
+		return
+	end
+	clonesCommand(admin, rest, target, true)
 end
 
 -- /every_clone <treadmill> treadmill: every clone runs on that kind of treadmill ("any" spreads them over
@@ -1145,62 +1273,73 @@ local function everyCloneCommand(admin, args)
 	local words = string.lower(table.concat(args, " "))
 	local tier = treadmillTierIn(args)
 	if tier or string.find(words, "treadmill") then
-		if #liveClones() == 0 then
+		local list = pickClones(admin, nil, false, true)
+		if #list == 0 then
 			notify(admin, "You don't have any clones. Make some with /clone <number>.")
 			return
 		end
-		task.spawn(clonesTrain, admin, pickClones(nil), "stamina", false, tier)
+		task.spawn(clonesTrain, admin, list, "stamina", false, tier)
 		return
 	end
 	clonesCommand(admin, args)
 end
 
--- Moves the clones a few times a second, each by its own order
+-- Moves the clones a few times a second, each by its own order, around whoever controls it
+local lastWalkSpeed = {} -- [controller] = their last walking speed while able to move
+
 task.spawn(function()
 	while true do
 		task.wait(0.2)
 		local list = liveClones()
-		local ownerRoot = rootOf(cloneOwner)
-		local ownerHumanoid = ownerRoot and ownerRoot.Parent:FindFirstChildOfClass("Humanoid")
 		local now = os.clock()
 
-		-- Match the owner's walking speed
-		if ownerHumanoid and ownerHumanoid.WalkSpeed > 0 then
-			cloneWalkSpeed = ownerHumanoid.WalkSpeed
-		end
+		-- Group the clones by controller
+		local groups = {} -- [controller] = { followers, copiers }
 		for _, clone in ipairs(list) do
-			if clone.humanoid.WalkSpeed ~= cloneWalkSpeed then
-				clone.humanoid.WalkSpeed = cloneWalkSpeed
+			local group = groups[clone.controller]
+			if not group then
+				group = { followers = {}, copiers = {} }
+				groups[clone.controller] = group
 			end
-		end
-
-		-- Followers spread around the owner, copiers line up behind
-		local followers, copiers = {}, {}
-		for _, clone in ipairs(list) do
 			if clone.order == "follow" then
-				table.insert(followers, clone)
+				table.insert(group.followers, clone)
 			elseif clone.order == "copy" then
-				table.insert(copiers, clone)
+				table.insert(group.copiers, clone)
 			end
 		end
 
-		if ownerRoot then
-			for i, clone in ipairs(followers) do
-				local angle = i / #followers * math.pi * 2
-				local spot = ownerRoot.Position + Vector3.new(math.cos(angle) * 6, 0, math.sin(angle) * 6)
-				if (clone.root.Position - spot).Magnitude > 3 then
-					clone.humanoid:MoveTo(spot)
+		for controller, group in pairs(groups) do
+			local controllerRoot = rootOf(controller)
+			local controllerHumanoid = controllerRoot and controllerRoot.Parent:FindFirstChildOfClass("Humanoid")
+			-- Clones walk at their controller's speed (kept while the controller is held still at 0)
+			if controllerHumanoid and controllerHumanoid.WalkSpeed > 0 then
+				lastWalkSpeed[controller] = controllerHumanoid.WalkSpeed
+			end
+			local speed = lastWalkSpeed[controller] or 16
+			for _, clone in ipairs(list) do
+				if clone.controller == controller and clone.humanoid.WalkSpeed ~= speed then
+					clone.humanoid.WalkSpeed = speed
 				end
 			end
-			local state = ownerHumanoid and ownerHumanoid:GetState()
-			local ownerJumping = state == Enum.HumanoidStateType.Jumping or state == Enum.HumanoidStateType.Freefall
-			for i, clone in ipairs(copiers) do
-				-- Rows of five behind the owner, facing the same way, jumping when the owner jumps
-				local column = (i - 1) % 5 - 2
-				local row = math.floor((i - 1) / 5) + 1
-				clone.humanoid:MoveTo((ownerRoot.CFrame * CFrame.new(column * 4, 0, row * 5)).Position)
-				if ownerJumping then
-					clone.humanoid.Jump = true
+
+			if controllerRoot then
+				for i, clone in ipairs(group.followers) do
+					local angle = i / #group.followers * math.pi * 2
+					local spot = controllerRoot.Position + Vector3.new(math.cos(angle) * 6, 0, math.sin(angle) * 6)
+					if (clone.root.Position - spot).Magnitude > 3 then
+						clone.humanoid:MoveTo(spot)
+					end
+				end
+				local state = controllerHumanoid and controllerHumanoid:GetState()
+				local jumping = state == Enum.HumanoidStateType.Jumping or state == Enum.HumanoidStateType.Freefall
+				for i, clone in ipairs(group.copiers) do
+					-- Rows of five behind the controller, facing the same way, jumping when they jump
+					local column = (i - 1) % 5 - 2
+					local row = math.floor((i - 1) / 5) + 1
+					clone.humanoid:MoveTo((controllerRoot.CFrame * CFrame.new(column * 4, 0, row * 5)).Position)
+					if jumping then
+						clone.humanoid.Jump = true
+					end
 				end
 			end
 		end
@@ -1210,7 +1349,7 @@ task.spawn(function()
 				local targetRoot = rootOf(clone.target)
 				local targetHumanoid = targetRoot and targetRoot.Parent:FindFirstChildOfClass("Humanoid")
 				if not targetHumanoid or targetHumanoid.Health <= 0 then
-					assignClones({ clone }, "follow") -- target gone: back to the owner
+					assignClones({ clone }, "follow") -- target gone: back to the controller
 				else
 					clone.humanoid:MoveTo(targetRoot.Position)
 					if (clone.root.Position - targetRoot.Position).Magnitude < 5 and now - clone.lastHit >= 1 then
@@ -1241,7 +1380,8 @@ local COMMANDS = {
 	reset = { run = reset },
 	privateserver = { run = privateServer },
 	clone = { run = cloneCommand, minArgs = 1, usage = "/clone <number>, e.g. /clone 5 (or /clone stop [number])" },
-	clones = { run = clonesCommand },
+	clones = { run = clonesCommand, forCloneHolders = true }, -- also for players the owner gave clones to
+	force = { run = forceCommand, minArgs = 2, usage = "/force <name> <order> [number], or /force <name> release" },
 	everyclone = { run = everyCloneCommand, minArgs = 1, usage = "/every_clone owner treadmill (or hacker / admin / regular / any)" },
 	private = { run = privateServer }, -- "/private server"
 	luck = { run = luck, minArgs = 1, usage = "/luck <number> [name], e.g. /luck 64 (everyone) or /luck 64 Bob" },
@@ -1263,7 +1403,10 @@ local DASHED_ALIASES = {
 
 -- message is the full chat text, e.g. "/give Bob owner treadmill" or "/fly"
 local function runCommand(admin, message)
-	if not Admins.IsAdmin(admin) then
+	local firstWord = string.lower(string.match(message, "^/([%a%-_]+)") or "")
+	local holderCommand = COMMANDS[string.gsub(firstWord, "[%-_]", "")]
+	local isCloneHolder = holderCommand and holderCommand.forCloneHolders and #clonesOf(admin, true) > 0
+	if not Admins.IsAdmin(admin) and not isCloneHolder then
 		return
 	end
 	local words = string.split(message, " ")
@@ -1329,10 +1472,7 @@ end)
 
 Players.PlayerRemoving:Connect(function(player)
 	flying[player] = nil
-	if player == cloneOwner then
-		removeClones(liveClones())
-		cloneOwner = nil
-	end
+	removeClones(clonesOf(player, true)) -- their clones go with them
 	Admins.Revoke(player.UserId) -- commands given with /give last until the player leaves
 end)
 
