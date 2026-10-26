@@ -59,9 +59,10 @@ local function applySpeedBoost(player)
 		return
 	end
 	local boost = FighterStats.RebirthSpeedBoost(FighterStats.GetPlayerData(player).rebirths)
-	humanoid.WalkSpeed = FighterStats.BaseWalkSpeed + boost
+	-- The owner's admin panel can set speed and jump directly; those win over the rebirth boost
+	humanoid.WalkSpeed = player:GetAttribute("AdminWalkSpeed") or (FighterStats.BaseWalkSpeed + boost)
 	humanoid.UseJumpPower = true
-	humanoid.JumpPower = FighterStats.BaseJumpPower + boost
+	humanoid.JumpPower = player:GetAttribute("AdminJumpPower") or (FighterStats.BaseJumpPower + boost)
 end
 
 local function meets(data, requirement)

@@ -223,6 +223,15 @@ local GIFTS = {
 			Admins.Grant(target.UserId)
 		end,
 	},
+	-- The owner's ADMIN panel, for setting their own stats, until they leave this server. Owner only.
+	adminpanel = {
+		name = "admin panel",
+		ownerOnly = true,
+		note = " They can set their own stats with it until they leave (/take <name> admin panel removes it).",
+		give = function(_, target)
+			target:SetAttribute("HasAdminPanel", true)
+		end,
+	},
 	ownertreadmill = {
 		name = "Owner's Treadmill",
 		note = " They can use it in public servers too.",
@@ -315,8 +324,14 @@ local function take(admin, args)
 		takeClonesFrom(admin, target)
 		return
 	end
+	if key == "adminpanel" then
+		target:SetAttribute("HasAdminPanel", nil)
+		notify(admin, target.DisplayName .. " no longer has the admin panel.")
+		tellTarget(admin, target, "Your admin panel was taken away.")
+		return
+	end
 	if key ~= "commands" then
-		notify(admin, "Usage: /take <name> commands (or clones)")
+		notify(admin, "Usage: /take <name> commands (or clones, or admin panel)")
 		return
 	end
 	if Admins.IsOwner(target) then
@@ -447,7 +462,9 @@ local function reset(admin, args)
 			pcall(function()
 				humanoid:ApplyDescription(Players:GetHumanoidDescriptionFromUserId(target.UserId))
 			end)
-			-- Rebirths are reset, so is their speed and jump boost
+			-- Rebirths are reset, so is their speed and jump boost (and any admin panel speed/jump)
+			target:SetAttribute("AdminWalkSpeed", nil)
+			target:SetAttribute("AdminJumpPower", nil)
 			humanoid.WalkSpeed = FighterStats.BaseWalkSpeed
 			humanoid.UseJumpPower = true
 			humanoid.JumpPower = FighterStats.BaseJumpPower
@@ -1474,6 +1491,98 @@ task.spawn(function()
 		end
 	end
 end)
+
+-- ==================== ADMIN PANEL ====================
+-- The ADMIN panel (AdminPanelClient) sets the user's own stats to any number up to 1 nonillion (10^30).
+-- The owner has it; the owner can give it with /give <name> admin panel (HasAdminPanel attribute, until
+-- they leave). Called with no stat it only answers "may this player use the panel?". Speed and jump are kept as player
+-- attributes so respawning (RebirthService) puts them back.
+
+local ADMIN_PANEL_MAX = 1e30 -- 1 nonillion
+
+local adminPanelFunction = Instance.new("RemoteFunction")
+adminPanelFunction.Name = "AdminPanel"
+adminPanelFunction.Parent = eventsFolder
+
+local function setHumanoid(player, property, value)
+	local character = player.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if humanoid then
+		if property == "JumpPower" then
+			humanoid.UseJumpPower = true
+		end
+		humanoid[property] = value
+	end
+end
+
+-- stat -> how to set it, and the name shown back
+local ADMIN_PANEL_STATS = {
+	speed = { name = "Speed", set = function(player, _, value)
+		player:SetAttribute("AdminWalkSpeed", value)
+		setHumanoid(player, "WalkSpeed", value)
+	end },
+	jump = { name = "Jump", set = function(player, _, value)
+		player:SetAttribute("AdminJumpPower", value)
+		setHumanoid(player, "JumpPower", value)
+	end },
+	strength = { name = "Strength", set = function(_, data, value)
+		data.strength = value
+		data.bodyStage = FighterStats.GetStageFromStrength(value)
+	end },
+	kick = { name = "Kick", set = function(_, data, value)
+		data.kick = value
+	end },
+	stamina = { name = "Stamina", set = function(_, data, value)
+		data.maxStamina = value
+		data.stamina = value
+	end },
+	rebirths = { name = "Rebirths", set = function(player, data, value)
+		data.rebirths = math.clamp(math.floor(value), 0, FighterStats.MaxRebirths)
+		-- The rebirth speed and jump boost follows, unless speed/jump were set here directly
+		local boost = FighterStats.RebirthSpeedBoost(data.rebirths)
+		if not player:GetAttribute("AdminWalkSpeed") then
+			setHumanoid(player, "WalkSpeed", FighterStats.BaseWalkSpeed + boost)
+		end
+		if not player:GetAttribute("AdminJumpPower") then
+			setHumanoid(player, "JumpPower", FighterStats.BaseJumpPower + boost)
+		end
+	end },
+	money = { name = "Money", set = function(_, data, value)
+		data.money = value
+	end },
+	luck = { name = "Luck", set = function(_, data, value)
+		data.luck = math.max(1, math.floor(value))
+	end },
+	wins = { name = "Wins", set = function(_, data, value)
+		data.arenaWins = math.floor(value)
+	end },
+	beatthegame = { name = "Beat the game", set = function(_, data, value)
+		data.gameBeats = math.floor(value)
+	end },
+}
+
+-- The owner, and anyone the owner gave the panel to with /give <name> admin panel
+local function hasAdminPanel(player)
+	return Admins.IsOwner(player) or player:GetAttribute("HasAdminPanel") == true
+end
+
+adminPanelFunction.OnServerInvoke = function(player, stat, value)
+	if not hasAdminPanel(player) then
+		return nil
+	end
+	if stat == nil then
+		return true
+	end
+	local entry = type(stat) == "string" and ADMIN_PANEL_STATS[stat]
+	if not entry or type(value) ~= "number" or value ~= value or value < 0 then
+		return "Type a number of 0 or more."
+	end
+	value = math.min(value, ADMIN_PANEL_MAX)
+	local data = FighterStats.GetPlayerData(player)
+	entry.set(player, data, value)
+	sendStats(player)
+	return entry.name .. " set to " .. Catalog.FormatNumber(value) .. "."
+end
 
 -- ==================== COMMAND TABLE ====================
 -- minArgs: how many words must follow the command; usage: shown when they're missing
