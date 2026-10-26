@@ -21,6 +21,7 @@ local Workspace = game:GetService("Workspace")
 local WorldConfig = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("WorldConfig"))
 local Admins = require(script.Parent:WaitForChild("Admins"))
 local ReceiptRouter = require(script.Parent:WaitForChild("ReceiptRouter"))
+local FighterStats = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("FighterStats"))
 
 local VIP = WorldConfig.Vip
 local GYM = WorldConfig.Gyms
@@ -304,7 +305,7 @@ end
 
 -- ==================== PURCHASES ====================
 
-MarketplaceService.ProcessReceipt = function(receipt)
+local function handleReceipt(receipt)
 	if processedReceipts[receipt.PurchaseId] then
 		return Enum.ProductPurchaseDecision.PurchaseGranted
 	end
@@ -328,6 +329,23 @@ MarketplaceService.ProcessReceipt = function(receipt)
 	grantVip(gym, receipt.PlayerId)
 	processedReceipts[receipt.PurchaseId] = true
 	return Enum.ProductPurchaseDecision.PurchaseGranted
+end
+
+-- Every granted purchase adds the Robux paid to the buyer's robuxSpent (shown on the Most Robux Spent
+-- leaderboard). Each purchase is only counted once.
+local countedReceipts = {}
+
+MarketplaceService.ProcessReceipt = function(receipt)
+	local decision = handleReceipt(receipt)
+	if decision == Enum.ProductPurchaseDecision.PurchaseGranted and not countedReceipts[receipt.PurchaseId] then
+		countedReceipts[receipt.PurchaseId] = true
+		local buyer = Players:GetPlayerByUserId(receipt.PlayerId)
+		if buyer then
+			local data = FighterStats.GetPlayerData(buyer)
+			data.robuxSpent = (data.robuxSpent or 0) + (receipt.CurrencySpent or 0)
+		end
+	end
+	return decision
 end
 
 MarketplaceService.PromptProductPurchaseFinished:Connect(function(userId, productId, isPurchased)

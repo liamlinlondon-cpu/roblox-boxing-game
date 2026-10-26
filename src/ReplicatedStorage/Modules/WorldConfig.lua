@@ -63,6 +63,13 @@ WorldConfig.SellShop = {
 	Position = Vector3.new(27.5, 0, -47.6),
 }
 
+-- Global leaderboards (top players across all servers): three boards side by side in the gap between
+-- two gyms (Titan Gym and Knockout Club), facing the ring
+WorldConfig.Leaderboards = {
+	Position = Vector3.new(118, 0, 0), -- middle board, on the ground
+	Spacing = 14, -- between boards
+}
+
 -- Color Shop kiosk next to the ring, opposite the normal shop. It sells the current sky event's skin.
 WorldConfig.ColorShop = {
 	Position = Vector3.new(-27.5, 0, -47.6),
