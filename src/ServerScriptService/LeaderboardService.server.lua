@@ -11,6 +11,7 @@ local DataStoreService = game:GetService("DataStoreService")
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserService = game:GetService("UserService")
 local Workspace = game:GetService("Workspace")
 
 local Modules = ReplicatedStorage:WaitForChild("Modules")
@@ -68,6 +69,8 @@ end
 
 -- ==================== SAVING AND PUBLISHING ====================
 
+-- The name shown above the player's head (display name), not their account username. Players in another
+-- server (or offline) are looked up with UserService.
 local nameCache = {}
 local function nameOf(userId)
 	if not nameCache[userId] then
@@ -75,8 +78,14 @@ local function nameOf(userId)
 		if player then
 			nameCache[userId] = player.DisplayName
 		else
-			local ok, name = pcall(Players.GetNameFromUserIdAsync, Players, userId)
-			nameCache[userId] = ok and name or ("Player " .. userId)
+			local ok, infos = pcall(UserService.GetUserInfosByUserIdsAsync, UserService, { userId })
+			local info = ok and infos and infos[1]
+			if info and info.DisplayName then
+				nameCache[userId] = info.DisplayName
+			else
+				local found, username = pcall(Players.GetNameFromUserIdAsync, Players, userId)
+				nameCache[userId] = found and username or ("Player " .. userId)
+			end
 		end
 	end
 	return nameCache[userId]
