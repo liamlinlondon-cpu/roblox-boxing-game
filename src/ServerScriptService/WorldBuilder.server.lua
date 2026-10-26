@@ -357,6 +357,7 @@ do
 				z = { zCenter - BUILDING_SIZE / 2, zCenter + BUILDING_SIZE / 2 },
 				roof = info.roof,
 				style = #COURSE_BUILDINGS % 5 + 1, -- which BUILDING_STYLES look it gets
+				rooftop = #COURSE_BUILDINGS % 7 + 1, -- which ROOFTOPS theme it gets
 				-- The front tip holds the red button room
 				hollow = column == #COURSE_COLUMNS,
 			})
@@ -383,6 +384,123 @@ local BUILDING_STYLES = {
 	{ material = Enum.Material.SmoothPlastic, color = Color3.fromRGB(65, 75, 90), trim = Color3.fromRGB(210, 210, 215) },
 }
 local WINDOW_GLASS = Color3.fromRGB(45, 65, 95)
+
+-- Rooftop themes. Each gets: add(name, size, offset from the building's ground center, material, color,
+-- shape?, rotation?), the roof height, width, depth and the building's style. Roofs stay landable.
+local VERTICAL = CFrame.Angles(0, 0, math.pi / 2) -- turns a cylinder upright
+local function light(part, color, range)
+	local pointLight = Instance.new("PointLight")
+	pointLight.Color = color
+	pointLight.Range = range or 10
+	pointLight.Parent = part
+end
+
+local ROOFTOPS = {
+	-- 1. Helipad: dark circle with a yellow H and lights around the edge
+	function(add, roof, width, depth)
+		add("Helipad", Vector3.new(0.2, 22, 22), Vector3.new(0, roof + 0.1, 0), Enum.Material.Concrete, Color3.fromRGB(50, 50, 55), Enum.PartType.Cylinder, VERTICAL)
+		local yellow = Color3.fromRGB(255, 210, 40)
+		add("HelipadH1", Vector3.new(1.2, 0.1, 9), Vector3.new(-3, roof + 0.25, 0), Enum.Material.Neon, yellow)
+		add("HelipadH2", Vector3.new(1.2, 0.1, 9), Vector3.new(3, roof + 0.25, 0), Enum.Material.Neon, yellow)
+		add("HelipadH3", Vector3.new(6, 0.1, 1.2), Vector3.new(0, roof + 0.25, 0), Enum.Material.Neon, yellow)
+		for i = 0, 7 do
+			local angle = i / 8 * math.pi * 2
+			local lamp = add("HelipadLight", Vector3.new(0.6, 0.6, 0.6), Vector3.new(math.cos(angle) * 10.5, roof + 0.4, math.sin(angle) * 10.5), Enum.Material.Neon, Color3.fromRGB(120, 255, 120))
+			light(lamp, Color3.fromRGB(120, 255, 120), 6)
+		end
+	end,
+
+	-- 2. Rooftop garden: grass, a few trees and a bench
+	function(add, roof, width, depth)
+		add("Grass", Vector3.new(width - 4, 0.3, depth - 4), Vector3.new(0, roof + 0.15, 0), Enum.Material.Grass, Color3.fromRGB(80, 150, 70))
+		for _, spot in ipairs({ Vector2.new(-width / 3, -depth / 3), Vector2.new(width / 3, -depth / 4), Vector2.new(-width / 4, depth / 3), Vector2.new(width / 3, depth / 3) }) do
+			add("TreeTrunk", Vector3.new(4, 0.8, 0.8), Vector3.new(spot.X, roof + 2.3, spot.Y), Enum.Material.Wood, Color3.fromRGB(100, 70, 45), Enum.PartType.Cylinder, VERTICAL)
+			add("TreeTop", Vector3.new(4.5, 4.5, 4.5), Vector3.new(spot.X, roof + 5.5, spot.Y), Enum.Material.Grass, Color3.fromRGB(60, 140, 60), Enum.PartType.Ball)
+		end
+		add("BenchSeat", Vector3.new(5, 0.4, 1.4), Vector3.new(0, roof + 1.2, 2), Enum.Material.WoodPlanks, Color3.fromRGB(140, 100, 60))
+		add("BenchBack", Vector3.new(5, 1.4, 0.3), Vector3.new(0, roof + 1.9, 2.7), Enum.Material.WoodPlanks, Color3.fromRGB(140, 100, 60))
+	end,
+
+	-- 3. Swimming pool with a deck, loungers and umbrellas
+	function(add, roof, width, depth)
+		add("PoolDeck", Vector3.new(width - 4, 0.3, depth - 4), Vector3.new(0, roof + 0.15, 0), Enum.Material.WoodPlanks, Color3.fromRGB(170, 130, 90))
+		local water = add("PoolWater", Vector3.new(width / 2, 0.4, depth / 3), Vector3.new(0, roof + 0.35, -depth / 8), Enum.Material.Glass, Color3.fromRGB(60, 170, 230))
+		water.Transparency = 0.2
+		for i = -1, 1, 2 do
+			local x = i * width / 5
+			add("Lounger", Vector3.new(2, 0.5, 4.5), Vector3.new(x, roof + 0.55, depth / 4), Enum.Material.Fabric, Color3.fromRGB(240, 240, 240))
+			add("UmbrellaPole", Vector3.new(5, 0.25, 0.25), Vector3.new(x + 2, roof + 2.8, depth / 4), Enum.Material.Metal, Color3.fromRGB(200, 200, 200), Enum.PartType.Cylinder, VERTICAL)
+			add("Umbrella", Vector3.new(0.4, 5, 5), Vector3.new(x + 2, roof + 5.3, depth / 4), Enum.Material.Fabric, i < 0 and Color3.fromRGB(230, 70, 70) or Color3.fromRGB(70, 130, 230), Enum.PartType.Cylinder, VERTICAL)
+		end
+	end,
+
+	-- 4. Big glowing billboard advertising the game
+	function(add, roof, width, depth)
+		local slogans = { "FIGHT NIGHT", "BOXING LEGENDS", "BEAT THE GAME", "TRAIN HARD" }
+		for _, x in ipairs({ -width / 3, width / 3 }) do
+			add("BillboardLeg", Vector3.new(0.6, 9, 0.6), Vector3.new(x, roof + 4.5, 0), Enum.Material.Metal, Color3.fromRGB(90, 90, 95))
+		end
+		local board = add("Billboard", Vector3.new(width * 0.8, 6, 0.6), Vector3.new(0, roof + 11, 0), Enum.Material.SmoothPlastic, Color3.fromRGB(20, 20, 25))
+		local gui = Instance.new("SurfaceGui")
+		gui.Face = Enum.NormalId.Front
+		gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+		gui.PixelsPerStud = 20
+		gui.LightInfluence = 0 -- glows at night too
+		gui.Parent = board
+		local back = gui:Clone()
+		back.Face = Enum.NormalId.Back
+		back.Parent = board
+		local text = slogans[math.random(#slogans)]
+		for _, side in ipairs({ gui, back }) do
+			local label = Instance.new("TextLabel")
+			label.Size = UDim2.fromScale(1, 1)
+			label.BackgroundTransparency = 1
+			label.Text = text
+			label.TextColor3 = Color3.fromRGB(255, 200, 40)
+			label.Font = Enum.Font.GothamBlack
+			label.TextScaled = true
+			label.Parent = side
+		end
+	end,
+
+	-- 5. Machinery: AC units, a water tank and an antenna with a red light
+	function(add, roof, width, depth)
+		local metal = Color3.fromRGB(160, 160, 165)
+		add("ACUnit", Vector3.new(3, 1.6, 2.4), Vector3.new(-width / 4, roof + 0.8, depth / 4), Enum.Material.Metal, metal)
+		add("ACUnit", Vector3.new(3, 1.6, 2.4), Vector3.new(-width / 4 + 4, roof + 0.8, depth / 4), Enum.Material.Metal, metal)
+		add("TankStand", Vector3.new(3.6, 2, 3.6), Vector3.new(width / 4, roof + 1, -depth / 4), Enum.Material.Metal, Color3.fromRGB(80, 80, 85))
+		add("WaterTank", Vector3.new(4, 4, 4), Vector3.new(width / 4, roof + 4, -depth / 4), Enum.Material.WoodPlanks, Color3.fromRGB(120, 85, 55), Enum.PartType.Cylinder, VERTICAL)
+		add("Antenna", Vector3.new(0.3, 8, 0.3), Vector3.new(width / 3, roof + 4, depth / 3), Enum.Material.Metal, metal)
+		local beacon = add("AntennaLight", Vector3.new(0.6, 0.6, 0.6), Vector3.new(width / 3, roof + 8.3, depth / 3), Enum.Material.Neon, Color3.fromRGB(255, 40, 40))
+		light(beacon, Color3.fromRGB(255, 40, 40))
+	end,
+
+	-- 6. Tech roof: rows of solar panels and two satellite dishes
+	function(add, roof, width, depth)
+		for row = -1, 1 do
+			add("SolarPanel", Vector3.new(width / 2, 0.2, 2.5), Vector3.new(-width / 6, roof + 1, row * 4), Enum.Material.Glass, Color3.fromRGB(30, 50, 110), nil, CFrame.Angles(math.rad(-20), 0, 0))
+			add("SolarStand", Vector3.new(width / 2, 0.8, 0.3), Vector3.new(-width / 6, roof + 0.4, row * 4 + 0.6), Enum.Material.Metal, Color3.fromRGB(150, 150, 155))
+		end
+		for _, z in ipairs({ -depth / 4, depth / 4 }) do
+			add("DishPost", Vector3.new(0.5, 3, 0.5), Vector3.new(width / 3, roof + 1.5, z), Enum.Material.Metal, Color3.fromRGB(150, 150, 155))
+			add("Dish", Vector3.new(0.4, 4, 4), Vector3.new(width / 3, roof + 3.5, z), Enum.Material.SmoothPlastic, Color3.fromRGB(235, 235, 240), Enum.PartType.Cylinder, CFrame.Angles(0, 0, math.rad(50)))
+		end
+	end,
+
+	-- 7. Neon rooftop bar: a counter, stools and colored lights
+	function(add, roof, width, depth)
+		add("BarFloor", Vector3.new(width / 2, 0.3, depth / 2), Vector3.new(0, roof + 0.15, 0), Enum.Material.WoodPlanks, Color3.fromRGB(60, 40, 30))
+		add("BarCounter", Vector3.new(8, 2.4, 1.6), Vector3.new(0, roof + 1.5, -depth / 8), Enum.Material.Wood, Color3.fromRGB(90, 55, 35))
+		for i = -1, 1 do
+			add("BarStool", Vector3.new(1.6, 1.2, 1.2), Vector3.new(i * 2.5, roof + 1.2, -depth / 8 + 2), Enum.Material.SmoothPlastic, Color3.fromRGB(200, 40, 60), Enum.PartType.Cylinder, VERTICAL)
+		end
+		local neon = { Color3.fromRGB(255, 60, 200), Color3.fromRGB(60, 220, 255), Color3.fromRGB(255, 220, 60) }
+		for i, color in ipairs(neon) do
+			local bar = add("NeonLight", Vector3.new(width / 2, 0.3, 0.3), Vector3.new(0, roof + 4 + i * 0.6, -depth / 8 - 1), Enum.Material.Neon, color)
+			light(bar, color, 12)
+		end
+	end,
+}
 
 -- Makes a plain block look like a city building: a dark glass window band on every floor, pillars up
 -- the corners and between windows, a low wall around the roof edge, rooftop AC units, a water tank and
@@ -440,27 +558,21 @@ local function decorateBuilding(model, info, center, width, depth)
 		part("Parapet", edge[1], edge[2], style.material, style.trim)
 	end
 
-	-- Rooftop equipment
-	local metal = Color3.fromRGB(160, 160, 165)
-	part("ACUnit", Vector3.new(3, 1.6, 2.4), Vector3.new(-width / 4, roof + 0.8, depth / 4), Enum.Material.Metal, metal)
-	part("ACUnit", Vector3.new(3, 1.6, 2.4), Vector3.new(-width / 4 + 4, roof + 0.8, depth / 4), Enum.Material.Metal, metal)
-	part("TankStand", Vector3.new(3.6, 2, 3.6), Vector3.new(width / 4, roof + 1, -depth / 4), Enum.Material.Metal, Color3.fromRGB(80, 80, 85))
-	local tank = makePart(
-		model,
-		info.name .. "WaterTank",
-		Vector3.new(4, 4, 4),
-		CFrame.new(center + Vector3.new(width / 4, roof + 4, -depth / 4)) * CFrame.Angles(0, 0, math.pi / 2),
-		Enum.Material.WoodPlanks,
-		Color3.fromRGB(120, 85, 55),
-		Enum.PartType.Cylinder
-	)
-	tank.CanQuery = false
-	part("Antenna", Vector3.new(0.3, 8, 0.3), Vector3.new(width / 3, roof + 4, depth / 3), Enum.Material.Metal, metal)
-	local beacon = part("AntennaLight", Vector3.new(0.6, 0.6, 0.6), Vector3.new(width / 3, roof + 8.3, depth / 3), Enum.Material.Neon, Color3.fromRGB(255, 40, 40))
-	local light = Instance.new("PointLight")
-	light.Color = Color3.fromRGB(255, 40, 40)
-	light.Range = 10
-	light.Parent = beacon
+	-- Something different on each roof (see ROOFTOPS)
+	local rooftop = ROOFTOPS[info.rooftop or 1]
+	rooftop(function(name, size, offset, material, color, shape, rotation)
+		local p = makePart(
+			model,
+			info.name .. name,
+			size,
+			CFrame.new(center + offset) * (rotation or CFrame.new()),
+			material,
+			color,
+			shape
+		)
+		p.CanQuery = false
+		return p
+	end, roof, width, depth, style)
 
 	-- Entrance on the side facing the map (-X): door and awning
 	part("Door", Vector3.new(0.4, 7, 5), Vector3.new(-width / 2 - 0.2, 3.5, 0), Enum.Material.Glass, Color3.fromRGB(30, 35, 45))
