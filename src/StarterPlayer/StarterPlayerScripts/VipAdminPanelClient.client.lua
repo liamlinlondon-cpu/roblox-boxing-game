@@ -1,6 +1,6 @@
 -- The owner's rainbow VIP ADMIN panel: a sparkly rainbow VIP button above the ADMIN button opens a big panel with a menu
 -- on the left and pages on the right:
---   ⚡ EVENTS    a button for every sky event (and a normal sky), started straight away
+--   ⚡ EVENTS    a button for every sky event (and a normal sky, and the disco party), started straight away
 --   📊 SETS      the same stat boxes as the ADMIN panel (speed, jump, strength, kick, ...)
 --   🗺️ TELEPORT  a map of the whole world from above; click anywhere to teleport there
 -- More pages can be added to PAGES. Only the owner gets it; the server checks every action.
@@ -16,6 +16,7 @@ local Catalog = require(Modules:WaitForChild("Catalog"))
 local WorldConfig = require(Modules:WaitForChild("WorldConfig"))
 local events = ReplicatedStorage:WaitForChild("Events")
 local adminSkyEvent = events:WaitForChild("AdminSkyEvent")
+local adminDisco = events:WaitForChild("AdminDisco")
 local adminPanelFunction = events:WaitForChild("AdminPanel")
 local teleportFunction = events:WaitForChild("Teleport")
 local wheelFunction = events:WaitForChild("HulkWheel")
@@ -219,6 +220,7 @@ local function buildEventsPage(page)
 		table.insert(choices, { id = sky.id, name = sky.name, color = sky.color, rainbow = sky.rainbow })
 	end
 	table.insert(choices, { id = "clear", name = "Normal sky", color = Color3.fromRGB(110, 150, 200) })
+	table.insert(choices, { id = "disco", name = "🪩 Disco (on/off)", color = Color3.fromRGB(60, 30, 110), remote = adminDisco })
 
 	for order, choice in ipairs(choices) do
 		local button = text(page, { button = true, text = choice.name, background = choice.color, color = WHITE, font = Enum.Font.GothamBlack })
@@ -237,7 +239,8 @@ local function buildEventsPage(page)
 			gradient.Parent = button
 		end
 		button.Activated:Connect(function()
-			local ok, message = pcall(adminSkyEvent.InvokeServer, adminSkyEvent, choice.id)
+			local remote = choice.remote or adminSkyEvent
+			local ok, message = pcall(remote.InvokeServer, remote, choice.id)
 			say(ok and message or "That didn't work. Try again.")
 		end)
 	end
