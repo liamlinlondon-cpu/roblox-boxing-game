@@ -1014,7 +1014,7 @@ local function refreshStatsWhileTraining(owner)
 			task.wait(1)
 			local anyTraining = false
 			for _, clone in ipairs(clonesOf(owner, true)) do
-				if clone.order == "train" then
+				if clone.order == "train" or clone.order == "duel" then
 					anyTraining = true
 				end
 			end
@@ -1025,6 +1025,69 @@ local function refreshStatsWhileTraining(owner)
 		end
 		statsRefreshRunning[owner] = nil
 	end)
+end
+
+-- /clones train wins: the clones pair up and box each other 1-on-1 in a row in front of their controller.
+-- Every finished fight adds arena wins for the controller, whichever clone won: DUEL_WINS_FOR_OWNER for
+-- the owner, 1 for anyone else. Needs an even number.
+local DUEL_HIT_SECONDS = 0.5
+local DUEL_WINS_FOR_OWNER = 1000
+
+local function clonesDuel(controller, list, admin)
+	if #list < 2 or #list % 2 == 1 then
+		notify(admin, "Clone fights need an even number of clones (2, 4, 6...), not " .. #list .. ".")
+		return
+	end
+	local controllerRoot = rootOf(controller)
+	if not controllerRoot then
+		return
+	end
+	assignClones(list, "duel")
+	local base = controllerRoot.CFrame
+	local pairCount = #list / 2
+	for pair = 1, pairCount do
+		local a, b = list[pair * 2 - 1], list[pair * 2]
+		-- Each pair faces off 4 studs apart, the pairs side by side 6 studs apart
+		local center = base * CFrame.new((pair - (pairCount + 1) / 2) * 6, 0, -8)
+		local aPosition = (center * CFrame.new(0, 0, -2)).Position
+		local bPosition = (center * CFrame.new(0, 0, 2)).Position
+		a.model:PivotTo(CFrame.lookAt(aPosition, bPosition))
+		b.model:PivotTo(CFrame.lookAt(bPosition, aPosition))
+		a.root.Anchored = true
+		b.root.Anchored = true
+		local tokenA, tokenB = a.token, b.token
+
+		task.spawn(function()
+			local function fighting()
+				return a.token == tokenA and b.token == tokenB and a.model.Parent and b.model.Parent and controller.Parent
+			end
+			while fighting() do
+				local health = { [a] = 100, [b] = 100 }
+				local attacker, defender = a, b
+				while fighting() and health[a] > 0 and health[b] > 0 do
+					task.wait(DUEL_HIT_SECONDS)
+					if not fighting() then
+						break
+					end
+					local move = math.random() < 0.3 and "kick" or "punch"
+					trainingEvent:FireAllClients("punch", attacker.model, nil, math.random() < 0.5 and "Right" or "Left", 10, move)
+					health[defender] -= math.random(10, 25)
+					attacker, defender = defender, attacker
+				end
+				if not fighting() then
+					break
+				end
+				-- Somebody won: the wins go to the controller either way
+				local data = FighterStats.GetPlayerData(controller)
+				data.arenaWins = (data.arenaWins or 0) + (Admins.IsOwner(controller) and DUEL_WINS_FOR_OWNER or 1)
+				task.wait(1.5)
+			end
+		end)
+	end
+	notify(admin, #list .. " clones fighting in " .. pairCount .. (pairCount == 1 and " pair" or " pairs")
+		.. ". Every fight is +" .. Catalog.FormatNumber(Admins.IsOwner(controller) and DUEL_WINS_FOR_OWNER or 1)
+		.. " wins for " .. (controller == admin and "you" or controller.DisplayName) .. "!")
+	refreshStatsWhileTraining(controller)
 end
 
 local function clonesTrain(owner, list, what, vip, treadmillTier)
@@ -1170,8 +1233,13 @@ local function clonesCommand(admin, args, controller, forcing)
 		if what == "power" or what == "punch" then
 			what = "strength"
 		end
+		-- "/clones train wins": pairs of clones box each other for arena wins
+		if what == "wins" or what == "win" then
+			clonesDuel(controller, take(pickClones(controller, count, false, forcing)), admin)
+			return
+		end
 		if what ~= "strength" and what ~= "kick" and what ~= "both" and what ~= "stamina" then
-			notify(admin, "Usage: /clones train strength | kick | both | stamina, add \"vip floor\" for the VIP floor")
+			notify(admin, "Usage: /clones train strength | kick | both | stamina | wins, add \"vip floor\" for the VIP floor")
 			return
 		end
 		-- "/clones train strength vip floor": the VIP floor's bags (2x)

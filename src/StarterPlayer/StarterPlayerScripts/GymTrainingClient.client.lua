@@ -343,9 +343,11 @@ trainingEvent.OnClientEvent:Connect(function(kind, ...)
 		autoTrain = false
 	elseif kind == "punch" then
 		local character, bag, side, lbs, hitMode = ...
-		if character and bag then
-			swingBag(bag, character, lbs)
-			animateHit(character, side, hitMode)
+		if character then
+			if bag then
+				swingBag(bag, character, lbs)
+			end
+			animateHit(character, side, hitMode) -- no bag: clones fighting each other
 		end
 	elseif kind == "progress" then
 		local info = ...
