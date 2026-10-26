@@ -144,7 +144,7 @@ local homeRebirthsLabel = Instance.new("TextLabel")
 homeRebirthsLabel.Size = UDim2.new(1, 0, 1 / 9, 0)
 homeRebirthsLabel.Position = UDim2.new(0, 0, 8 / 9, 0)
 homeRebirthsLabel.BackgroundTransparency = 1
-homeRebirthsLabel.Text = "Rebirths: 0/5"
+homeRebirthsLabel.Text = "Rebirths: 0/9"
 homeRebirthsLabel.TextColor3 = Color3.fromRGB(255, 120, 120)
 homeRebirthsLabel.Font = Enum.Font.GothamBold
 homeRebirthsLabel.TextScaled = true
@@ -542,7 +542,7 @@ matchResultEvent.OnClientEvent:Connect(function(data)
 			homeBeatsLabel.Text = "Beat the game: " .. formatNumber(data.gameBeats)
 		end
 		if data.rebirths then
-			homeRebirthsLabel.Text = "Rebirths: " .. tostring(data.rebirths) .. "/5"
+			homeRebirthsLabel.Text = "Rebirths: " .. tostring(data.rebirths) .. "/9"
 		end
 	elseif data.type == "treadmill_result" then
 		gymStatus.Text = data.message

@@ -124,17 +124,22 @@ function FighterStats.TrainStamina(data, tierKey, multiplier)
 end
 
 -- ==================== REBIRTHS ====================
--- Up to MaxRebirths. Each needs the strength, kick and max stamina below; rebirthing resets those three,
+-- Up to MaxRebirths. The first rebirth needs 100 strength, 100 kick and 1,000 max stamina, and every
+-- rebirth after that needs double the one before (1+1=2, 2+2=4, ...). Rebirthing resets those three,
 -- wins and the beat the game count to the start (money stays), and adds +1x to training gains (bags and
 -- treadmills) for good.
-FighterStats.MaxRebirths = 5
-FighterStats.RebirthRequirements = {
-	{ strength = 100, kick = 100, stamina = 1000 },
-	{ strength = 1000, kick = 1000, stamina = 10000 },
-	{ strength = 10000, kick = 10000, stamina = 100000 },
-	{ strength = 100000, kick = 100000, stamina = 500000 },
-	{ strength = 1000000, kick = 1000000, stamina = 1000000 },
-}
+FighterStats.MaxRebirths = 9
+local FIRST_REBIRTH = { strength = 100, kick = 100, stamina = 1000 }
+
+-- What rebirth number n (1 = the first) needs
+function FighterStats.RebirthRequirement(n)
+	local scale = 2 ^ (n - 1)
+	return {
+		strength = FIRST_REBIRTH.strength * scale,
+		kick = FIRST_REBIRTH.kick * scale,
+		stamina = FIRST_REBIRTH.stamina * scale,
+	}
+end
 
 -- Training gain boost from rebirths: 1x with none, 2x after one, ... 6x after five
 function FighterStats.RebirthMultiplier(data)
@@ -142,9 +147,12 @@ function FighterStats.RebirthMultiplier(data)
 end
 
 -- Walk speed and jump power boost from rebirths: +15 after the first, doubling each time
--- (+30, +60, +120, +240). Normal walk speed is 16 and jump power 50.
+-- (+30, +60, +120, ...). Normal walk speed is 16 and jump power 50.
 FighterStats.BaseWalkSpeed = 16
 FighterStats.BaseJumpPower = 50
+-- The highest walk speed or jump power a character actually gets: Roblox's physics freezes or flings
+-- characters far beyond this (the rebirth boost reaches it around rebirth 8)
+FighterStats.MaxMoveValue = 1000
 function FighterStats.RebirthSpeedBoost(rebirths)
 	if (rebirths or 0) <= 0 then
 		return 0

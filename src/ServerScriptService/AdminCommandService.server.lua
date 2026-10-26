@@ -1501,7 +1501,7 @@ end)
 local ADMIN_PANEL_MAX = 1e30 -- 1 nonillion
 -- Speed and jump move the character, and Roblox's physics freezes or flings characters far beyond this,
 -- so those two are capped here (1,000 speed covers the whole map in under a second)
-local ADMIN_PANEL_MOVE_MAX = 1000
+local ADMIN_PANEL_MOVE_MAX = FighterStats.MaxMoveValue
 
 local adminPanelFunction = Instance.new("RemoteFunction")
 adminPanelFunction.Name = "AdminPanel"
@@ -1544,10 +1544,10 @@ local ADMIN_PANEL_STATS = {
 		-- The rebirth speed and jump boost follows, unless speed/jump were set here directly
 		local boost = FighterStats.RebirthSpeedBoost(data.rebirths)
 		if not player:GetAttribute("AdminWalkSpeed") then
-			setHumanoid(player, "WalkSpeed", FighterStats.BaseWalkSpeed + boost)
+			setHumanoid(player, "WalkSpeed", math.min(FighterStats.BaseWalkSpeed + boost, FighterStats.MaxMoveValue))
 		end
 		if not player:GetAttribute("AdminJumpPower") then
-			setHumanoid(player, "JumpPower", FighterStats.BaseJumpPower + boost)
+			setHumanoid(player, "JumpPower", math.min(FighterStats.BaseJumpPower + boost, FighterStats.MaxMoveValue))
 		end
 	end },
 	money = { name = "Money", set = function(_, data, value)

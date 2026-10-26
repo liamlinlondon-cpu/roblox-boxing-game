@@ -127,8 +127,8 @@ local function show(info, message)
 	end
 	rebirthButton.BackgroundColor3 = canRebirth and RED or GREY
 	rebirthButton.AutoButtonColor = canRebirth
-	local boostText = info.rebirths >= info.max and ("You have +" .. info.speedBoost .. " speed and jump.")
-		or ("Next rebirth: +" .. info.nextSpeedBoost .. " speed and jump, and +1x training. Resets strength, kick, stamina, wins and beat the game (you keep your money).")
+	local boostText = info.rebirths >= info.max and ("You have +" .. Catalog.FormatNumber(info.speedBoost) .. " speed and jump (up to 1000).")
+		or ("Next rebirth: +" .. Catalog.FormatNumber(info.nextSpeedBoost) .. " speed and jump (up to 1000), and +1x training. Resets strength, kick, stamina, wins and beat the game (you keep your money).")
 	note.Text = message or boostText
 end
 
