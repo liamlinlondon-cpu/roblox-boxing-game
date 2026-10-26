@@ -372,7 +372,7 @@ local stopRequested = {} -- [player] = true: end the run now
 
 -- Puts the player on the belt and plays the run animation. Every second on the belt pays the treadmill's
 -- stamina gain (e.g. +50/s on the regular one). A run lasts RUN_SECONDS, or until STOP with auto-run on.
-local function runOnTreadmill(player, deck, tierKey)
+local function runOnTreadmill(player, deck, tierKey, isVip)
 	local character = player.Character
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 	local root = character and character:FindFirstChild("HumanoidRootPart")
@@ -405,7 +405,7 @@ local function runOnTreadmill(player, deck, tierKey)
 	treadmillEvent:FireClient(player, "start", {
 		tierName = tier.name,
 		auto = autoRun[player] == true,
-		gainPerSecond = tier.gain * FighterStats.RebirthMultiplier(getPlayerData(player)),
+		gainPerSecond = tier.gain * FighterStats.RebirthMultiplier(getPlayerData(player)) * (isVip and TRAINING.VipMultiplier or 1),
 		runSeconds = RUN_SECONDS,
 	})
 
@@ -428,7 +428,8 @@ local function runOnTreadmill(player, deck, tierKey)
 
 		seconds += 1
 		local data = getPlayerData(player)
-		local multiplier = FighterStats.RebirthMultiplier(data)
+		-- Rebirth boost, and 2x on the VIP floor's treadmills
+		local multiplier = FighterStats.RebirthMultiplier(data) * (isVip and TRAINING.VipMultiplier or 1)
 		FighterStats.TrainStamina(data, tierKey, multiplier)
 		gained += tier.gain * multiplier
 		sendPlayerStats(player)
@@ -488,7 +489,7 @@ local function hookTreadmill(prompt)
 		-- The owner can use the Owner's Treadmill on any server without buying it, and so can players
 		-- the owner gave it to with /give
 		if tier.privateServerOnly and (Admins.IsAdmin(player) or data.ownerTreadmillAnywhere) then
-			runOnTreadmill(player, prompt.Parent, tierKey)
+			runOnTreadmill(player, prompt.Parent, tierKey, prompt:GetAttribute("Vip") == true)
 			return
 		end
 
@@ -515,7 +516,7 @@ local function hookTreadmill(prompt)
 			return
 		end
 
-		runOnTreadmill(player, prompt.Parent, tierKey)
+		runOnTreadmill(player, prompt.Parent, tierKey, prompt:GetAttribute("Vip") == true)
 	end)
 end
 

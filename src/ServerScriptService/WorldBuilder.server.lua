@@ -139,10 +139,11 @@ local DARK = Color3.fromRGB(28, 28, 32)
 
 -- Full-size gym treadmill: frame, moving belt, side rails, motor housing, handrails and a tilted console.
 -- The runner faces +Z (gym local) toward the console. FlowService handles running and training.
-local function buildTreadmill(model, gymCFrame, gymIndex, tierKey, x, z)
+-- floorY: 0 for the ground floor, GYM.FloorHeight for the VIP floor (isVip: 2x stamina)
+local function buildTreadmill(model, gymCFrame, gymIndex, tierKey, x, z, floorY, isVip)
 	local tier = FighterStats.TreadmillTiers[tierKey]
 	local color = TREADMILL_COLORS[tierKey]
-	local base = gymCFrame * CFrame.new(x, 0, z)
+	local base = gymCFrame * CFrame.new(x, floorY or 0, z)
 	local function at(dx, y, dz, rotation)
 		return base * CFrame.new(dx, y, dz) * (rotation or CFrame.new())
 	end
@@ -165,9 +166,12 @@ local function buildTreadmill(model, gymCFrame, gymIndex, tierKey, x, z)
 	screen.CanCollide = false
 	addSign(screen, Enum.NormalId.Front, tier.name, color)
 
-	addPrompt(deck, "Run (+" .. string.format("%.0f", tier.gain) .. " stamina/sec)", tier.privateServerOnly and (tier.name .. " (owner, or private servers)") or tier.name, "TreadmillStation", {
+	local gain = tier.gain * (isVip and WorldConfig.Training.VipMultiplier or 1)
+	local label = (isVip and "VIP " or "") .. tier.name .. (tier.privateServerOnly and " (owner, or private servers)" or "")
+	addPrompt(deck, "Run (+" .. string.format("%.0f", gain) .. " stamina/sec)", label, "TreadmillStation", {
 		GymId = gymIndex,
 		Tier = tierKey,
+		Vip = isVip == true,
 	})
 end
 
@@ -255,7 +259,7 @@ local function buildGym(world, index)
 
 	-- Ground floor: one large treadmill per tier in the freed row
 	for i, tierKey in ipairs({ "regular", "hacker", "admin", "owner" }) do
-		buildTreadmill(model, gymCFrame, index, tierKey, -18 + (i - 1) * 12, 8)
+		buildTreadmill(model, gymCFrame, index, tierKey, -18 + (i - 1) * 12, 8, 0, false)
 	end
 
 	-- Ground floor: kicking bags in the open area by the entrance, either side of the doorway
@@ -271,6 +275,10 @@ local function buildGym(world, index)
 	end
 	for i, x in ipairs({ -14, 14 }) do
 		buildStation(model, gymCFrame, index, "VipKickStation" .. i, x, F + 1, -17, true, "kick")
+	end
+	-- VIP floor: one of each treadmill, giving 2x the stamina of the ground floor ones
+	for i, tierKey in ipairs({ "regular", "hacker", "admin", "owner" }) do
+		buildTreadmill(model, gymCFrame, index, tierKey, -18 + (i - 1) * 12, 8, F, true)
 	end
 
 	-- Bidding board on the ground floor's back wall

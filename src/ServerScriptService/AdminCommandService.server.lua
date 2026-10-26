@@ -930,7 +930,8 @@ local function gymStations(gymId, kind, vip, treadmillTier)
 	local stations = {}
 	if kind == "treadmill" then
 		for _, prompt in ipairs(CollectionService:GetTagged("TreadmillStation")) do
-			if prompt:GetAttribute("GymId") == gymId and (not treadmillTier or prompt:GetAttribute("Tier") == treadmillTier) then
+			if prompt:GetAttribute("GymId") == gymId and (not treadmillTier or prompt:GetAttribute("Tier") == treadmillTier)
+				and (prompt:GetAttribute("Vip") == true) == vip then
 				table.insert(stations, prompt.Parent)
 			end
 		end
@@ -995,7 +996,7 @@ local function trainClone(owner, clone, kind, station, slot, gain)
 		while stillTraining() do
 			task.wait(1)
 			if stillTraining() then
-				data.maxStamina += tier.gain
+				data.maxStamina += tier.gain * gain -- gain is 2 on the VIP floor
 				data.stamina = data.maxStamina
 			end
 		end
@@ -1112,10 +1113,6 @@ local function clonesTrain(owner, list, what, vip, treadmillTier)
 	end
 	local gymId
 	if vip then
-		if what == "stamina" then
-			notify(owner, "There are no treadmills on the VIP floor. Use /clones train stamina without vip floor.")
-			return
-		end
 		-- The owner uses any VIP floor for free; anyone else needs this session's VIP access
 		gymId = Admins.IsOwner(owner) and nearestGymId(ownerRoot.Position) or nearestVipGymId(owner, ownerRoot.Position)
 		if not gymId then
