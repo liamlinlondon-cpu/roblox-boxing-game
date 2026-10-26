@@ -76,7 +76,12 @@ Catalog.Treadmills = {
 -- `money` / `robux`: the skin's price in the Color Shop.
 -- `strengthPerSecond`: strength gained every second while the skin is worn.
 -- `rainbow`: the sky cycles through all colors and the skin colors each body part differently.
+-- Green, cyan and pink are the best colors (better than rainbow) and banned from natural events: they
+-- only come when the owner spawns them (VIP ADMIN panel).
 Catalog.SkyColors = {
+	{ id = "green", name = "Green", color = Color3.fromRGB(40, 200, 70), bonus = 0.75, strengthPerSecond = 500, money = 5000000, robux = 500, ownerOnly = true },
+	{ id = "cyan", name = "Cyan", color = Color3.fromRGB(40, 220, 230), bonus = 0.5, strengthPerSecond = 200, money = 1000000, robux = 400, ownerOnly = true },
+	{ id = "pink", name = "Pink", color = Color3.fromRGB(255, 100, 200), bonus = 0.4, strengthPerSecond = 100, money = 500000, robux = 300, ownerOnly = true },
 	{
 		id = "rainbow",
 		name = "Rainbow",
@@ -93,9 +98,6 @@ Catalog.SkyColors = {
 	{ id = "red", name = "Red", color = Color3.fromRGB(255, 40, 40), bonus = 0.15, money = 10000, robux = 50 },
 	{ id = "purple", name = "Purple", color = Color3.fromRGB(150, 60, 220), bonus = 0.1, money = 1000, robux = 40 },
 	{ id = "magenta", name = "Magenta", color = Color3.fromRGB(255, 0, 255), bonus = 0.05, money = 500, robux = 25 },
-	{ id = "green", name = "Green", color = Color3.fromRGB(40, 200, 70), bonus = 0.03, money = 100, robux = 10 },
-	{ id = "pink", name = "Pink", color = Color3.fromRGB(255, 100, 200), bonus = 0.03, money = 100, robux = 10 },
-	{ id = "cyan", name = "Cyan", color = Color3.fromRGB(40, 220, 230), bonus = 0.03, money = 100, robux = 10 },
 }
 -- Rainbow skin body colors: head, torso, left arm, right arm, left leg, right leg
 Catalog.RainbowColors = {

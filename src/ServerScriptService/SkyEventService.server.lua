@@ -1,5 +1,6 @@
 -- Sky color events: every few minutes the sky turns a color for a while, following
--- WorldConfig.SkyEvents.Schedule (yellow and orange are command-only).
+-- WorldConfig.SkyEvents.Schedule (yellow and orange are command-only; green, cyan and pink are banned
+-- and only come when the owner spawns them from the VIP ADMIN panel).
 -- The current event is published as ReplicatedStorage attributes that replicate to every client:
 --   SkyEventColor  = color id ("red", "blue", ...) or nil when no event is running
 --   SkyEventEndsAt = Workspace:GetServerTimeNow() when the event ends
@@ -88,9 +89,16 @@ end
 -- don't move the schedule, so it carries on from where it was afterwards.
 local scheduleIndex = 0
 
+-- Owner-only colors (green, cyan, pink) are banned from natural events and skipped if ever listed.
 local function nextScheduledColor()
-	scheduleIndex = scheduleIndex % #EVENTS.Schedule + 1
-	return Catalog.SkyColorById[EVENTS.Schedule[scheduleIndex]]
+	for _ = 1, #EVENTS.Schedule do
+		scheduleIndex = scheduleIndex % #EVENTS.Schedule + 1
+		local sky = Catalog.SkyColorById[EVENTS.Schedule[scheduleIndex]]
+		if sky and not sky.ownerOnly then
+			return sky
+		end
+	end
+	return Catalog.SkyColorById.blue
 end
 
 -- Each start bumps `scheduleToken`, which cancels the previous event's pending end/next-start timers.
