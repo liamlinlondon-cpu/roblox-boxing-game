@@ -171,6 +171,20 @@ function Catalog.LuckPrice(purchases)
 	return Catalog.LuckBasePrice + Catalog.LuckPriceStep * math.max(0, purchases - Catalog.LuckFreePurchases + 1)
 end
 
+-- 123456789 -> "123,456,789" (very big numbers fall back to FormatNumber's short form)
+function Catalog.FormatWithCommas(value)
+	if value == math.huge or value >= 1e15 then
+		return Catalog.FormatNumber(value)
+	end
+	local digits = string.format("%.0f", value)
+	local formatted = digits
+	repeat
+		local count
+		formatted, count = string.gsub(formatted, "^(-?%d+)(%d%d%d)", "%1,%2")
+	until count == 0
+	return formatted
+end
+
 function Catalog.FormatNumber(value)
 	if value == math.huge then
 		return "Infinite"
