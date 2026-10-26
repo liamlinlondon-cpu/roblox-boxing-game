@@ -125,3 +125,25 @@ for _, player in ipairs(Players:GetPlayers()) do
 	watch(player)
 end
 script.Parent:WaitForChild("PlayerDataService"):WaitForChild("DataLoaded").Event:Connect(applySpeedBoost)
+
+-- ==================== 2 MILLION REWARD ====================
+-- The first time a player has 2 million strength, kick and stamina at once, they get 1,000 money
+-- (games can't give out real Robux). Once per player; /reset lets them earn it again.
+local MILESTONE = 2000000
+local MILESTONE_REWARD = 1000
+local announcementEvent = eventsFolder:WaitForChild("Announcement")
+
+task.spawn(function()
+	while true do
+		task.wait(2)
+		for _, player in ipairs(Players:GetPlayers()) do
+			local data = FighterStats.GetPlayerData(player)
+			if not data.milestoneRewarded and data.strength >= MILESTONE and data.kick >= MILESTONE and data.maxStamina >= MILESTONE then
+				data.milestoneRewarded = true
+				data.money += MILESTONE_REWARD
+				sendStats(player)
+				announcementEvent:FireClient(player, "🎉 2 million strength, kick and stamina! +1,000 money")
+			end
+		end
+	end
+end)

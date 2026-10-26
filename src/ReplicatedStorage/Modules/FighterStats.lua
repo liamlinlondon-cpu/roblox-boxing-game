@@ -41,6 +41,7 @@ function FighterStats.CreatePlayerData()
 		carpetPass = false, -- may ride the Magic Carpet outside the map, over the parkour
 		gameBeats = 0, -- times the player pressed the red button and beat the game
 		rebirths = 0, -- 0 to FighterStats.MaxRebirths
+		milestoneRewarded = false, -- got the 2 million strength/kick/stamina reward (RebirthService)
 		soldTools = {}, -- [toolName] = true: backpack tools sold at the Sell Shop, removed if they come back
 		ownedSkins = {}, -- [colorId] = true, bought in the Color Shop during sky events
 		ownerTreadmillAnywhere = false, -- given with the owner's /give: may use the Owner's Treadmill in public servers
