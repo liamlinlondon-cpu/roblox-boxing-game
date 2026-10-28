@@ -150,9 +150,14 @@ end
 local WIN_REWARD = 10
 local LOSS_PENALTY = 20
 
+-- Money for a win: the base reward, times the bought win multiplier, times 2 for every rebirth
+local function winReward(data)
+    return WIN_REWARD * data.winMultiplier * FighterStats.MoneyMultiplier(data)
+end
+
 local function awardWin(player)
     local data = getPlayerData(player)
-    data.money = data.money + WIN_REWARD * data.winMultiplier
+    data.money = data.money + winReward(data)
     data.arenaWins += 1
 end
 
@@ -169,7 +174,7 @@ local function endBotFight(player, won, message)
         awardWin(player)
         matchResultEvent:FireClient(player, {
             type = "win",
-            moneyAward = WIN_REWARD * data.winMultiplier,
+            moneyAward = winReward(data),
             remainingHealth = data.health,
         })
     else
@@ -358,7 +363,7 @@ local function endPvpMatch(winner, loser)
 
     matchResultEvent:FireClient(winner, {
         type = "win",
-        moneyAward = WIN_REWARD * winnerData.winMultiplier,
+        moneyAward = winReward(winnerData),
         remainingHealth = winnerData.health,
     })
     matchResultEvent:FireClient(loser, {

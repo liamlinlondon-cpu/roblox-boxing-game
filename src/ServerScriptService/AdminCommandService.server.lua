@@ -349,7 +349,7 @@ local GIFTS = {
 for _, sky in ipairs(Catalog.SkyColors) do
 	GIFTS[sky.id .. "skin"] = {
 		name = sky.name .. " Skin",
-		note = " They can wear it from the Color Shop.",
+		note = " They can equip it from the Color Shop.",
 		give = function(data)
 			data.ownedSkins[sky.id] = true
 		end,
@@ -461,6 +461,13 @@ local function luck(admin, args)
 	amount = math.floor(amount)
 	local amountText = Catalog.FormatNumber(amount)
 
+	-- Luck set by an admin never runs out (unlike luck bought in the Color Shop)
+	local function setLuck(data)
+		data.luck = amount
+		data.permanentLuck = amount
+		data.luckExpiresAt = nil
+	end
+
 	-- With a name: just that player. Without: everyone in the server.
 	if args[2] then
 		local target = findPlayerInServer(args[2])
@@ -468,7 +475,7 @@ local function luck(admin, args)
 			notify(admin, "Couldn't find \"" .. args[2] .. "\" in this server.")
 			return
 		end
-		FighterStats.GetPlayerData(target).luck = amount
+		setLuck(FighterStats.GetPlayerData(target))
 		sendStats(target)
 		notify(admin, target.DisplayName .. "'s luck is now " .. amountText .. ".")
 		tellTarget(admin, target, "Your luck is now " .. amountText .. "!")
@@ -476,7 +483,7 @@ local function luck(admin, args)
 	end
 
 	for _, player in ipairs(Players:GetPlayers()) do
-		FighterStats.GetPlayerData(player).luck = amount
+		setLuck(FighterStats.GetPlayerData(player))
 		sendStats(player)
 	end
 	notify(admin, "Everyone in the server now has " .. amountText .. " luck.")
@@ -1658,6 +1665,8 @@ local ADMIN_PANEL_STATS = {
 	end },
 	luck = { name = "Luck", set = function(_, data, value)
 		data.luck = math.max(1, math.floor(value))
+		data.permanentLuck = data.luck -- set by an admin panel: never runs out
+		data.luckExpiresAt = nil
 	end },
 	wins = { name = "Wins", set = function(_, data, value)
 		data.arenaWins = math.floor(value)

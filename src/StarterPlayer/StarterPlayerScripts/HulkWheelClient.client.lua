@@ -1,7 +1,7 @@
 -- The Hulk Wheel and the "message the owner" chat (HulkWheelService), with two buttons at the bottom left:
 --   🎡 HULK WHEEL   shows once the player turned Hulk: a color wheel with spins left. Magenta (huge),
---                   purple, red and blue win nothing; orange, yellow, pink, cyan and the tiny green sliver
---                   give that skin; rainbow starts a Rainbow sky event. The server picks the result and
+--                   purple, red and blue win nothing; orange, yellow, pink, cyan and the tiny green, fiery
+--                   and disco slivers give that skin; rainbow starts a Rainbow sky event. The server picks the result and
 --                   the wheel turns to it.
 --   📨 MESSAGE THE OWNER  a chat with the owner (everyone but the owner), e.g. to ask for a wheel reset.
 --                   The owner answers from any server; a red dot shows when there's an answer.
@@ -139,17 +139,21 @@ disc.Size = UDim2.fromScale(1, 1)
 disc.BackgroundTransparency = 1
 disc.Parent = wheelArea
 
-local sliceAngles = {} -- [index] = { from, to } in degrees, clockwise from the top
-do
+-- Draws the wheel with the slices this luck leaves on it (luck takes the common ones off)
+local sliceAngles = {} -- [index in WHEEL.Slices] = { from, to } in degrees, clockwise from the top
+local function drawDisc(available)
+	disc:ClearAllChildren()
+	table.clear(sliceAngles)
 	local total = 0
-	for _, slice in ipairs(WHEEL.Slices) do
-		total += slice.chance
+	for _, entry in ipairs(available) do
+		total += entry.slice.chance
 	end
 	local angle = 0
 	local radius = WHEEL_SIZE / 2
-	for index, slice in ipairs(WHEEL.Slices) do
+	for _, entry in ipairs(available) do
+		local slice = entry.slice
 		local width = slice.chance / total * 360
-		sliceAngles[index] = { from = angle, to = angle + width }
+		sliceAngles[entry.index] = { from = angle, to = angle + width }
 		local sky = Catalog.SkyColorById[slice.color]
 		local spokes = math.max(1, math.ceil(width))
 		local step = width / spokes
@@ -214,22 +218,37 @@ local legendList = Instance.new("UIListLayout")
 legendList.Padding = UDim.new(0, 2)
 legendList.SortOrder = Enum.SortOrder.LayoutOrder
 legendList.Parent = legend
-do
-	local total = 0
-	for _, slice in ipairs(WHEEL.Slices) do
-		total += slice.chance
+local function drawLegend(available, luck)
+	for _, child in ipairs(legend:GetChildren()) do
+		if child:IsA("GuiObject") then
+			child:Destroy()
+		end
 	end
-	for index = #WHEEL.Slices, 1, -1 do -- rarest first
-		local slice = WHEEL.Slices[index]
+	local total = 0
+	for _, entry in ipairs(available) do
+		total += entry.slice.chance
+	end
+	local removed = #WHEEL.Slices - #available
+	if removed > 0 then
+		local note = text(legend, {
+			text = string.format("🍀 Luck %s: %d common slice%s gone!", tostring(luck), removed, removed == 1 and "" or "s"),
+			size = UDim2.new(1, 0, 0, 18),
+			color = Color3.fromRGB(120, 255, 120),
+			alignX = Enum.TextXAlignment.Left,
+		})
+		note.LayoutOrder = -1
+	end
+	for position = #available, 1, -1 do -- rarest first
+		local slice = available[position].slice
 		local sky = Catalog.SkyColorById[slice.color]
 		local row = Instance.new("Frame")
-		row.Size = UDim2.new(1, 0, 0, 22)
+		row.Size = UDim2.new(1, 0, 0, 18) -- 12 slices fit above the SPIN button
 		row.BackgroundTransparency = 1
-		row.LayoutOrder = #WHEEL.Slices - index
+		row.LayoutOrder = #available - position
 		row.Parent = legend
 		local swatch = Instance.new("Frame")
-		swatch.Size = UDim2.new(0, 16, 0, 16)
-		swatch.Position = UDim2.new(0, 0, 0, 3)
+		swatch.Size = UDim2.new(0, 14, 0, 14)
+		swatch.Position = UDim2.new(0, 0, 0, 2)
 		swatch.BackgroundColor3 = sky.color
 		swatch.Parent = row
 		corner(swatch, UDim.new(0, 4))
@@ -247,6 +266,20 @@ do
 	end
 end
 
+-- Redraws the wheel and the list when the player's luck changes
+local drawnLuck = nil
+local function drawWheel(luck)
+	luck = luck or 1
+	if luck == drawnLuck then
+		return
+	end
+	drawnLuck = luck
+	local available = WorldConfig.HulkWheelSlices(luck)
+	drawDisc(available)
+	drawLegend(available, luck)
+end
+drawWheel(1)
+
 local spinButton = text(wheelWindow, { button = true, text = "SPIN", size = UDim2.new(0, 270, 0, 48), position = UDim2.new(0, 350, 0, 312), background = HULK_GREEN, font = Enum.Font.GothamBlack })
 spinButton.TextStrokeTransparency = 0.4
 corner(spinButton)
@@ -257,6 +290,9 @@ local isSpinning = false
 local openChat -- the chat window, further down
 
 local function refreshWheel()
+	if not isSpinning then
+		drawWheel(wheelInfo.luck)
+	end
 	wheelButton.Visible = wheelInfo.unlocked
 	wheelButton.Text = wheelInfo.spins > 0 and string.format("🎡 HULK WHEEL (%d)", wheelInfo.spins) or "🎡 HULK WHEEL"
 	if not isSpinning then
@@ -293,7 +329,8 @@ spinButton.Activated:Connect(function()
 		return
 	end
 	-- Turn the wheel so the winning slice stops under the pointer (somewhere inside it, not on the edge)
-	local slice = sliceAngles[outcome.slice]
+	drawWheel(outcome.luck) -- in case luck changed since the wheel was drawn
+	local slice = sliceAngles[outcome.slice] or { from = 0, to = 1 }
 	local inside = slice.from + (slice.to - slice.from) * (0.2 + math.random() * 0.6)
 	local current = disc.Rotation % 360
 	disc.Rotation = current
@@ -310,6 +347,14 @@ end)
 
 wheelButton.Activated:Connect(function()
 	wheelWindow.Visible = not wheelWindow.Visible
+	if wheelWindow.Visible and not isSpinning then
+		-- Luck may have changed since (the wheel loses its common slices)
+		local ok, info = pcall(wheelFunction.InvokeServer, wheelFunction, "state")
+		if ok and type(info) == "table" then
+			wheelInfo = info
+			refreshWheel()
+		end
+	end
 end)
 
 -- ==================== CHAT WITH THE OWNER ====================

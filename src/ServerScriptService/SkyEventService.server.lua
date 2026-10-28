@@ -160,6 +160,34 @@ local adminSkyEvent = Instance.new("RemoteFunction")
 adminSkyEvent.Name = "AdminSkyEvent"
 adminSkyEvent.Parent = ReplicatedStorage:WaitForChild("Events")
 
+-- /non, /none and /noncolor: back to normal
+local function isClearAlias(alias)
+	return alias == EVENTS.ClearCommand or alias == EVENTS.ClearCommandAlias or alias == "none"
+end
+
+-- Back to normal, everything stops: the sky event, the disco party (DiscoService's "DiscoParty"
+-- attribute) and a nuke (NukeService's StopNuke: calls off the countdown or clears the fire)
+local function backToNormal(player)
+	local changed = false
+	local nukeService = script.Parent:FindFirstChild("NukeService")
+	local stopNuke = nukeService and nukeService:FindFirstChild("StopNuke")
+	if stopNuke and stopNuke:Invoke() then
+		changed = true
+	end
+	if ReplicatedStorage:GetAttribute("SkyEventColor") then
+		clearEvent()
+		changed = true
+	end
+	if ReplicatedStorage:GetAttribute("DiscoParty") then
+		ReplicatedStorage:SetAttribute("DiscoStartedAt", nil)
+		ReplicatedStorage:SetAttribute("DiscoParty", false)
+		changed = true
+	end
+	if changed then
+		announcementEvent:FireAllClients("👑 " .. player.DisplayName .. " turned the sky back to normal.")
+	end
+end
+
 adminSkyEvent.OnServerInvoke = function(player, colorId)
 	if not Admins.HasVipPanel(player) then
 		return nil
@@ -168,11 +196,8 @@ adminSkyEvent.OnServerInvoke = function(player, colorId)
 		return true
 	end
 	if colorId == "clear" then
-		if ReplicatedStorage:GetAttribute("SkyEventColor") then
-			clearEvent()
-			announcementEvent:FireAllClients("👑 " .. player.DisplayName .. " turned the sky back to normal.")
-		end
-		return "The sky is back to normal."
+		backToNormal(player)
+		return "Everything stopped: the sky is back to normal, no disco, no nuke."
 	end
 	local sky = type(colorId) == "string" and Catalog.SkyColorById[colorId]
 	if not sky or sky.notSky then
@@ -199,11 +224,8 @@ local function runCommand(player, alias)
 	if not Admins.IsAdmin(player) then
 		return
 	end
-	if alias == EVENTS.ClearCommand or alias == EVENTS.ClearCommandAlias then
-		if ReplicatedStorage:GetAttribute("SkyEventColor") then
-			clearEvent()
-			announcementEvent:FireAllClients("👑 " .. player.DisplayName .. " turned the sky back to normal.")
-		end
+	if isClearAlias(alias) then
+		backToNormal(player)
 		return
 	end
 	local sky = Catalog.SkyColorById[EVENTS.Commands[alias] or ""]
@@ -216,7 +238,7 @@ end
 -- Commands run from the VIP ADMIN panel's COMMANDS tab (AdminCommandService passes them on)
 task.spawn(function()
 	game:GetService("ServerStorage"):WaitForChild("OtherChatCommand").Event:Connect(function(player, alias)
-		if EVENTS.Commands[alias] or alias == EVENTS.ClearCommand or alias == EVENTS.ClearCommandAlias then
+		if EVENTS.Commands[alias] or isClearAlias(alias) then
 			runCommand(player, alias)
 		end
 	end)
@@ -246,6 +268,7 @@ if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
 		addCommand(alias)
 	end
 	addCommand(EVENTS.ClearCommand, EVENTS.ClearCommandAlias)
+	addCommand("none")
 else
 	-- Places still on the legacy chat: use the first word ("/non color" -> "non")
 	local function listen(player)

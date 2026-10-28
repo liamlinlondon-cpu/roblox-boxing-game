@@ -66,14 +66,145 @@ layout.Parent = list
 
 local currentStore = "normal"
 
-local function addRow(text, buttons)
+-- ==================== PICTURES ====================
+-- Every row has a little picture on the left: an emoji for the kind of item (🍀 luck, 💰 money, 💪
+-- strength...) or a color swatch for skins.
+local KIND_PICTURES = {
+	money = "💰",
+	strength = "💪",
+	kick = "🦵",
+	carpet = "🧞",
+	carpetpass = "🎫",
+	treadmill = "🏃",
+	wins10 = "🏆",
+	maxluck = "🍀",
+}
+-- Money packs get bigger and bigger containers full of money, and a bigger picture every step
+local MONEY_PICTURES = {
+	money_1k = { emoji = "💵", grow = 0 }, -- one piece of money
+	money_100k = { emoji = "💰", grow = 1 }, -- a bag of money
+	money_1m = { emoji = "🗑️", extra = "💵", grow = 2 }, -- a trash can full of money
+	money_10m = { emoji = "🚗", extra = "💵", grow = 3 }, -- a car full of money
+	money_1b = { emoji = "🚚", extra = "💰", grow = 4 }, -- a truck full of money
+	money_1t = { emoji = "🚛", extra = "💰", grow = 5 }, -- a dump truck full of money
+	money_1qa = { emoji = "✈️", extra = "💰", grow = 6 }, -- a plane full of money
+	money_1sx = { emoji = "🐳", extra = "💰", grow = 7 }, -- the Beluga plane full of money
+	money_1sp = { emoji = "🛫", extra = "💰", grow = 8 }, -- the biggest plane in the world
+	money_1no = { emoji = "🛫", extra = "💰", grow = 9 }, -- the biggest plane, even bigger
+	money_inf = { emoji = "🌍", extra = "💰", grow = 10 }, -- a whole planet full of money
+}
+local PICTURE_SIZE = 34 -- the smallest picture; money pictures grow by PICTURE_GROW each step
+local PICTURE_GROW = 4
+
+local RAINBOW_SWATCH = ColorSequence.new({
+	ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 50, 50)),
+	ColorSequenceKeypoint.new(0.25, Color3.fromRGB(255, 230, 40)),
+	ColorSequenceKeypoint.new(0.5, Color3.fromRGB(50, 210, 80)),
+	ColorSequenceKeypoint.new(0.75, Color3.fromRGB(50, 120, 255)),
+	ColorSequenceKeypoint.new(1, Color3.fromRGB(200, 70, 230)),
+})
+
+-- What picture an item gets: an emoji, { sky = ... } for a skin's color, or { emoji, extra, grow }
+local function pictureFor(itemId, action)
+	if MONEY_PICTURES[itemId] then
+		return MONEY_PICTURES[itemId]
+	elseif itemId == "luck" then
+		return "🍀"
+	elseif itemId == "none" then
+		return "🙂"
+	elseif action == "wear" then
+		return { sky = Catalog.SkyColorById[itemId] }
+	elseif action == "sellTool" then
+		return "🎒"
+	end
+	local item = Catalog.ById[itemId]
+	if item and item.kind == "skin" then
+		return { sky = Catalog.SkyColorById[item.colorId] }
+	end
+	return item and KIND_PICTURES[item.kind] or nil
+end
+
+local function pictureSize(picture)
+	return PICTURE_SIZE + (type(picture) == "table" and (picture.grow or 0) or 0) * PICTURE_GROW
+end
+
+local function drawPicture(row, picture)
+	local size = pictureSize(picture)
+	local box = Instance.new("Frame")
+	box.Size = UDim2.new(0, size, 0, size)
+	box.Position = UDim2.new(0, 3, 0, 3)
+	box.BackgroundColor3 = Color3.fromRGB(62, 62, 72)
+	box.Parent = row
+	local round = Instance.new("UICorner")
+	round.CornerRadius = UDim.new(0, 8)
+	round.Parent = box
+	local emoji = type(picture) == "string" and picture or (type(picture) == "table" and picture.emoji) or nil
+	local sky = type(picture) == "table" and picture.sky or nil
+	if sky then
+		box.BackgroundColor3 = sky.color
+		if sky.rainbow or sky.disco then
+			box.BackgroundColor3 = Color3.new(1, 1, 1)
+			local gradient = Instance.new("UIGradient")
+			gradient.Color = RAINBOW_SWATCH
+			gradient.Rotation = 45
+			gradient.Parent = box
+		end
+		emoji = sky.disco and "🪩" or sky.aura and "🔥" or nil
+		local ring = Instance.new("UIStroke")
+		ring.Color = Color3.new(1, 1, 1)
+		ring.Thickness = 1.5
+		ring.Parent = box
+	end
+	if emoji then
+		local icon = Instance.new("TextLabel")
+		icon.Size = UDim2.fromScale(1, 1)
+		icon.BackgroundTransparency = 1
+		icon.Text = emoji
+		icon.TextScaled = true
+		icon.Font = Enum.Font.GothamBold
+		icon.Parent = box
+	end
+	-- "Full of money": the money peeking out in the corner
+	if type(picture) == "table" and picture.extra then
+		local extra = Instance.new("TextLabel")
+		extra.AnchorPoint = Vector2.new(1, 1)
+		extra.Size = UDim2.fromScale(0.5, 0.5)
+		extra.Position = UDim2.fromScale(1.05, 1.05)
+		extra.BackgroundTransparency = 1
+		extra.Text = picture.extra
+		extra.TextScaled = true
+		extra.Font = Enum.Font.GothamBold
+		extra.ZIndex = 2
+		extra.Parent = box
+	end
+end
+
+-- picture (optional): an emoji or { sky = ... }; without one it comes from the row's buttons
+local function addRow(text, buttons, picture)
+	if not picture then
+		for _, info in ipairs(buttons) do
+			picture = pictureFor(info.itemId, info.action)
+			if picture then
+				break
+			end
+		end
+	end
+	-- Rows with a big picture (the biggest money) are taller
+	local size = picture and pictureSize(picture) or PICTURE_SIZE
+	local height = math.max(40, size + 6)
+
 	local row = Instance.new("Frame")
-	row.Size = UDim2.new(1, -8, 0, 40)
+	row.Size = UDim2.new(1, -8, 0, height)
 	row.BackgroundColor3 = Color3.fromRGB(43, 43, 43)
 	row.Parent = list
 
+	if picture then
+		drawPicture(row, picture)
+	end
+
 	local label = Instance.new("TextLabel")
-	label.Size = UDim2.new(0.5, 0, 1, 0)
+	label.Size = UDim2.new(0.5, -(size + 8), 1, 0)
+	label.Position = UDim2.new(0, size + 8, 0, 0)
 	label.BackgroundTransparency = 1
 	label.TextColor3 = Color3.fromRGB(255, 255, 255)
 	label.Font = Enum.Font.GothamBold
@@ -85,7 +216,7 @@ local function addRow(text, buttons)
 	for i, info in ipairs(buttons) do
 		local btn = Instance.new("TextButton")
 		btn.Size = UDim2.new(0.24, 0, 0, 30)
-		btn.Position = UDim2.new(0.5 + (i - 1) * 0.25, 2, 0, 5)
+		btn.Position = UDim2.new(0.5 + (i - 1) * 0.25, 2, 0, (height - 30) / 2)
 		btn.BackgroundColor3 = info.color
 		btn.TextColor3 = Color3.fromRGB(255, 255, 255)
 		btn.Font = Enum.Font.GothamBold
@@ -144,7 +275,7 @@ local function renderColorShop(state)
 		local sky = sale.sky
 		local item = Catalog.ById["skin_" .. sky.id]
 		if state.ownedSkins and state.ownedSkins[sky.id] then
-			addRow(item.name .. " (owned) · " .. Catalog.SkinPerkText(sky), {})
+			addRow(item.name .. " (owned) · " .. Catalog.SkinPerkText(sky), {}, { sky = sky })
 		else
 			addRow(sale.why .. item.name .. " · " .. Catalog.SkinPerkText(sky), {
 				{ text = Catalog.FormatNumber(item.money) .. " money", itemId = item.id, method = "money", color = MONEY_COLOR },
@@ -153,7 +284,21 @@ local function renderColorShop(state)
 		end
 	end
 	if #onSale == 0 then
-		addRow("No sky event right now. Come back when the sky changes color!", {})
+		addRow("No sky event right now. Come back when the sky changes color!", {}, "☁️")
+	end
+
+	-- Luck: works straight away for 10 minutes (each purchase starts the time again), and takes the
+	-- common slices off the Hulk Wheel
+	if state.luckSecondsLeft and state.luckSecondsLeft > 0 then
+		addRow(string.format("Luck %s runs out in %d:%02d", tostring(state.luck), state.luckSecondsLeft // 60, state.luckSecondsLeft % 60), {}, "⏳")
+	end
+	if state.nextLuck then
+		addRow("Luck " .. state.luck .. " > " .. state.nextLuck .. " for " .. math.floor(Catalog.LuckSeconds / 60) .. " min (better Hulk Wheel)", {
+			{ text = Catalog.FormatNumber(state.luckMoneyPrice or Catalog.LuckMoneyPriceFor(state.luck)) .. " money", itemId = "luck", method = "money", color = MONEY_COLOR },
+			robuxButton(nil, "luck", state.luckPrice),
+		})
+	else
+		addRow("Luck is maxed (" .. state.luck .. ")", {}, "🍀")
 	end
 
 	for _, sky in ipairs(Catalog.SkyColors) do
@@ -161,14 +306,14 @@ local function renderColorShop(state)
 			local wearing = state.skin == sky.id
 			local buttons = {}
 			if not wearing then
-				table.insert(buttons, { text = "WEAR", itemId = sky.id, action = "wear", color = WEAR_COLOR })
+				table.insert(buttons, { text = "EQUIP", itemId = sky.id, action = "wear", color = WEAR_COLOR })
 			end
 			table.insert(buttons, sellButton(Catalog.ById["skin_" .. sky.id]))
-			addRow(sky.name .. " Skin · " .. Catalog.SkinPerkText(sky) .. (wearing and " (wearing)" or ""), buttons)
+			addRow(sky.name .. " Skin · " .. Catalog.SkinPerkText(sky) .. (wearing and " (equipped)" or ""), buttons)
 		end
 	end
 	if state.skin then
-		addRow("Normal look", { { text = "WEAR", itemId = "none", action = "wear", color = WEAR_COLOR } })
+		addRow("Normal look", { { text = "EQUIP", itemId = "none", action = "wear", color = WEAR_COLOR } })
 	end
 end
 
@@ -195,10 +340,10 @@ local function renderSellShop(state)
 			local wearing = state.skin == sky.id
 			local buttons = {}
 			if not wearing then
-				table.insert(buttons, { text = "WEAR", itemId = sky.id, action = "wear", color = WEAR_COLOR })
+				table.insert(buttons, { text = "EQUIP", itemId = sky.id, action = "wear", color = WEAR_COLOR })
 			end
 			table.insert(buttons, sellButton(item))
-			addRow(item.name .. (wearing and " (wearing)" or ""), buttons)
+			addRow(item.name .. (wearing and " (equipped)" or ""), buttons)
 		end
 	end
 	-- Anything else in the backpack (or held)
@@ -248,10 +393,10 @@ local function render(state)
 		title.Text = "VIP SHOP"
 		if not state.vipUnlocked then
 			addRow(string.format(
-				"🔒 World Champions only: reach %s strength (you have %s)",
+				"World Champions only: reach %s strength (you have %s)",
 				Catalog.FormatNumber(state.vipRequiredStrength),
 				Catalog.FormatNumber(state.strength)
-			), {})
+			), {}, "🔒")
 			return
 		end
 		for _, item in ipairs(Catalog.Vip) do
@@ -280,11 +425,6 @@ local function render(state)
 			end
 		end
 		addRow(text, buttons)
-	end
-	if state.nextLuck then
-		addRow("Luck " .. state.luck .. " > " .. state.nextLuck, { robuxButton(nil, "luck", state.luckPrice) })
-	else
-		addRow("Luck is maxed (" .. state.luck .. ")", {})
 	end
 	for _, item in ipairs(Catalog.Treadmills) do
 		if state.treadmills and state.treadmills[item.tier] then

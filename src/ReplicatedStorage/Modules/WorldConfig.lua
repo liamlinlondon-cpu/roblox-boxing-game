@@ -110,7 +110,7 @@ WorldConfig.HulkWheel = {
 	Strength = 500000,
 	Spins = 5,
 	Slices = {
-		{ color = "magenta", chance = 50, wasted = true },
+		{ color = "magenta", chance = 49.7, wasted = true },
 		{ color = "purple", chance = 20, wasted = true },
 		{ color = "red", chance = 12, wasted = true },
 		{ color = "blue", chance = 7, wasted = true },
@@ -120,8 +120,32 @@ WorldConfig.HulkWheel = {
 		{ color = "pink", chance = 1 },
 		{ color = "cyan", chance = 0.7 },
 		{ color = "green", chance = 0.3 },
+		{ color = "fiery", chance = 0.2 }, -- the nuke's skin: even tinier than green
+		{ color = "disco", chance = 0.1 }, -- the tiniest sliver of all
 	},
 }
+
+-- Luck takes the most common slices off the wheel: 2x luck removes magenta, 4x purple too, 8x red too,
+-- and so on; at 200x only cyan, green, fiery and disco are left. (Luck goes 1, 2, 4, 8, 16, 32, 64, 99,
+-- then 200 from the VIP shop.)
+WorldConfig.HulkWheel.LuckSteps = { 2, 4, 8, 16, 32, 64, 99, 200 }
+
+-- The slices a player with this much luck can land on, as { index = (in Slices), slice = ... }, in order
+function WorldConfig.HulkWheelSlices(luck)
+	local removed = 0
+	for _, step in ipairs(WorldConfig.HulkWheel.LuckSteps) do
+		if (luck or 1) >= step then
+			removed += 1
+		end
+	end
+	local list = {}
+	for index, slice in ipairs(WorldConfig.HulkWheel.Slices) do
+		if index > removed then
+			table.insert(list, { index = index, slice = slice })
+		end
+	end
+	return list
+end
 
 -- The only account that can use the chat commands (sky events, /ban, /unban): Liantw1.
 -- Everyone else, including test players in Studio, gets nothing when they type them.

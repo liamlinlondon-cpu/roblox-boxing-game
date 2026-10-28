@@ -817,10 +817,10 @@ local function buildWorld()
 	return world
 end
 
--- Clears out leftovers saved in the place file from the template it started from (rocks, houses, the
--- old spawn point, terrain, old Toolbox models): everything in Workspace that this game's scripts
--- didn't build goes when a server starts. To keep something placed by hand in Studio, give it a
--- "KeepInGame" attribute (set to true).
+-- Clears out scenery left in the place file from the template it started from (rocks, houses, the old
+-- spawn point, terrain) when a server starts. Only plain scenery goes: anything with scripts inside
+-- (like HD Admin) is kept, and so is anything this game's scripts built. To keep scenery placed by hand
+-- in Studio, give it a "KeepInGame" attribute (set to true).
 local BUILT_BY_SCRIPTS = {
 	[WORLD_NAME] = true, -- this script
 	BoxingArena = true, -- ArenaBuilder
@@ -831,6 +831,9 @@ local BUILT_BY_SCRIPTS = {
 local function clearLeftovers()
 	for _, child in ipairs(Workspace:GetChildren()) do
 		local keep = BUILT_BY_SCRIPTS[child.Name]
+			or child:IsA("LuaSourceContainer") -- scripts, and models with scripts (HD Admin, ...)
+			or child:FindFirstChildWhichIsA("LuaSourceContainer", true) ~= nil
+			or string.find(string.lower(child.Name), "admin") ~= nil
 			or child:IsA("Camera")
 			or child:IsA("Terrain")
 			or Players:GetPlayerFromCharacter(child) ~= nil

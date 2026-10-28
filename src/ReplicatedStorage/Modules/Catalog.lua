@@ -6,14 +6,17 @@
 
 local Catalog = {}
 
-Catalog.MaxLuck = 99 -- highest luck from the normal shop's luck upgrades
+Catalog.MaxLuck = 99 -- highest luck from the Color Shop's luck upgrades
 Catalog.VipMaxLuck = 200 -- the VIP shop's "2x Max Luck"
 Catalog.WinsMultiplierStep = 10 -- each "10x Wins" purchase multiplies win rewards by this again
 Catalog.LuckSteps = 6 -- luck doubles 1 > 2 > 4 > 8 > 16 > 32 > 64, then jumps to 99
-Catalog.LuckBasePrice = 99 -- Robux; after the first two luck purchases the price rises by 50 each time
-Catalog.LuckPriceStep = 50
-Catalog.LuckFreePurchases = 2
--- One Developer Product per luck price level (7 purchases: 99, 99, 149, 199, 249, 299, 349 Robux)
+-- Luck is sold in the Color Shop. It takes common slices off the Hulk Wheel (WorldConfig.HulkWheel.
+-- LuckSteps). The better the luck, the more it costs: the first step (1 > 2) is 100 money or 10 Robux,
+-- and every step after costs double the one before.
+Catalog.LuckSeconds = 10 * 60 -- bought luck lasts this long (each purchase starts it again), then it's gone
+Catalog.LuckMoneyPrice = 100 -- first step
+Catalog.LuckRobuxPrice = 10 -- first step
+-- One Developer Product per luck step, priced 10, 20, 40, 80, 160, 320, 640 Robux
 Catalog.LuckProductIds = { 0, 0, 0, 0, 0, 0, 0 }
 
 local function money(id, name, amount, robux)
@@ -185,8 +188,19 @@ function Catalog.NextLuck(luck)
 	return luck * 2
 end
 
-function Catalog.LuckPrice(purchases)
-	return Catalog.LuckBasePrice + Catalog.LuckPriceStep * math.max(0, purchases - Catalog.LuckFreePurchases + 1)
+-- Which step buying luck is now: 0 at luck 1 (1 > 2), 1 at luck 2, ... 6 at luck 64 (64 > 99)
+function Catalog.LuckStep(luck)
+	return math.clamp(math.floor(math.log(math.max(1, luck or 1), 2) + 0.5), 0, #Catalog.LuckProductIds - 1)
+end
+
+-- Robux for the next luck step (doubles every step)
+function Catalog.LuckPrice(luck)
+	return Catalog.LuckRobuxPrice * 2 ^ Catalog.LuckStep(luck)
+end
+
+-- Money for the next luck step (doubles every step)
+function Catalog.LuckMoneyPriceFor(luck)
+	return Catalog.LuckMoneyPrice * 2 ^ Catalog.LuckStep(luck)
 end
 
 -- 123456789 -> "123,456,789" (very big numbers fall back to FormatNumber's short form)

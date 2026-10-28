@@ -235,7 +235,7 @@ local function buildEventsPage(page)
 		end
 		table.insert(choices, { id = sky.id, name = sky.name, color = sky.color, rainbow = sky.rainbow })
 	end
-	table.insert(choices, { id = "clear", name = "Normal sky", color = Color3.fromRGB(110, 150, 200) })
+	table.insert(choices, { id = "clear", name = "Stop everything (normal sky)", color = Color3.fromRGB(110, 150, 200) })
 	table.insert(choices, { id = "disco", name = "🪩 Disco (on/off)", color = Color3.fromRGB(60, 30, 110), remote = adminDisco })
 	table.insert(choices, { id = "nuke", name = "☢️ SERVER NUKE", color = Color3.fromRGB(200, 30, 20), remote = adminNuke })
 
@@ -774,7 +774,7 @@ local COMMAND_LIST = {
 	{ "/fly", "Fly around (on/off)", true },
 	{ "/walls", "Walk through walls and buildings (on/off)", true },
 	{ "/unfly", "Land", true },
-	{ "/disco", "Disco party on/off", true },
+	{ "/disco", "Disco party on/off (or /none to stop)", true },
 	{ "/nuke", "Nuke the server (10 s countdown; again to call off)", true },
 	{ "/ruby", "Red sky event", true },
 	{ "/amber", "Orange sky event", true },
@@ -783,7 +783,7 @@ local COMMAND_LIST = {
 	{ "/crystal", "Purple sky event", true },
 	{ "/mta", "Magenta sky event", true },
 	{ "/rbr", "Rainbow sky event", true },
-	{ "/non", "Normal sky (ends the event)", true },
+	{ "/none", "Stop everything: sky event, disco and nuke", true },
 	{ "/ban <name> ,reason:<reason>", "Ban a player (asks you first)" },
 	{ "/unban <name>", "Unban a player" },
 	{ "/reset <name>", "Reset a player to a new player's start (no name: you)" },

@@ -62,7 +62,9 @@ local function buildState(player)
 		money = data.money,
 		luck = data.luck,
 		nextLuck = Catalog.NextLuck(data.luck),
-		luckPrice = Catalog.LuckPrice(data.luckPurchases),
+		luckPrice = Catalog.LuckPrice(data.luck),
+		luckMoneyPrice = Catalog.LuckMoneyPriceFor(data.luck),
+		luckSecondsLeft = data.luckExpiresAt and math.max(0, data.luckExpiresAt - os.time()) or nil,
 		treadmills = data.treadmills,
 		carpet = data.carpet,
 		carpetPass = data.carpetPass,
@@ -309,7 +311,8 @@ local function grant(player, itemId)
 		end
 		data.luck = nextLuck
 		data.luckPurchases += 1
-		return true, "Luck is now " .. nextLuck .. "!"
+		data.luckExpiresAt = os.time() + Catalog.LuckSeconds -- every purchase starts the time again
+		return true, "Luck is now " .. nextLuck .. " for " .. math.floor(Catalog.LuckSeconds / 60) .. " minutes!"
 	elseif not item then
 		return false, "Unknown item."
 	elseif item.kind == "money" then
@@ -327,6 +330,8 @@ local function grant(player, itemId)
 		return true, "+" .. Catalog.FormatNumber(item.amount) .. " kick!"
 	elseif item.kind == "maxluck" then
 		data.luck = Catalog.VipMaxLuck
+		data.permanentLuck = Catalog.VipMaxLuck -- the VIP max luck never runs out
+		data.luckExpiresAt = nil
 		return true, "2x max luck (" .. Catalog.VipMaxLuck .. ") unlocked!"
 	elseif item.kind == "wins10" then
 		data.winMultiplier = (data.winMultiplier or 1) * Catalog.WinsMultiplierStep
@@ -366,7 +371,7 @@ local function priceCheck(player, itemId)
 		return "Treadmill already unlocked."
 	elseif item and item.kind == "skin" then
 		if data.ownedSkins[item.colorId] then
-			return "You already own the " .. item.name .. ". Press WEAR to put it on."
+			return "You already own the " .. item.name .. ". Press EQUIP to put it on."
 		end
 		if item.colorId == "disco" then
 			-- Only right after a disco party starts: 30 seconds (the owner gets a minute)
@@ -384,7 +389,7 @@ end
 
 local function productFor(itemId, data)
 	if itemId == "luck" then
-		return Catalog.LuckProductIds[data.luckPurchases + 1] or 0
+		return Catalog.LuckProductIds[Catalog.LuckStep(data.luck) + 1] or 0
 	end
 	return Catalog.ById[itemId].productId
 end
@@ -400,7 +405,17 @@ local function buy(player, itemId, method)
 		return
 	end
 
-	if method == "money" then
+	if method == "money" and itemId == "luck" then
+		local price = Catalog.LuckMoneyPriceFor(data.luck)
+		if data.money < price then
+			notify(player, "Not enough money. Cost: " .. Catalog.FormatNumber(price), false)
+			return
+		end
+		data.money -= price
+		local _, message = grant(player, itemId)
+		sendStats(player)
+		notify(player, message, true)
+	elseif method == "money" then
 		local item = Catalog.ById[itemId]
 		if not item or not item.money then
 			notify(player, "This item can only be bought with Robux.", false)
@@ -563,7 +578,7 @@ local function wear(player, colorId)
 		data.skin = colorId
 		applySkin(player)
 		local sky = Catalog.SkyColorById[colorId]
-		notify(player, "Wearing the " .. sky.name .. " skin! " .. Catalog.SkinPerkText(sky), true)
+		notify(player, "Equipped the " .. sky.name .. " skin! " .. Catalog.SkinPerkText(sky), true)
 	end
 end
 
@@ -630,6 +645,23 @@ task.spawn(function()
 				data.maxStamina += sky.strengthPerSecond
 				data.stamina = data.maxStamina
 				sendStats(player)
+			end
+		end
+	end
+end)
+
+-- Bought luck runs out: back to the player's permanent luck (1, or the VIP max luck / admin-set luck)
+task.spawn(function()
+	while true do
+		task.wait(2)
+		for _, player in ipairs(Players:GetPlayers()) do
+			local data = FighterStats.GetPlayerData(player)
+			if data.luckExpiresAt and os.time() >= data.luckExpiresAt then
+				data.luckExpiresAt = nil
+				data.luck = math.max(1, data.permanentLuck or 1)
+				data.luckPurchases = 0
+				sendStats(player)
+				notify(player, "🍀 Your luck ran out. Get more in the Color Shop!", false)
 			end
 		end
 	end

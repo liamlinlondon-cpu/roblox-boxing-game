@@ -1,9 +1,9 @@
 -- Hulk Wheel and messages to the owner.
 --
 -- HULK WHEEL: the first time a player turns Hulk (WorldConfig.HulkWheel.Strength), they get 5 spins of a
--- color wheel. Most of the wheel (magenta, purple, red, blue) wins nothing. Orange, yellow, pink, cyan and
--- green give that color's skin (green is a tiny sliver), and rainbow starts a Rainbow sky event for the
--- whole server. The server picks every result; HulkWheelClient only shows the wheel turning to it.
+-- color wheel. Most of the wheel (magenta, purple, red, blue) wins nothing. Orange, yellow, pink, cyan,
+-- green, fiery and disco give that skin (green, fiery and disco are tiny slivers, disco the tiniest), and
+-- rainbow starts a Rainbow sky event for the whole server. The server picks every result; HulkWheelClient only shows the wheel turning to it.
 --
 -- MESSAGES: any player can chat with the owner (e.g. to ask for a wheel reset). Chats are kept in a
 -- DataStore, so the owner reads them from whatever server they're in (VIP ADMIN panel > MESSAGES), even
@@ -49,16 +49,12 @@ local publish -- defined with the live updates below
 local chatStore = DataStoreService:GetDataStore("OwnerChats_v1") -- "index" = the owner's list, "chat_<userId>" = one chat
 local resetStore = DataStoreService:GetDataStore("HulkWheelResets_v1") -- "u_<userId>" = a reset waiting for them
 
-local TOTAL_CHANCE = 0
-for _, slice in ipairs(WHEEL.Slices) do
-	TOTAL_CHANCE += slice.chance
-end
-
 local function wheelState(player)
 	local data = FighterStats.GetPlayerData(player)
 	return {
 		unlocked = data.hulkSpinsGiven == true,
 		spins = data.hulkSpins or 0,
+		luck = data.luck or 1, -- luck takes the common slices off the wheel
 	}
 end
 
@@ -79,15 +75,22 @@ task.spawn(function()
 end)
 
 -- ==================== SPINNING ====================
-local function pickSlice()
-	local roll = Random.new():NextNumber() * TOTAL_CHANCE
-	for index, slice in ipairs(WHEEL.Slices) do
-		roll -= slice.chance
+-- A random slice out of the ones this player's luck leaves on the wheel
+local function pickSlice(luck)
+	local available = WorldConfig.HulkWheelSlices(luck)
+	local total = 0
+	for _, entry in ipairs(available) do
+		total += entry.slice.chance
+	end
+	local roll = Random.new():NextNumber() * total
+	for _, entry in ipairs(available) do
+		roll -= entry.slice.chance
 		if roll < 0 then
-			return index, slice
+			return entry.index, entry.slice
 		end
 	end
-	return 1, WHEEL.Slices[1]
+	local last = available[#available]
+	return last.index, last.slice
 end
 
 local spinning = {} -- one spin at a time per player
@@ -104,7 +107,19 @@ local function spin(player)
 	end)
 	data.hulkSpins -= 1
 
-	local index, slice = pickSlice()
+	-- The owner always lands on the rarest slice (the smallest: Disco); everyone else spins for real
+	local index, slice
+	if Admins.IsOwner(player) then
+		index = 1
+		for i, candidate in ipairs(WHEEL.Slices) do
+			if candidate.chance < WHEEL.Slices[index].chance then
+				index = i
+			end
+		end
+		slice = WHEEL.Slices[index]
+	else
+		index, slice = pickSlice(data.luck)
+	end
 	local sky = Catalog.SkyColorById[slice.color]
 	local message
 	if slice.wasted then
@@ -119,14 +134,14 @@ local function spin(player)
 		message = "You won the " .. sky.name .. " skin! (You already had it.)"
 	else
 		data.ownedSkins[slice.color] = true
-		message = "🎉 You won the " .. sky.name .. " skin! Wear it from the Color Shop. " .. Catalog.SkinPerkText(sky)
-		if slice.chance <= 1 then -- the tiny slices: pink, cyan and green
+		message = "🎉 You won the " .. sky.name .. " skin! Equip it from the Color Shop. " .. Catalog.SkinPerkText(sky)
+		if slice.chance <= 1 then -- the tiny slices: pink, cyan, green, fiery and disco
 			task.delay(SPIN_SECONDS, function()
 				announcementEvent:FireAllClients("💚 " .. player.DisplayName .. " won the super rare " .. string.upper(sky.name) .. " skin on the Hulk Wheel!")
 			end)
 		end
 	end
-	return { slice = index, message = message, won = not slice.wasted, spins = data.hulkSpins }
+	return { slice = index, message = message, won = not slice.wasted, spins = data.hulkSpins, luck = data.luck or 1 }
 end
 
 -- ==================== MESSAGES ====================

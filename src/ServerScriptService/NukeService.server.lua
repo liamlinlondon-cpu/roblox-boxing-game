@@ -29,6 +29,7 @@ local token = 0
 
 local function blast(owner) -- owner: whoever launched it (the owner, or someone with the VIP ADMIN panel)
 	state = "boom"
+	local myToken = token
 	nukeEvent:FireAllClients("boom", FIRE_SECONDS)
 	-- The shockwave reaches everyone a moment after the flash
 	task.wait(0.6)
@@ -43,11 +44,16 @@ local function blast(owner) -- owner: whoever launched it (the owner, or someone
 	announcementEvent:FireAllClients("☢️ " .. owner.DisplayName .. " NUKED THE SERVER!")
 	-- The sky burns: a Fiery sky event for a minute, with the Fiery skin in the Color Shop
 	task.delay(3, function()
+		if token ~= myToken then
+			return -- /none stopped everything
+		end
 		startSkyEvent:Invoke("fiery")
 		announcementEvent:FireAllClients("🔥 FIERY SKY! Get the Fiery skin in the Color Shop for 1 minute!")
 	end)
 	task.wait(FIRE_SECONDS)
-	state = "idle"
+	if token == myToken then
+		state = "idle"
+	end
 end
 
 local function nuke(player)
@@ -76,6 +82,21 @@ local function nuke(player)
 		end
 	end)
 	return "☢️ Nuke launched! " .. COUNTDOWN .. " seconds... press again to call it off."
+end
+
+-- /none (SkyEventService) stops everything: calls off a countdown, or clears the fire and smoke of a
+-- nuke that already went off (the Fiery sky is cleared by /none itself)
+local stopNuke = Instance.new("BindableFunction")
+stopNuke.Name = "StopNuke"
+stopNuke.Parent = script
+stopNuke.OnInvoke = function()
+	if state == "idle" then
+		return false
+	end
+	token += 1
+	nukeEvent:FireAllClients(state == "countdown" and "cancel" or "clear")
+	state = "idle"
+	return true
 end
 
 -- VIP ADMIN panel button

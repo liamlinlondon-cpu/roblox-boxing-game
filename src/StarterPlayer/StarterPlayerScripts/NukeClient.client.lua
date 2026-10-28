@@ -56,6 +56,7 @@ flash.ZIndex = 5
 flash.Parent = screenGui
 
 local countdownToken = 0
+local effects = nil -- { folder, tint } of the explosion on screen, so /none can clear it early
 
 local function stopCountdown()
 	countdownToken += 1
@@ -232,6 +233,7 @@ local function explode(fireSeconds)
 			end
 		end
 	end)
+	effects = { folder = folder, tint = tint }
 	task.delay(fireSeconds, function()
 		folder:Destroy()
 		tint:Destroy()
@@ -245,5 +247,15 @@ nukeEvent.OnClientEvent:Connect(function(kind, value)
 		stopCountdown()
 	elseif kind == "boom" then
 		explode(tonumber(value) or 20)
+	elseif kind == "clear" then
+		-- /none: the fire, smoke and cloud go away now
+		stopCountdown()
+		RunService:UnbindFromRenderStep("NukeShake")
+		flash.BackgroundTransparency = 1
+		if effects then
+			effects.folder:Destroy()
+			effects.tint:Destroy()
+			effects = nil
+		end
 	end
 end)
