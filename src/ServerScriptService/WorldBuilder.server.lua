@@ -2,6 +2,7 @@
 -- Each gym has a free ground floor and a VIP second floor reached only by the VIP elevator pad
 -- (VipAuctionService decides who may use it). Station training is handled in FlowService.
 
+local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local CollectionService = game:GetService("CollectionService")
@@ -816,4 +817,30 @@ local function buildWorld()
 	return world
 end
 
+-- Clears out leftovers saved in the place file from the template it started from (rocks, houses, the
+-- old spawn point, terrain, old Toolbox models): everything in Workspace that this game's scripts
+-- didn't build goes when a server starts. To keep something placed by hand in Studio, give it a
+-- "KeepInGame" attribute (set to true).
+local BUILT_BY_SCRIPTS = {
+	[WORLD_NAME] = true, -- this script
+	BoxingArena = true, -- ArenaBuilder
+	Leaderboards = true, -- LeaderboardService
+	OwnerClones = true, -- AdminCommandService
+}
+
+local function clearLeftovers()
+	for _, child in ipairs(Workspace:GetChildren()) do
+		local keep = BUILT_BY_SCRIPTS[child.Name]
+			or child:IsA("Camera")
+			or child:IsA("Terrain")
+			or Players:GetPlayerFromCharacter(child) ~= nil
+			or child:GetAttribute("KeepInGame") == true
+		if not keep then
+			child:Destroy()
+		end
+	end
+	Workspace.Terrain:Clear() -- template hills, rocks and water made of terrain
+end
+
+clearLeftovers()
 buildWorld()
