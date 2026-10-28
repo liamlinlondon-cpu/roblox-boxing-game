@@ -1,6 +1,6 @@
 -- Server nuke: the owner types /nuke (or presses SERVER NUKE in the VIP ADMIN panel). Everyone gets a
 -- 10-second countdown with flashing red warnings, then a giant nuclear explosion goes off in the middle of the map:
--- everyone except the owner dies and respawns, fires burn around the map for a little while, and then
+-- everyone except the owner (and whoever launched it) dies and respawns, fires burn around the map for a little while, and then
 -- everything goes back to normal. Right after the blast the sky turns Fiery for a minute (a sky event
 -- whose Fiery skin, with a fiery aura, is sold in the Color Shop meanwhile). /nuke again during the
 -- countdown calls it off. NukeClient draws it all.
@@ -27,13 +27,13 @@ nukeEvent.Parent = eventsFolder
 local state = "idle" -- "idle", "countdown" or "boom"
 local token = 0
 
-local function blast(owner)
+local function blast(owner) -- owner: whoever launched it (the owner, or someone with the VIP ADMIN panel)
 	state = "boom"
 	nukeEvent:FireAllClients("boom", FIRE_SECONDS)
 	-- The shockwave reaches everyone a moment after the flash
 	task.wait(0.6)
 	for _, player in ipairs(Players:GetPlayers()) do
-		if not Admins.IsOwner(player) then
+		if not Admins.IsOwner(player) and player ~= owner then
 			local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
 			if humanoid then
 				humanoid.Health = 0
@@ -51,7 +51,7 @@ local function blast(owner)
 end
 
 local function nuke(player)
-	if not Admins.IsOwner(player) then
+	if not Admins.HasVipPanel(player) then
 		return nil
 	end
 	if state == "countdown" then

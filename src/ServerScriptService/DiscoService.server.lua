@@ -15,7 +15,7 @@ local announcementEvent = eventsFolder:WaitForChild("Announcement")
 ReplicatedStorage:SetAttribute("DiscoParty", false)
 
 local function toggleDisco(player)
-	if not Admins.IsOwner(player) then
+	if not Admins.HasVipPanel(player) then
 		return nil
 	end
 	local on = not ReplicatedStorage:GetAttribute("DiscoParty")

@@ -3,7 +3,11 @@
 --   ⚡ EVENTS    a button for every sky event (and a normal sky, the disco party and the server nuke)
 --   📊 SETS      the same stat boxes as the ADMIN panel (speed, jump, strength, kick, ...)
 --   🗺️ TELEPORT  a map of the whole world from above; click anywhere to teleport there
--- More pages can be added to PAGES. Only the owner gets it; the server checks every action.
+--   📨 MESSAGES  (owner only) chats from players
+--   ⌨️ COMMANDS  (owner only) every command, with a search bar
+-- More pages can be added to PAGES. The owner has it; the owner can give it to someone with
+-- "/give <name> vip admin", and then it just pops up on their screen (no messages). The server checks
+-- every action.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -27,10 +31,16 @@ local wheelNotice = events:WaitForChild("HulkWheelNotice")
 
 local player = Players.LocalPlayer
 
--- Only the owner (the server says)
-local okCheck, isOwner = pcall(adminSkyEvent.InvokeServer, adminSkyEvent)
-if not okCheck or isOwner ~= true then
-	return
+-- The owner, or someone the owner gave it to (the "HasVipAdminPanel" attribute). Everyone else waits
+-- here, and if the owner gives it to them later, the panel pops up.
+local isOwner = player.UserId == WorldConfig.OwnerUserId
+local function allowed()
+	return isOwner or player:GetAttribute("HasVipAdminPanel") == true
+end
+local givenLater = false
+while not allowed() do
+	player:GetAttributeChangedSignal("HasVipAdminPanel"):Wait()
+	givenLater = true
 end
 
 local GOLD = Color3.fromRGB(255, 200, 40)
@@ -760,7 +770,9 @@ end
 -- anything to fill in run straight away.
 local COMMAND_LIST = {
 	-- { what you type, what it does, runs straight away? }
-	{ "/fly", "Fly around", true },
+	{ "/flywalls", "Fly AND go through walls together (on/off)", true },
+	{ "/fly", "Fly around (on/off)", true },
+	{ "/walls", "Walk through walls and buildings (on/off)", true },
 	{ "/unfly", "Land", true },
 	{ "/disco", "Disco party on/off", true },
 	{ "/nuke", "Nuke the server (10 s countdown; again to call off)", true },
@@ -778,9 +790,11 @@ local COMMAND_LIST = {
 	{ "/luck <number> <name>", "Set luck (no name: everyone)" },
 	{ "/give <name> <item>", "Give an item, e.g. owner treadmill, hacker treadmill, green skin" },
 	{ "/give <name> commands", "Give someone the commands" },
+	{ "/give <name> vip admin", "Give someone the VIP ADMIN panel (it just pops up)" },
 	{ "/give <name> admin panel", "Give someone the ADMIN panel" },
 	{ "/give <name> clones <number>", "Give someone clones of themselves" },
 	{ "/take <name> commands", "Take the commands away" },
+	{ "/take <name> vip admin", "Take the VIP ADMIN panel away (quietly)" },
 	{ "/take <name> admin panel", "Take the ADMIN panel away" },
 	{ "/take <name> clones", "Take someone's clones away" },
 	{ "/privateserver", "Go to your private server", true },
@@ -943,11 +957,19 @@ local PAGES = { -- add more pages here later
 	{ name = "🗺️ TELEPORT", build = buildTeleportPage, onShow = function()
 		refreshMap()
 	end },
-	{ name = "📨 MESSAGES", build = buildMessagesPage, onShow = function()
+	{ name = "📨 MESSAGES", build = buildMessagesPage, ownerOnly = true, onShow = function()
 		refreshMessages()
 	end },
-	{ name = "⌨️ COMMANDS", build = buildCommandsPage },
+	{ name = "⌨️ COMMANDS", build = buildCommandsPage, ownerOnly = true },
 }
+-- Someone the owner gave the panel to doesn't get the owner's messages or commands
+if not isOwner then
+	for i = #PAGES, 1, -1 do
+		if PAGES[i].ownerOnly then
+			table.remove(PAGES, i)
+		end
+	end
+end
 
 local pageFrames, menuButtons = {}, {}
 local currentPage = 1
@@ -1013,7 +1035,19 @@ wheelNotice.OnClientEvent:Connect(function(kind)
 		return
 	end
 	newMessageDot.Visible = true
-	if panel.Visible and PAGES[currentPage].build == buildMessagesPage then
+	if refreshMessages and panel.Visible and PAGES[currentPage].build == buildMessagesPage then
 		refreshMessages()
+	end
+end)
+
+-- Given by the owner: it just pops up. Taken away: it disappears (and comes back if given again).
+if givenLater then
+	panel.Visible = true
+end
+player:GetAttributeChangedSignal("HasVipAdminPanel"):Connect(function()
+	local wasEnabled = screenGui.Enabled
+	screenGui.Enabled = allowed()
+	if screenGui.Enabled and not wasEnabled then
+		panel.Visible = true
 	end
 end)

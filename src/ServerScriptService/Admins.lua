@@ -27,6 +27,13 @@ function Admins.IsAdmin(player)
 	return Admins.IsAdminUserId(player.UserId)
 end
 
+-- The VIP ADMIN panel: the owner, and players the owner gave it to with "/give <name> vip admin" (the
+-- "HasVipAdminPanel" attribute, until they leave). They can start events (sky, disco, nuke), set their
+-- own stats and teleport anywhere; its COMMANDS and MESSAGES tabs stay the owner's.
+function Admins.HasVipPanel(player)
+	return Admins.IsOwner(player) or player:GetAttribute("HasVipAdminPanel") == true
+end
+
 function Admins.Grant(userId)
 	grantedUserIds[userId] = true
 end

@@ -161,7 +161,7 @@ adminSkyEvent.Name = "AdminSkyEvent"
 adminSkyEvent.Parent = ReplicatedStorage:WaitForChild("Events")
 
 adminSkyEvent.OnServerInvoke = function(player, colorId)
-	if not Admins.IsOwner(player) then
+	if not Admins.HasVipPanel(player) then
 		return nil
 	end
 	if colorId == nil then

@@ -165,7 +165,7 @@ local MAP_INSIDE = WorldConfig.GroundSize / 2 - 2 -- just inside the wall
 local lastTeleport = {}
 
 local function canTeleport(player)
-	if Admins.IsOwner(player) then
+	if Admins.HasVipPanel(player) then
 		return true
 	end
 	local boost = FighterStats.RebirthSpeedBoost(FighterStats.GetPlayerData(player).rebirths)
@@ -214,7 +214,7 @@ teleportFunction.OnServerInvoke = function(player, target, normal, fromAbove)
 	end
 	local offset = target - WorldConfig.Arena.Center
 	-- Everyone stays inside the map, except the owner, who can teleport anywhere (parkour included)
-	local isOwner = Admins.IsOwner(player)
+	local isOwner = Admins.HasVipPanel(player) -- the owner and VIP ADMIN panel holders
 	if not isOwner and (math.abs(offset.X) > MAP_INSIDE or math.abs(offset.Z) > MAP_INSIDE) then
 		return false, "You can't teleport outside the map (no skipping the parkour)."
 	end

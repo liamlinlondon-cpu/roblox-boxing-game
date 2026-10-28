@@ -3,6 +3,8 @@
 --                               they see the reason (optional), e.g. /ban Bob, exploiting
 --   /unban <username>           lifts the ban
 --   /fly, /unfly                toggles flying (FlyClient moves the character) / lands
+--   /walls                      walk through walls and buildings, on/off (owner only)
+--   /flywalls                   /fly and /walls together, on/off (owner only)
 --   /give <name> <item>         gives a player in the server an item, e.g. /give Bob owner treadmill;
 --                               "/give <name> commands" gives them the commands (owner only)
 --   /take <name> commands       removes commands given with /give (owner only)
@@ -267,6 +269,30 @@ local function unfly(admin)
 	setFlying(admin, false)
 end
 
+-- ==================== WALK THROUGH WALLS ====================
+-- /walls (owner only): walk straight through walls, buildings and anything else; /walls again to stop.
+-- The "WalkThroughWalls" attribute tells the owner's NoclipClient to stop their body bumping into things
+-- (they still stand on floors).
+local function walls(admin)
+	if not Admins.IsOwner(admin) then
+		return
+	end
+	local on = not admin:GetAttribute("WalkThroughWalls")
+	admin:SetAttribute("WalkThroughWalls", on)
+	notify(admin, on and "You can walk through walls now. Type /walls again to stop." or "Walls are solid again.")
+end
+
+-- /flywalls (owner only): /fly and /walls together. Turns both on, or both off if both are already on.
+local function flyWalls(admin)
+	if not Admins.IsOwner(admin) then
+		return
+	end
+	local on = not (flying[admin] and admin:GetAttribute("WalkThroughWalls"))
+	setFlying(admin, on)
+	admin:SetAttribute("WalkThroughWalls", on)
+	notify(admin, on and "Flying through walls! Type /flywalls again to stop both." or "Landed, and walls are solid again.")
+end
+
 -- ==================== GIVE ====================
 -- Item keywords for /give (spaces and apostrophes are ignored, so "owner's treadmill" works too)
 
@@ -281,6 +307,16 @@ local GIFTS = {
 		end,
 	},
 	-- The owner's ADMIN panel, for setting their own stats, until they leave this server. Owner only.
+	-- The VIP ADMIN panel: it just pops up on their screen, no messages (silent)
+	vipadmin = {
+		name = "VIP ADMIN panel",
+		ownerOnly = true,
+		silent = true,
+		note = " It popped up on their screen. /take <name> vip admin removes it.",
+		give = function(_, target)
+			target:SetAttribute("HasVipAdminPanel", true)
+		end,
+	},
 	adminpanel = {
 		name = "admin panel",
 		ownerOnly = true,
@@ -322,6 +358,9 @@ end
 
 local function findGift(words)
 	local key = string.gsub(string.lower(table.concat(words, "")), "[^%w]", "")
+	if key == "vipadminpanel" or key == "vrpadmin" or key == "vrpadminpanel" then
+		key = "vipadmin"
+	end
 	return GIFTS[key] or GIFTS[key .. "s"] or GIFTS[key .. "treadmill"] or GIFTS[key .. "skin"]
 end
 
@@ -362,7 +401,9 @@ local function give(admin, args)
 	gift.give(FighterStats.GetPlayerData(target), target)
 	sendStats(target)
 	notify(admin, "Gave " .. target.DisplayName .. " the " .. gift.name .. "." .. (gift.note or ""))
-	tellTarget(admin, target, "You received the " .. gift.name .. "!")
+	if not gift.silent then
+		tellTarget(admin, target, "You received the " .. gift.name .. "!")
+	end
 end
 
 -- /take <name> commands: removes commands the owner gave with /give
@@ -381,6 +422,11 @@ local function take(admin, args)
 		takeClonesFrom(admin, target)
 		return
 	end
+	if key == "vipadmin" or key == "vipadminpanel" or key == "vrpadmin" then
+		target:SetAttribute("HasVipAdminPanel", nil) -- quietly, like when it was given
+		notify(admin, target.DisplayName .. " no longer has the VIP ADMIN panel.")
+		return
+	end
 	if key == "adminpanel" then
 		target:SetAttribute("HasAdminPanel", nil)
 		notify(admin, target.DisplayName .. " no longer has the admin panel.")
@@ -388,7 +434,7 @@ local function take(admin, args)
 		return
 	end
 	if key ~= "commands" then
-		notify(admin, "Usage: /take <name> commands (or clones, or admin panel)")
+		notify(admin, "Usage: /take <name> commands (or clones, admin panel, vip admin)")
 		return
 	end
 	if Admins.IsOwner(target) then
@@ -1623,7 +1669,7 @@ local ADMIN_PANEL_STATS = {
 
 -- The owner, and anyone the owner gave the panel to with /give <name> admin panel
 local function hasAdminPanel(player)
-	return Admins.IsOwner(player) or player:GetAttribute("HasAdminPanel") == true
+	return Admins.HasVipPanel(player) or player:GetAttribute("HasAdminPanel") == true
 end
 
 adminPanelFunction.OnServerInvoke = function(player, stat, value)
@@ -1656,6 +1702,8 @@ local COMMANDS = {
 	ban = { run = ban, minArgs = 1, usage = "/ban <username> ,reason:<reason>" },
 	unban = { run = unban, minArgs = 1, usage = "/unban <username>" },
 	fly = { run = fly },
+	walls = { run = walls }, -- owner only
+	flywalls = { run = flyWalls }, -- owner only: /fly + /walls
 	unfly = { run = unfly },
 	give = { run = give, minArgs = 2, usage = "/give <name> <item>, e.g. /give Bob owner treadmill" },
 	take = { run = take, minArgs = 2, usage = "/take <name> commands" },
