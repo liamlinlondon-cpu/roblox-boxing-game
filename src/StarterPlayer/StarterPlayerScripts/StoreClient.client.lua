@@ -187,8 +187,19 @@ local function renderSellShop(state)
 	for _, item in ipairs(Catalog.Treadmills) do
 		offer(item, state.treadmills and state.treadmills[item.tier])
 	end
+	-- Skins can be worn from here too (same as the Color Shop), so nobody has to walk over there
 	for _, sky in ipairs(Catalog.SkyColors) do
-		offer(Catalog.ById["skin_" .. sky.id], state.ownedSkins and state.ownedSkins[sky.id])
+		if state.ownedSkins and state.ownedSkins[sky.id] then
+			anything = true
+			local item = Catalog.ById["skin_" .. sky.id]
+			local wearing = state.skin == sky.id
+			local buttons = {}
+			if not wearing then
+				table.insert(buttons, { text = "WEAR", itemId = sky.id, action = "wear", color = WEAR_COLOR })
+			end
+			table.insert(buttons, sellButton(item))
+			addRow(item.name .. (wearing and " (wearing)" or ""), buttons)
+		end
 	end
 	-- Anything else in the backpack (or held)
 	local listed = {}
