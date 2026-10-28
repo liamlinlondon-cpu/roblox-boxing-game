@@ -635,9 +635,24 @@ task.spawn(function()
 	end
 end)
 
+-- The owner always owns every skin color, from the start (new skins too)
+local function giveOwnerSkins(player)
+	if Admins.IsOwner(player) then
+		local data = FighterStats.GetPlayerData(player)
+		for _, sky in ipairs(Catalog.SkyColors) do
+			data.ownedSkins[sky.id] = true
+		end
+	end
+end
+Players.PlayerAdded:Connect(giveOwnerSkins)
+for _, player in ipairs(Players:GetPlayers()) do
+	giveOwnerSkins(player)
+end
+
 -- Saved progress arrives a moment after joining (PlayerDataService): give back the Magic Carpet and
 -- put the worn skin back on
 script.Parent:WaitForChild("PlayerDataService"):WaitForChild("DataLoaded").Event:Connect(function(player)
+	giveOwnerSkins(player) -- the saved list replaced the one given on joining
 	if FighterStats.GetPlayerData(player).carpet then
 		giveCarpetTool(player)
 	end

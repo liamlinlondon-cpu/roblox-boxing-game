@@ -82,17 +82,17 @@ Catalog.Treadmills = {
 -- `rainbow`: the sky cycles through all colors and the skin colors each body part differently.
 -- `ownerOnly`: a rare color that never comes by itself, only when the owner spawns it (VIP ADMIN panel or
 -- a chat command): yellow, orange, rainbow, green, cyan, pink, and fiery (which comes after a server
--- nuke). Green, cyan and pink are the best colors, better than rainbow. Natural events only use the
+-- nuke). Best to worst: Disco, Fiery, Green, Cyan, Pink, Rainbow, Yellow, Orange, then the common ones. Natural events only use the
 -- common colors (WorldConfig.SkyEvents.Schedule).
 Catalog.SkyColors = {
+	-- 1st: Disco, the most powerful. Really rare and really expensive: only sold right after the owner
+	-- starts a disco party, for DiscoSaleSeconds (DiscoSaleSecondsOwner for the owner)
+	{ id = "disco", name = "Disco", color = Color3.fromRGB(205, 208, 218), disco = true, notSky = true, bonus = 1.5, strengthPerSecond = 2000, money = 100000000, robux = 1000, ownerOnly = true },
+	-- 2nd: Fiery, only for 1 minute after a server nuke (NukeService)
+	{ id = "fiery", name = "Fiery", color = Color3.fromRGB(255, 90, 20), aura = true, bonus = 1.0, strengthPerSecond = 1000, money = 20000000, robux = 750, ownerOnly = true },
 	{ id = "green", name = "Green", color = Color3.fromRGB(40, 200, 70), bonus = 0.75, strengthPerSecond = 500, money = 5000000, robux = 500, ownerOnly = true },
 	{ id = "cyan", name = "Cyan", color = Color3.fromRGB(40, 220, 230), bonus = 0.5, strengthPerSecond = 200, money = 1000000, robux = 400, ownerOnly = true },
 	{ id = "pink", name = "Pink", color = Color3.fromRGB(255, 100, 200), bonus = 0.4, strengthPerSecond = 100, money = 500000, robux = 300, ownerOnly = true },
-	-- Fiery only comes for 1 minute after a server nuke (NukeService)
-	{ id = "fiery", name = "Fiery", color = Color3.fromRGB(255, 90, 20), aura = true, bonus = 0.35, strengthPerSecond = 75, money = 300000, robux = 250, ownerOnly = true },
-	-- Disco: really rare and really expensive. Only sold right after the owner starts a disco party, for
-	-- DiscoSaleSeconds (DiscoSaleSecondsOwner for the owner)
-	{ id = "disco", name = "Disco", color = Color3.fromRGB(205, 208, 218), disco = true, notSky = true, bonus = 0.35, strengthPerSecond = 75, money = 100000000, robux = 1000, ownerOnly = true },
 	{
 		id = "rainbow",
 		name = "Rainbow",
