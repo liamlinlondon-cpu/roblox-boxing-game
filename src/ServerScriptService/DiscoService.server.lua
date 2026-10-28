@@ -19,6 +19,8 @@ local function toggleDisco(player)
 		return nil
 	end
 	local on = not ReplicatedStorage:GetAttribute("DiscoParty")
+	-- When it started, for the Disco skin's short sale in the Color Shop (StoreService)
+	ReplicatedStorage:SetAttribute("DiscoStartedAt", on and workspace:GetServerTimeNow() or nil)
 	ReplicatedStorage:SetAttribute("DiscoParty", on)
 	if on then
 		announcementEvent:FireAllClients("🪩 " .. player.DisplayName .. " started a DISCO PARTY!")

@@ -77,6 +77,8 @@ Catalog.Treadmills = {
 -- `strengthPerSecond`: strength, kick and stamina gained every second while the skin is worn (the same
 -- amount of each).
 -- `aura`: the skin also sets the wearer on fire (a fiery aura).
+-- `disco`: the wearer's body shines every color, with colored lights all around them (DiscoSkinClient).
+-- `notSky`: not a sky color; sold while something else is on (the Disco skin: during a disco party).
 -- `rainbow`: the sky cycles through all colors and the skin colors each body part differently.
 -- `ownerOnly`: a rare color that never comes by itself, only when the owner spawns it (VIP ADMIN panel or
 -- a chat command): yellow, orange, rainbow, green, cyan, pink, and fiery (which comes after a server
@@ -88,6 +90,9 @@ Catalog.SkyColors = {
 	{ id = "pink", name = "Pink", color = Color3.fromRGB(255, 100, 200), bonus = 0.4, strengthPerSecond = 100, money = 500000, robux = 300, ownerOnly = true },
 	-- Fiery only comes for 1 minute after a server nuke (NukeService)
 	{ id = "fiery", name = "Fiery", color = Color3.fromRGB(255, 90, 20), aura = true, bonus = 0.35, strengthPerSecond = 75, money = 300000, robux = 250, ownerOnly = true },
+	-- Disco: really rare and really expensive. Only sold right after the owner starts a disco party, for
+	-- DiscoSaleSeconds (DiscoSaleSecondsOwner for the owner)
+	{ id = "disco", name = "Disco", color = Color3.fromRGB(205, 208, 218), disco = true, notSky = true, bonus = 0.35, strengthPerSecond = 75, money = 100000000, robux = 1000, ownerOnly = true },
 	{
 		id = "rainbow",
 		name = "Rainbow",
@@ -106,6 +111,10 @@ Catalog.SkyColors = {
 	{ id = "purple", name = "Purple", color = Color3.fromRGB(150, 60, 220), bonus = 0.1, money = 1000, robux = 40 },
 	{ id = "magenta", name = "Magenta", color = Color3.fromRGB(255, 0, 255), bonus = 0.05, money = 500, robux = 25 },
 }
+-- How long the Disco skin is on sale after a disco party starts: be quick!
+Catalog.DiscoSaleSeconds = 30
+Catalog.DiscoSaleSecondsOwner = 60
+
 -- Rainbow skin body colors: head, torso, left arm, right arm, left leg, right leg
 Catalog.RainbowColors = {
 	Color3.fromRGB(255, 40, 40),

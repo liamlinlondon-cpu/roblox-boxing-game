@@ -175,7 +175,7 @@ adminSkyEvent.OnServerInvoke = function(player, colorId)
 		return "The sky is back to normal."
 	end
 	local sky = type(colorId) == "string" and Catalog.SkyColorById[colorId]
-	if not sky then
+	if not sky or sky.notSky then
 		return "Unknown event."
 	end
 	startEvent(sky)
@@ -189,10 +189,10 @@ startSkyEvent.Name = "StartSkyEvent"
 startSkyEvent.Parent = script
 startSkyEvent.OnInvoke = function(colorId)
 	local sky = Catalog.SkyColorById[colorId]
-	if sky then
+	if sky and not sky.notSky then
 		startEvent(sky)
 	end
-	return sky ~= nil
+	return sky ~= nil and not sky.notSky
 end
 
 local function runCommand(player, alias)

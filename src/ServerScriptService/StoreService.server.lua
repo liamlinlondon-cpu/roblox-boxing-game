@@ -223,6 +223,7 @@ local function removeAura(character)
 			item:Destroy()
 		end
 	end
+	character:SetAttribute("DiscoSkin", nil) -- DiscoSkinClient's lights
 end
 local function addAura(character)
 	for _, partName in ipairs(AURA_PARTS) do
@@ -260,6 +261,9 @@ local function applySkin(player)
 	end
 	if sky.aura then
 		addAura(character)
+	end
+	if sky.disco then
+		character:SetAttribute("DiscoSkin", true)
 	end
 	for _, child in ipairs(character:GetChildren()) do
 		if child:IsA("Shirt") or child:IsA("Pants") or child:IsA("ShirtGraphic") then
@@ -364,7 +368,14 @@ local function priceCheck(player, itemId)
 		if data.ownedSkins[item.colorId] then
 			return "You already own the " .. item.name .. ". Press WEAR to put it on."
 		end
-		if ReplicatedStorage:GetAttribute("SkyEventColor") ~= item.colorId then
+		if item.colorId == "disco" then
+			-- Only right after a disco party starts: 30 seconds (the owner gets a minute)
+			local startedAt = ReplicatedStorage:GetAttribute("DiscoStartedAt")
+			local window = Admins.IsOwner(player) and Catalog.DiscoSaleSecondsOwner or Catalog.DiscoSaleSeconds
+			if not ReplicatedStorage:GetAttribute("DiscoParty") or not startedAt or workspace:GetServerTimeNow() - startedAt > window then
+				return "Too late! The Disco Skin is only sold for " .. window .. " seconds when a disco party starts."
+			end
+		elseif ReplicatedStorage:GetAttribute("SkyEventColor") ~= item.colorId then
 			return "The " .. item.name .. " is only sold during a " .. Catalog.SkyColorById[item.colorId].name .. " sky event."
 		end
 	end

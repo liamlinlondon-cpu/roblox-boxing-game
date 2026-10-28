@@ -5,6 +5,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local player = Players.LocalPlayer
 local Catalog = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("Catalog"))
+local WorldConfig = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("WorldConfig"))
 local storeEvent = ReplicatedStorage:WaitForChild("Events"):WaitForChild("StoreAction")
 
 local gui = Instance.new("ScreenGui")
@@ -114,22 +115,44 @@ local function sellButton(item)
 end
 local lastState = nil
 
--- Color Shop: the current sky event's skin is for sale; owned skins can be worn any time
+-- Seconds left to buy the Disco skin (30 after a disco party starts, a minute for the owner)
+local function discoSecondsLeft()
+	local startedAt = ReplicatedStorage:GetAttribute("DiscoStartedAt")
+	if not ReplicatedStorage:GetAttribute("DiscoParty") or not startedAt then
+		return 0
+	end
+	local window = player.UserId == WorldConfig.OwnerUserId and Catalog.DiscoSaleSecondsOwner or Catalog.DiscoSaleSeconds
+	return math.max(0, math.ceil(window - (workspace:GetServerTimeNow() - startedAt)))
+end
+
+-- Color Shop: the current sky event's skin is for sale (and the Disco skin during a disco party); owned
+-- skins can be worn any time
 local function renderColorShop(state)
 	title.Text = "COLOR SHOP"
+	local onSale = {}
 	local eventColorId = ReplicatedStorage:GetAttribute("SkyEventColor")
 	local eventSky = eventColorId and Catalog.SkyColorById[eventColorId]
 	if eventSky then
-		local item = Catalog.ById["skin_" .. eventSky.id]
-		if state.ownedSkins and state.ownedSkins[eventSky.id] then
-			addRow(item.name .. " (owned) · " .. Catalog.SkinPerkText(eventSky), {})
+		table.insert(onSale, { sky = eventSky, why = eventSky.name .. " sky event! " })
+	end
+	-- The Disco skin: only for a few seconds after a disco party starts (be quick!)
+	local discoLeft = discoSecondsLeft()
+	if discoLeft > 0 then
+		table.insert(onSale, { sky = Catalog.SkyColorById.disco, why = "🪩 DISCO! Only " .. discoLeft .. "s left! " })
+	end
+	for _, sale in ipairs(onSale) do
+		local sky = sale.sky
+		local item = Catalog.ById["skin_" .. sky.id]
+		if state.ownedSkins and state.ownedSkins[sky.id] then
+			addRow(item.name .. " (owned) · " .. Catalog.SkinPerkText(sky), {})
 		else
-			addRow(eventSky.name .. " sky event! " .. item.name .. " · " .. Catalog.SkinPerkText(eventSky), {
+			addRow(sale.why .. item.name .. " · " .. Catalog.SkinPerkText(sky), {
 				{ text = Catalog.FormatNumber(item.money) .. " money", itemId = item.id, method = "money", color = MONEY_COLOR },
 				robuxButton(item, item.id, item.robux),
 			})
 		end
-	else
+	end
+	if #onSale == 0 then
 		addRow("No sky event right now. Come back when the sky changes color!", {})
 	end
 
@@ -279,9 +302,24 @@ storeEvent.OnClientEvent:Connect(function(action, a, b, c)
 	end
 end)
 
--- Refresh the Color Shop when a sky event starts or ends while it's open
-ReplicatedStorage:GetAttributeChangedSignal("SkyEventColor"):Connect(function()
+-- Refresh the Color Shop when a sky event or disco party starts or ends while it's open
+local function refreshColorShop()
 	if frame.Visible and currentStore == "color" and lastState then
 		render(lastState)
+	end
+end
+ReplicatedStorage:GetAttributeChangedSignal("SkyEventColor"):Connect(refreshColorShop)
+ReplicatedStorage:GetAttributeChangedSignal("DiscoParty"):Connect(refreshColorShop)
+
+-- The Disco skin's countdown ticks while the Color Shop is open
+task.spawn(function()
+	local wasOnSale = false
+	while true do
+		task.wait(1)
+		local onSale = discoSecondsLeft() > 0
+		if onSale or wasOnSale then
+			refreshColorShop()
+		end
+		wasOnSale = onSale
 	end
 end)

@@ -220,6 +220,9 @@ local function buildEventsPage(page)
 
 	local choices = {}
 	for _, sky in ipairs(Catalog.SkyColors) do
+		if sky.notSky then
+			continue -- the Disco skin isn't a sky event; the Disco button is below
+		end
 		table.insert(choices, { id = sky.id, name = sky.name, color = sky.color, rainbow = sky.rainbow })
 	end
 	table.insert(choices, { id = "clear", name = "Normal sky", color = Color3.fromRGB(110, 150, 200) })
