@@ -6,10 +6,10 @@
 local CollectionService = game:GetService("CollectionService")
 local RunService = game:GetService("RunService")
 
-local WAVE_HEIGHT = 0.35 -- how far the cloth bobs up and down (studs)
+local WAVE_HEIGHT = 0.15 -- how far the cloth bobs up and down (studs)
 local WAVE_SPEED = 5 -- how fast the ripple runs
 local WAVE_LENGTH = 0.9 -- how tight the ripple is (bigger = more waves along the carpet)
-local SWAY = math.rad(4) -- side to side sway
+local SWAY = math.rad(2) -- side to side sway
 
 local carpets = {} -- [model] = { welds }
 

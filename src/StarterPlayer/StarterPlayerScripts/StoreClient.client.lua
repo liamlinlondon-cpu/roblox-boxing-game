@@ -548,6 +548,6 @@ game:GetService("RunService").RenderStepped:Connect(function()
 	end
 	local t = os.clock()
 	for _, strip in ipairs(wavingStrips) do
-		strip.frame.Position = UDim2.new((strip.index - 1) / CARPET_PICTURE_STRIPS, 0, 0.5, math.sin(t * 5 - strip.index * 0.8) * 3)
+		strip.frame.Position = UDim2.new((strip.index - 1) / CARPET_PICTURE_STRIPS, 0, 0.5, math.sin(t * 5 - strip.index * 0.8) * 1.5)
 	end
 end)

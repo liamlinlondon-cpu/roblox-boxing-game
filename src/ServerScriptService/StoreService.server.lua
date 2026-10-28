@@ -130,7 +130,7 @@ local function removeCarpet(character)
 	end
 end
 
--- A rainbow rug under the player: CARPET_SEGMENTS cloth pieces front to back (the rainbow runs along
+-- A glowing rainbow rug under the player: CARPET_SEGMENTS pieces front to back (the rainbow runs along
 -- it), a gold border down both sides, gold tassels on the front and back, and a rainbow flame on each
 -- corner. Each piece hangs on its own Weld (its resting spot saved as "BaseC0"), so CarpetWaveClient can
 -- ripple it up and down like it's blowing in the wind. Tagged "MagicCarpet" for that.
@@ -181,7 +181,8 @@ local function attachCarpet(character)
 	local pieceLength = CARPET_LENGTH / CARPET_SEGMENTS
 	local base = CFrame.new(0, -1.6, 0.4) -- under the seat, relative to the HumanoidRootPart
 	for i = 1, CARPET_SEGMENTS do
-		local piece = carpetPart(model, "Segment" .. i, Vector3.new(CARPET_WIDTH, 0.15, pieceLength + 0.05), rainbowAt((i - 1) / (CARPET_SEGMENTS - 1)), Enum.Material.Fabric)
+		-- Glowing rainbow (Neon), like the first carpet
+		local piece = carpetPart(model, "Segment" .. i, Vector3.new(CARPET_WIDTH, 0.15, pieceLength + 0.05), rainbowAt((i - 1) / (CARPET_SEGMENTS - 1)), Enum.Material.Neon)
 		local restC0 = base * CFrame.new(0, 0, (i - (CARPET_SEGMENTS + 1) / 2) * pieceLength)
 		piece.CFrame = root.CFrame * restC0
 		-- Gold border down both sides
