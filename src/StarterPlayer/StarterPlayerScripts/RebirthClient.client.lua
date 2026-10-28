@@ -1,9 +1,10 @@
--- The round ♻ rebirth button (grey with a red ring) on the right, above the nav buttons. Pressing it
+-- The round rebirth button (green with a blue edge, and a silver and a red arrow going round in a circle) on the right, above the nav buttons. Pressing it
 -- opens the rebirth panel: the next rebirth's strength, kick and stamina, how far the player is, and a
 -- REBIRTH button once they have it all. RebirthService does the checking.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
 
 local Catalog = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("Catalog"))
 local rebirthFunction = ReplicatedStorage:WaitForChild("Events"):WaitForChild("Rebirth")
@@ -20,28 +21,116 @@ screenGui.ResetOnSpawn = false
 screenGui.DisplayOrder = 8
 screenGui.Parent = player:WaitForChild("PlayerGui")
 
--- ==================== THE ♻ BUTTON ====================
+-- ==================== THE REBIRTH BUTTON ====================
+-- Like the rebirth buttons in other Roblox games: a shiny green rounded square with a thick blue edge,
+-- two arrows chasing each other round in a circle (one silver, one red), and REBIRTH written underneath.
+-- It grows a little when the mouse is over it and squishes when pressed.
+local BUTTON_GREEN = Color3.fromRGB(40, 190, 70)
+local BLUE = Color3.fromRGB(30, 110, 255)
+local SILVER = Color3.fromRGB(220, 223, 230)
+
 local button = Instance.new("TextButton")
 button.Name = "RebirthButton"
 button.AnchorPoint = Vector2.new(1, 0.5)
-button.Size = UDim2.new(0, 64, 0, 64)
-button.Position = UDim2.new(1, -30, 0.5, -170) -- just above the nav column on the right
-button.BackgroundColor3 = GREY
-button.Text = "♻"
-button.TextColor3 = RED
-button.Font = Enum.Font.GothamBlack
-button.TextScaled = true
+button.Size = UDim2.new(0, 68, 0, 68)
+button.Position = UDim2.new(1, -28, 0.5, -170) -- just above the nav column on the right
+button.BackgroundColor3 = BUTTON_GREEN
+button.Text = ""
+button.AutoButtonColor = false
 button.Parent = screenGui
 
 local round = Instance.new("UICorner")
-round.CornerRadius = UDim.new(0.5, 0)
+round.CornerRadius = UDim.new(0.25, 0)
 round.Parent = button
 
+-- Shiny: lighter at the top, darker at the bottom
+local shine = Instance.new("UIGradient")
+shine.Color = ColorSequence.new({
+	ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+	ColorSequenceKeypoint.new(0.5, Color3.fromRGB(215, 215, 215)),
+	ColorSequenceKeypoint.new(1, Color3.fromRGB(140, 140, 140)),
+})
+shine.Rotation = 90
+shine.Parent = button
+
 local ring = Instance.new("UIStroke")
-ring.Color = RED
+ring.Color = BLUE
 ring.Thickness = 4
 ring.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 ring.Parent = button
+
+-- The two arrows: each is a curve of little pieces around a circle in the upper part of the button
+-- (angles clockwise from the top), with an arrowhead at its end pointing the way it goes round
+local ARROW_CENTER = Vector2.new(0.5, 0.4) -- of the button's size
+local ARROW_RADIUS = 0.22
+local function onCircle(angle)
+	local radians = math.rad(angle)
+	return UDim2.fromScale(ARROW_CENTER.X + ARROW_RADIUS * math.sin(radians), ARROW_CENTER.Y - ARROW_RADIUS * math.cos(radians))
+end
+local function arrow(fromAngle, toAngle, color)
+	for angle = fromAngle, toAngle, 8 do
+		local piece = Instance.new("Frame")
+		piece.AnchorPoint = Vector2.new(0.5, 0.5)
+		piece.Size = UDim2.fromScale(0.09, 0.08)
+		piece.Position = onCircle(angle)
+		piece.Rotation = angle
+		piece.BackgroundColor3 = color
+		piece.BorderSizePixel = 0
+		piece.Parent = button
+		local edge = Instance.new("UIStroke")
+		edge.Color = Color3.fromRGB(30, 30, 30)
+		edge.Thickness = 1
+		edge.Transparency = 0.5
+		edge.Parent = piece
+	end
+	local head = Instance.new("TextLabel")
+	head.AnchorPoint = Vector2.new(0.5, 0.5)
+	head.Size = UDim2.fromScale(0.26, 0.26)
+	local tip = toAngle + 7
+	head.Position = onCircle(tip)
+	head.Rotation = tip
+	head.BackgroundTransparency = 1
+	head.Text = "▶"
+	head.TextColor3 = color
+	head.TextStrokeTransparency = 0.4
+	head.TextScaled = true
+	head.Font = Enum.Font.GothamBlack
+	head.Parent = button
+end
+arrow(25, 140, SILVER)
+arrow(205, 320, RED)
+
+local word = Instance.new("TextLabel")
+word.AnchorPoint = Vector2.new(0.5, 0)
+word.Size = UDim2.fromScale(1.15, 0.3)
+word.Position = UDim2.fromScale(0.5, 0.68)
+word.BackgroundTransparency = 1
+word.Text = "REBIRTH"
+word.TextColor3 = Color3.new(1, 1, 1)
+word.TextStrokeColor3 = Color3.new(0, 0, 0)
+word.TextStrokeTransparency = 0
+word.TextScaled = true
+word.Font = Enum.Font.FredokaOne
+word.Parent = button
+
+-- Bounce: bigger when hovered, squished when pressed
+local bounce = Instance.new("UIScale")
+bounce.Parent = button
+local function bounceTo(size)
+	TweenService:Create(bounce, TweenInfo.new(0.12, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = size }):Play()
+end
+button.MouseEnter:Connect(function()
+	bounceTo(1.1)
+end)
+button.MouseLeave:Connect(function()
+	bounceTo(1)
+end)
+button.MouseButton1Down:Connect(function()
+	bounceTo(0.9)
+end)
+button.MouseButton1Up:Connect(function()
+	bounceTo(1.1)
+end)
 
 -- ==================== THE PANEL ====================
 local panel = Instance.new("Frame")
