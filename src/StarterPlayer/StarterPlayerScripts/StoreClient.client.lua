@@ -73,7 +73,6 @@ local KIND_PICTURES = {
 	money = "💰",
 	strength = "💪",
 	kick = "🦵",
-	carpet = "🧞",
 	carpetpass = "🎫",
 	treadmill = "🏃",
 	wins10 = "🏆",
@@ -118,7 +117,9 @@ local function pictureFor(itemId, action)
 		return "🎒"
 	end
 	local item = Catalog.ById[itemId]
-	if item and item.kind == "skin" then
+	if item and item.kind == "carpet" then
+		return { carpet = true }
+	elseif item and item.kind == "skin" then
 		return { sky = Catalog.SkyColorById[item.colorId] }
 	end
 	return item and KIND_PICTURES[item.kind] or nil
@@ -126,6 +127,66 @@ end
 
 local function pictureSize(picture)
 	return PICTURE_SIZE + (type(picture) == "table" and (picture.grow or 0) or 0) * PICTURE_GROW
+end
+
+-- The Magic Carpet's picture: a little rainbow rug with gold tassels that waves in the wind
+local wavingStrips = {} -- { frame, index, baseY }: moved up and down while the shop is open
+local CARPET_PICTURE_STRIPS = 8
+local CARPET_PICTURE_COLORS = {
+	Color3.fromRGB(255, 50, 50),
+	Color3.fromRGB(255, 150, 30),
+	Color3.fromRGB(255, 230, 40),
+	Color3.fromRGB(50, 210, 80),
+	Color3.fromRGB(50, 120, 255),
+	Color3.fromRGB(160, 70, 230),
+}
+
+local function drawCarpetPicture(box)
+	box.BackgroundColor3 = Color3.fromRGB(120, 175, 235) -- sky behind it
+	box.ClipsDescendants = true
+	local rug = Instance.new("Frame")
+	rug.AnchorPoint = Vector2.new(0.5, 0.5)
+	rug.Position = UDim2.fromScale(0.5, 0.5)
+	rug.Size = UDim2.fromScale(0.78, 0.42)
+	rug.BackgroundTransparency = 1
+	rug.Rotation = -12
+	rug.Parent = box
+	for i = 1, CARPET_PICTURE_STRIPS do
+		local fraction = (i - 1) / (CARPET_PICTURE_STRIPS - 1)
+		local position = fraction * (#CARPET_PICTURE_COLORS - 1) + 1
+		local low = math.floor(position)
+		local color = CARPET_PICTURE_COLORS[low]:Lerp(CARPET_PICTURE_COLORS[math.min(low + 1, #CARPET_PICTURE_COLORS)], position - low)
+		local strip = Instance.new("Frame")
+		strip.AnchorPoint = Vector2.new(0, 0.5)
+		strip.Size = UDim2.new(1 / CARPET_PICTURE_STRIPS, 1, 1, 0)
+		strip.Position = UDim2.new((i - 1) / CARPET_PICTURE_STRIPS, 0, 0.5, 0)
+		strip.BackgroundColor3 = color
+		strip.BorderSizePixel = 0
+		strip.Parent = rug
+		-- Gold border on the long edges
+		for _, y in ipairs({ 0, 1 }) do
+			local trim = Instance.new("Frame")
+			trim.AnchorPoint = Vector2.new(0, y)
+			trim.Size = UDim2.new(1, 0, 0.14, 0)
+			trim.Position = UDim2.fromScale(0, y)
+			trim.BackgroundColor3 = Color3.fromRGB(230, 180, 50)
+			trim.BorderSizePixel = 0
+			trim.Parent = strip
+		end
+		-- Tassels on both ends
+		if i == 1 or i == CARPET_PICTURE_STRIPS then
+			for k = 1, 3 do
+				local tassel = Instance.new("Frame")
+				tassel.AnchorPoint = Vector2.new(i == 1 and 1 or 0, 0.5)
+				tassel.Size = UDim2.new(0.5, 0, 0.12, 0)
+				tassel.Position = UDim2.new(i == 1 and 0 or 1, 0, k / 4, 0)
+				tassel.BackgroundColor3 = Color3.fromRGB(230, 180, 50)
+				tassel.BorderSizePixel = 0
+				tassel.Parent = strip
+			end
+		end
+		table.insert(wavingStrips, { frame = strip, index = i })
+	end
 end
 
 local function drawPicture(row, picture)
@@ -138,6 +199,10 @@ local function drawPicture(row, picture)
 	local round = Instance.new("UICorner")
 	round.CornerRadius = UDim.new(0, 8)
 	round.Parent = box
+	if type(picture) == "table" and picture.carpet then
+		drawCarpetPicture(box)
+		return
+	end
 	local emoji = type(picture) == "string" and picture or (type(picture) == "table" and picture.emoji) or nil
 	local sky = type(picture) == "table" and picture.sky or nil
 	if sky then
@@ -373,6 +438,7 @@ end
 
 local function render(state)
 	lastState = state
+	table.clear(wavingStrips) -- the old rows (and their carpet picture) are about to go
 	for _, child in ipairs(list:GetChildren()) do
 		if child:IsA("Frame") then
 			child:Destroy()
@@ -472,5 +538,16 @@ task.spawn(function()
 			refreshColorShop()
 		end
 		wasOnSale = onSale
+	end
+end)
+
+-- The Magic Carpet picture waves while the shop is open: a ripple runs along the rug
+game:GetService("RunService").RenderStepped:Connect(function()
+	if not frame.Visible or #wavingStrips == 0 then
+		return
+	end
+	local t = os.clock()
+	for _, strip in ipairs(wavingStrips) do
+		strip.frame.Position = UDim2.new((strip.index - 1) / CARPET_PICTURE_STRIPS, 0, 0.5, math.sin(t * 5 - strip.index * 0.8) * 3)
 	end
 end)

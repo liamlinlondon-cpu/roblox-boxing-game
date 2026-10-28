@@ -130,7 +130,47 @@ local function removeCarpet(character)
 	end
 end
 
--- Six rainbow stripes (front to back) welded under the player, with a rainbow flame on each corner
+-- A rainbow rug under the player: CARPET_SEGMENTS cloth pieces front to back (the rainbow runs along
+-- it), a gold border down both sides, gold tassels on the front and back, and a rainbow flame on each
+-- corner. Each piece hangs on its own Weld (its resting spot saved as "BaseC0"), so CarpetWaveClient can
+-- ripple it up and down like it's blowing in the wind. Tagged "MagicCarpet" for that.
+local CARPET_SEGMENTS = 12
+local CARPET_WIDTH = 4.4
+local CARPET_LENGTH = 6.6
+local GOLD = Color3.fromRGB(230, 180, 50)
+
+local function rainbowAt(fraction)
+	local position = fraction * (#CARPET_STRIPES - 1) + 1
+	local low = math.floor(position)
+	local high = math.min(low + 1, #CARPET_STRIPES)
+	return CARPET_STRIPES[low]:Lerp(CARPET_STRIPES[high], position - low)
+end
+
+local function carpetPart(model, name, size, color, material, shape)
+	local part = Instance.new("Part")
+	part.Name = name
+	part.Size = size
+	part.Color = color
+	part.Material = material
+	part.Shape = shape or Enum.PartType.Block
+	part.CanCollide = false
+	part.CanQuery = false
+	part.CanTouch = false
+	part.Massless = true
+	part.CastShadow = false
+	part.Parent = model
+	return part
+end
+
+-- Sticks a decoration (border, tassel) onto a carpet piece so it waves along with it
+local function stick(piece, part, offset)
+	part.CFrame = piece.CFrame * offset
+	local weld = Instance.new("WeldConstraint")
+	weld.Part0 = piece
+	weld.Part1 = part
+	weld.Parent = part
+end
+
 local function attachCarpet(character)
 	local root = character and character:FindFirstChild("HumanoidRootPart")
 	if not root or character:FindFirstChild(CARPET_MODEL_NAME) then
@@ -138,32 +178,36 @@ local function attachCarpet(character)
 	end
 	local model = Instance.new("Model")
 	model.Name = CARPET_MODEL_NAME
-	local stripeLength = 1
-	local base = root.CFrame * CFrame.new(0, -1.6, 0.4)
-	for i, color in ipairs(CARPET_STRIPES) do
-		local stripe = Instance.new("Part")
-		stripe.Name = "Stripe" .. i
-		stripe.Size = Vector3.new(4, 0.2, stripeLength)
-		stripe.Color = color
-		stripe.Material = Enum.Material.Neon
-		stripe.CanCollide = false
-		stripe.CanQuery = false
-		stripe.Massless = true
-		stripe.CFrame = base * CFrame.new(0, 0, (i - 3.5) * stripeLength)
-		local weld = Instance.new("WeldConstraint")
-		weld.Part0 = root
-		weld.Part1 = stripe
-		weld.Parent = stripe
-		stripe.Parent = model
-		-- Flames on the four corners: both sides of the front and back stripes
-		if i == 1 then
-			addRainbowFire(stripe, Vector3.new(-2, 0.1, -stripeLength / 2))
-			addRainbowFire(stripe, Vector3.new(2, 0.1, -stripeLength / 2))
-		elseif i == #CARPET_STRIPES then
-			addRainbowFire(stripe, Vector3.new(-2, 0.1, stripeLength / 2))
-			addRainbowFire(stripe, Vector3.new(2, 0.1, stripeLength / 2))
+	local pieceLength = CARPET_LENGTH / CARPET_SEGMENTS
+	local base = CFrame.new(0, -1.6, 0.4) -- under the seat, relative to the HumanoidRootPart
+	for i = 1, CARPET_SEGMENTS do
+		local piece = carpetPart(model, "Segment" .. i, Vector3.new(CARPET_WIDTH, 0.15, pieceLength + 0.05), rainbowAt((i - 1) / (CARPET_SEGMENTS - 1)), Enum.Material.Fabric)
+		local restC0 = base * CFrame.new(0, 0, (i - (CARPET_SEGMENTS + 1) / 2) * pieceLength)
+		piece.CFrame = root.CFrame * restC0
+		-- Gold border down both sides
+		for _, side in ipairs({ -1, 1 }) do
+			stick(piece, carpetPart(model, "Border", Vector3.new(0.25, 0.2, pieceLength + 0.05), GOLD, Enum.Material.Fabric), CFrame.new(side * (CARPET_WIDTH / 2 - 0.12), 0.02, 0))
 		end
+		-- Gold tassels hanging off the front and back edges
+		if i == 1 or i == CARPET_SEGMENTS then
+			local edge = (i == 1 and -1 or 1) * (pieceLength / 2 + 0.2)
+			for t = -3, 3 do
+				stick(piece, carpetPart(model, "Tassel", Vector3.new(0.12, 0.12, 0.45), GOLD, Enum.Material.Fabric), CFrame.new(t * (CARPET_WIDTH / 7), -0.02, edge))
+			end
+			addRainbowFire(piece, Vector3.new(-CARPET_WIDTH / 2, 0.1, edge))
+			addRainbowFire(piece, Vector3.new(CARPET_WIDTH / 2, 0.1, edge))
+		end
+		-- A real Weld (not a WeldConstraint), so its C0 can be moved to make the wave
+		local weld = Instance.new("Weld")
+		weld.Name = "WaveWeld"
+		weld.Part0 = root
+		weld.Part1 = piece
+		weld.C0 = restC0
+		weld:SetAttribute("BaseC0", restC0)
+		weld:SetAttribute("Index", i)
+		weld.Parent = piece
 	end
+	CollectionService:AddTag(model, "MagicCarpet")
 	model.Parent = character
 end
 
