@@ -1,5 +1,6 @@
 -- Admin chat commands (only admins can use them, see Admins; ChatCommandFilter keeps them out of chat):
---   /ban <username>             bans the player from the game (all servers) and kicks them if they're here
+--   /ban <username> ,reason:<reason>  bans the player from the game (all servers) and kicks them if they're here;
+--                               they see the reason (optional), e.g. /ban Bob, exploiting
 --   /unban <username>           lifts the ban
 --   /fly, /unfly                toggles flying (FlyClient moves the character) / lands
 --   /give <name> <item>         gives a player in the server an item, e.g. /give Bob owner treadmill;
@@ -28,6 +29,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local TeleportService = game:GetService("TeleportService")
+local TextService = game:GetService("TextService")
 local TextChatService = game:GetService("TextChatService")
 local TweenService = game:GetService("TweenService")
 
@@ -51,7 +53,7 @@ flyEvent.Parent = eventsFolder
 local announcementEvent = eventsFolder:WaitForChild("Announcement")
 
 local BAN_MESSAGE = "You have been banned from this game."
-local sessionBans = {} -- [userId] = true: fallback when Players:BanAsync isn't available (Studio)
+local sessionBans = {} -- [userId] = the ban message: fallback when Players:BanAsync isn't available (Studio)
 
 local function notify(player, text)
 	noticeEvent:FireClient(player, text)
@@ -137,8 +139,70 @@ end
 
 -- ==================== BAN ====================
 
+-- The reason the banned player sees: "You have been banned from this game. Reason: ..."
+local function banMessage(reason, admin)
+	if not reason or not string.find(reason, "%S") then
+		return BAN_MESSAGE
+	end
+	local ok, clean = pcall(function()
+		return TextService:FilterStringAsync(reason, admin.UserId):GetNonChatStringForBroadcastAsync()
+	end)
+	if not ok then
+		return BAN_MESSAGE
+	end
+	return string.sub(BAN_MESSAGE .. " Reason: " .. clean, 1, 400) -- Roblox allows up to 400 letters
+end
+
+-- Carries out a ban the admin said YES to
+local function doBan(admin, pending)
+	local userId, name, reason = pending.userId, pending.name, pending.reason
+	local message = banMessage(reason, admin)
+	local ok, err = pcall(function()
+		Players:BanAsync({
+			UserIds = { userId },
+			ApplyToUniverse = true,
+			Duration = -1, -- permanent
+			DisplayReason = message,
+			PrivateReason = "Banned by " .. admin.Name .. " with /ban" .. (reason ~= "" and (": " .. reason) or ""),
+			ExcludeAltAccounts = false,
+		})
+	end)
+	if ok then
+		-- BanAsync also removes them from the game
+		notify(admin, name .. " has been banned." .. (reason ~= "" and (" Reason: " .. reason) or ""))
+		return
+	end
+
+	-- Ban API unavailable (e.g. in Studio): kick and keep them out of this server
+	sessionBans[userId] = message
+	local target = Players:GetPlayerByUserId(userId)
+	if target then
+		target:Kick(message)
+	end
+	notify(admin, name .. " was kicked and banned from this server only (Roblox ban failed: " .. tostring(err) .. ").")
+end
+
+-- /ban doesn't ban straight away: the admin first sees who and why in a popup (BanConfirmClient) and
+-- the ban only happens when they press YES (within a minute)
+local CONFIRM_SECONDS = 60
+local pendingBans = {} -- [admin] = { userId, name, reason, expires }
+local banConfirm = Instance.new("RemoteEvent")
+banConfirm.Name = "BanConfirm"
+banConfirm.Parent = eventsFolder
+
 local function ban(admin, args)
-	local query = args[1]
+	-- "/ban bob ,reason:being mean" (also "/ban bob, being mean", "/ban bob ± being mean"...): usernames are
+	-- only letters, numbers and _, so the name ends at the first other character; signs, spaces and a
+	-- "reason:" label after it are skipped
+	local query, rest = string.match(table.concat(args, " "), "^([%w_]+)(.*)$")
+	local reason = rest and (string.gsub(rest, "^[^%w]+", "")) or ""
+	if string.match(string.lower(reason), "^reason%s*[:=%-]") then
+		reason = string.gsub(reason, "^%a+%s*[:=%-]%s*", "")
+	end
+	if not query then
+		notify(admin, "Usage: /ban <username> ,reason:<reason>")
+		return
+	end
 	local userId, name = resolveUser(query)
 	if not userId then
 		notify(admin, "Couldn't find a player called \"" .. query .. "\".")
@@ -148,31 +212,24 @@ local function ban(admin, args)
 		notify(admin, "You can't ban " .. name .. " (admins and the owner can't be banned).")
 		return
 	end
+	pendingBans[admin] = { userId = userId, name = name, reason = reason, expires = os.clock() + CONFIRM_SECONDS }
+	banConfirm:FireClient(admin, name, reason)
+end
 
-	local ok, err = pcall(function()
-		Players:BanAsync({
-			UserIds = { userId },
-			ApplyToUniverse = true,
-			Duration = -1, -- permanent
-			DisplayReason = BAN_MESSAGE,
-			PrivateReason = "Banned by " .. admin.Name .. " with /ban",
-			ExcludeAltAccounts = false,
-		})
-	end)
-	if ok then
-		-- BanAsync also removes them from the game
-		notify(admin, name .. " has been banned.")
+banConfirm.OnServerEvent:Connect(function(admin, answer)
+	local pending = pendingBans[admin]
+	pendingBans[admin] = nil
+	if not pending or not Admins.IsAdmin(admin) then
 		return
 	end
-
-	-- Ban API unavailable (e.g. in Studio): kick and keep them out of this server
-	sessionBans[userId] = true
-	local target = Players:GetPlayerByUserId(userId)
-	if target then
-		target:Kick(BAN_MESSAGE)
+	if answer ~= true then
+		notify(admin, "Didn't ban " .. pending.name .. ".")
+	elseif os.clock() > pending.expires then
+		notify(admin, "That ban ran out of time. Type /ban again.")
+	else
+		doBan(admin, pending)
 	end
-	notify(admin, name .. " was kicked and banned from this server only (Roblox ban failed: " .. tostring(err) .. ").")
-end
+end)
 
 local function unban(admin, args)
 	local query = args[1]
@@ -1596,7 +1653,7 @@ end
 -- minArgs: how many words must follow the command; usage: shown when they're missing
 
 local COMMANDS = {
-	ban = { run = ban, minArgs = 1, usage = "/ban <username>" },
+	ban = { run = ban, minArgs = 1, usage = "/ban <username> ,reason:<reason>" },
 	unban = { run = unban, minArgs = 1, usage = "/unban <username>" },
 	fly = { run = fly },
 	unfly = { run = unfly },
@@ -1691,11 +1748,12 @@ end
 -- Keep session-banned players out (only used when the Roblox ban API isn't available)
 Players.PlayerAdded:Connect(function(player)
 	if sessionBans[player.UserId] then
-		player:Kick(BAN_MESSAGE)
+		player:Kick(sessionBans[player.UserId])
 	end
 end)
 
 Players.PlayerRemoving:Connect(function(player)
+	pendingBans[player] = nil
 	flying[player] = nil
 	removeClones(clonesOf(player, true)) -- their clones go with them
 	Admins.Revoke(player.UserId) -- commands given with /give last until the player leaves
