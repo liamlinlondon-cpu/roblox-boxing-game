@@ -74,14 +74,20 @@ Catalog.Treadmills = {
 -- sells the matching skin. Skins are kept once bought and can be worn again any time.
 -- `bonus`: while worn, the skin boosts strength and kick in fights (0.3 = +30%). Best first.
 -- `money` / `robux`: the skin's price in the Color Shop.
--- `strengthPerSecond`: strength gained every second while the skin is worn.
+-- `strengthPerSecond`: strength, kick and stamina gained every second while the skin is worn (the same
+-- amount of each).
+-- `aura`: the skin also sets the wearer on fire (a fiery aura).
 -- `rainbow`: the sky cycles through all colors and the skin colors each body part differently.
--- Green, cyan and pink are the best colors (better than rainbow) and banned from natural events: they
--- only come when the owner spawns them (VIP ADMIN panel).
+-- `ownerOnly`: a rare color that never comes by itself, only when the owner spawns it (VIP ADMIN panel or
+-- a chat command): yellow, orange, rainbow, green, cyan, pink, and fiery (which comes after a server
+-- nuke). Green, cyan and pink are the best colors, better than rainbow. Natural events only use the
+-- common colors (WorldConfig.SkyEvents.Schedule).
 Catalog.SkyColors = {
 	{ id = "green", name = "Green", color = Color3.fromRGB(40, 200, 70), bonus = 0.75, strengthPerSecond = 500, money = 5000000, robux = 500, ownerOnly = true },
 	{ id = "cyan", name = "Cyan", color = Color3.fromRGB(40, 220, 230), bonus = 0.5, strengthPerSecond = 200, money = 1000000, robux = 400, ownerOnly = true },
 	{ id = "pink", name = "Pink", color = Color3.fromRGB(255, 100, 200), bonus = 0.4, strengthPerSecond = 100, money = 500000, robux = 300, ownerOnly = true },
+	-- Fiery only comes for 1 minute after a server nuke (NukeService)
+	{ id = "fiery", name = "Fiery", color = Color3.fromRGB(255, 90, 20), aura = true, bonus = 0.35, strengthPerSecond = 75, money = 300000, robux = 250, ownerOnly = true },
 	{
 		id = "rainbow",
 		name = "Rainbow",
@@ -91,9 +97,10 @@ Catalog.SkyColors = {
 		strengthPerSecond = 50,
 		money = 200000,
 		robux = 200,
+		ownerOnly = true,
 	},
-	{ id = "yellow", name = "Yellow", color = Color3.fromRGB(255, 220, 40), bonus = 0.3, money = 100000, robux = 100 },
-	{ id = "orange", name = "Orange", color = Color3.fromRGB(255, 140, 30), bonus = 0.25, money = 50000, robux = 75 },
+	{ id = "yellow", name = "Yellow", color = Color3.fromRGB(255, 220, 40), bonus = 0.3, money = 100000, robux = 100, ownerOnly = true },
+	{ id = "orange", name = "Orange", color = Color3.fromRGB(255, 140, 30), bonus = 0.25, money = 50000, robux = 75, ownerOnly = true },
 	{ id = "blue", name = "Blue", color = Color3.fromRGB(40, 90, 255), bonus = 0.2, money = 20000, robux = 60 },
 	{ id = "red", name = "Red", color = Color3.fromRGB(255, 40, 40), bonus = 0.15, money = 10000, robux = 50 },
 	{ id = "purple", name = "Purple", color = Color3.fromRGB(150, 60, 220), bonus = 0.1, money = 1000, robux = 40 },
@@ -153,7 +160,7 @@ end
 function Catalog.SkinPerkText(sky)
 	local text = string.format("+%d%% STR & KICK", math.floor(sky.bonus * 100 + 0.5))
 	if sky.strengthPerSecond then
-		text ..= string.format(", +%d STR/sec", sky.strengthPerSecond)
+		text ..= string.format(", +%d STR, KICK & STAMINA/sec", sky.strengthPerSecond)
 	end
 	return text
 end

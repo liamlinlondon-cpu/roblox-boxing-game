@@ -120,7 +120,7 @@ local function spin(player)
 	else
 		data.ownedSkins[slice.color] = true
 		message = "🎉 You won the " .. sky.name .. " skin! Wear it from the Color Shop. " .. Catalog.SkinPerkText(sky)
-		if sky.ownerOnly then
+		if slice.chance <= 1 then -- the tiny slices: pink, cyan and green
 			task.delay(SPIN_SECONDS, function()
 				announcementEvent:FireAllClients("💚 " .. player.DisplayName .. " won the super rare " .. string.upper(sky.name) .. " skin on the Hulk Wheel!")
 			end)

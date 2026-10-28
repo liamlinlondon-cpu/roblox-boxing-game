@@ -1710,6 +1710,36 @@ local function runCommand(admin, message)
 	task.spawn(entry.run, admin, args)
 end
 
+-- The VIP ADMIN panel's COMMANDS tab: the owner types (or picks) a command and presses RUN, and it runs
+-- exactly as if typed in chat. Commands that live in other scripts (sky events, /disco, /nuke) are
+-- passed on through the ServerStorage "OtherChatCommand" event, which those scripts listen to.
+local otherChatCommand = Instance.new("BindableEvent")
+otherChatCommand.Name = "OtherChatCommand"
+otherChatCommand.Parent = game:GetService("ServerStorage")
+
+local adminRunCommand = Instance.new("RemoteFunction")
+adminRunCommand.Name = "AdminRunCommand"
+adminRunCommand.Parent = eventsFolder
+adminRunCommand.OnServerInvoke = function(player, message)
+	if not Admins.IsOwner(player) or type(message) ~= "string" then
+		return nil
+	end
+	message = string.gsub(string.sub(message, 1, 300), "^%s+", "")
+	if string.sub(message, 1, 1) ~= "/" then
+		message = "/" .. message
+	end
+	local word = string.lower(string.match(message, "^/([%a%-_]+)") or "")
+	if word == "" then
+		return "Type a command, like /fly."
+	end
+	if COMMANDS[(string.gsub(word, "[%-_]", ""))] then
+		runCommand(player, message)
+	else
+		otherChatCommand:Fire(player, (string.gsub(word, "[%-_]", "")), message)
+	end
+	return "Ran " .. message
+end
+
 if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
 	local commandsFolder = Instance.new("Folder")
 	commandsFolder.Name = "AdminCommands"

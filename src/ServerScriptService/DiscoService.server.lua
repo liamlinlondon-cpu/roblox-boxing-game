@@ -34,6 +34,15 @@ adminDisco.Name = "AdminDisco"
 adminDisco.Parent = eventsFolder
 adminDisco.OnServerInvoke = toggleDisco
 
+-- /disco from the VIP ADMIN panel's COMMANDS tab
+task.spawn(function()
+	game:GetService("ServerStorage"):WaitForChild("OtherChatCommand").Event:Connect(function(player, alias)
+		if alias == "disco" then
+			toggleDisco(player)
+		end
+	end)
+end)
+
 -- /disco in chat
 if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
 	local command = Instance.new("TextChatCommand")

@@ -1,6 +1,6 @@
 -- Sky color events: every few minutes the sky turns a color for a while, following
--- WorldConfig.SkyEvents.Schedule (yellow and orange are command-only; green, cyan and pink are banned
--- and only come when the owner spawns them from the VIP ADMIN panel).
+-- WorldConfig.SkyEvents.Schedule. The rare colors (Catalog `ownerOnly`: yellow, orange, rainbow, green,
+-- cyan, pink, fiery) never come by themselves, only when the owner spawns them.
 -- The current event is published as ReplicatedStorage attributes that replicate to every client:
 --   SkyEventColor  = color id ("red", "blue", ...) or nil when no event is running
 --   SkyEventEndsAt = Workspace:GetServerTimeNow() when the event ends
@@ -212,6 +212,15 @@ local function runCommand(player, alias)
 		announcementEvent:FireAllClients("👑 " .. player.DisplayName .. " started a " .. string.upper(sky.name) .. " SKY event!")
 	end
 end
+
+-- Commands run from the VIP ADMIN panel's COMMANDS tab (AdminCommandService passes them on)
+task.spawn(function()
+	game:GetService("ServerStorage"):WaitForChild("OtherChatCommand").Event:Connect(function(player, alias)
+		if EVENTS.Commands[alias] or alias == EVENTS.ClearCommand or alias == EVENTS.ClearCommandAlias then
+			runCommand(player, alias)
+		end
+	end)
+end)
 
 if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
 	local commandsFolder = Instance.new("Folder")

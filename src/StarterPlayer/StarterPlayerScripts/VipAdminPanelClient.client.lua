@@ -1,6 +1,6 @@
 -- The owner's rainbow VIP ADMIN panel: a sparkly rainbow VIP button above the ADMIN button opens a big panel with a menu
 -- on the left and pages on the right:
---   ⚡ EVENTS    a button for every sky event (and a normal sky, and the disco party), started straight away
+--   ⚡ EVENTS    a button for every sky event (and a normal sky, the disco party and the server nuke)
 --   📊 SETS      the same stat boxes as the ADMIN panel (speed, jump, strength, kick, ...)
 --   🗺️ TELEPORT  a map of the whole world from above; click anywhere to teleport there
 -- More pages can be added to PAGES. Only the owner gets it; the server checks every action.
@@ -17,6 +17,9 @@ local WorldConfig = require(Modules:WaitForChild("WorldConfig"))
 local events = ReplicatedStorage:WaitForChild("Events")
 local adminSkyEvent = events:WaitForChild("AdminSkyEvent")
 local adminDisco = events:WaitForChild("AdminDisco")
+local adminNuke = events:WaitForChild("AdminNuke")
+local adminRunCommand = events:WaitForChild("AdminRunCommand")
+local adminNotice = events:WaitForChild("AdminNotice")
 local adminPanelFunction = events:WaitForChild("AdminPanel")
 local teleportFunction = events:WaitForChild("Teleport")
 local wheelFunction = events:WaitForChild("HulkWheel")
@@ -221,6 +224,7 @@ local function buildEventsPage(page)
 	end
 	table.insert(choices, { id = "clear", name = "Normal sky", color = Color3.fromRGB(110, 150, 200) })
 	table.insert(choices, { id = "disco", name = "🪩 Disco (on/off)", color = Color3.fromRGB(60, 30, 110), remote = adminDisco })
+	table.insert(choices, { id = "nuke", name = "☢️ SERVER NUKE", color = Color3.fromRGB(200, 30, 20), remote = adminNuke })
 
 	for order, choice in ipairs(choices) do
 		local button = text(page, { button = true, text = choice.name, background = choice.color, color = WHITE, font = Enum.Font.GothamBlack })
@@ -747,6 +751,188 @@ local function buildMessagesPage(page)
 	end)
 end
 
+-- ==================== COMMANDS PAGE ====================
+-- Every chat command in one list, with a search bar on top. Clicking one puts it in the box at the
+-- bottom to fill in (names, numbers...) and RUN runs it exactly as if typed in chat. Commands without
+-- anything to fill in run straight away.
+local COMMAND_LIST = {
+	-- { what you type, what it does, runs straight away? }
+	{ "/fly", "Fly around", true },
+	{ "/unfly", "Land", true },
+	{ "/disco", "Disco party on/off", true },
+	{ "/nuke", "Nuke the server (10 s countdown; again to call off)", true },
+	{ "/ruby", "Red sky event", true },
+	{ "/amber", "Orange sky event", true },
+	{ "/sy", "Yellow sky event", true },
+	{ "/sapphire", "Blue sky event", true },
+	{ "/crystal", "Purple sky event", true },
+	{ "/mta", "Magenta sky event", true },
+	{ "/rbr", "Rainbow sky event", true },
+	{ "/non", "Normal sky (ends the event)", true },
+	{ "/ban <name> ,reason:<reason>", "Ban a player (asks you first)" },
+	{ "/unban <name>", "Unban a player" },
+	{ "/reset <name>", "Reset a player to a new player's start (no name: you)" },
+	{ "/luck <number> <name>", "Set luck (no name: everyone)" },
+	{ "/give <name> <item>", "Give an item, e.g. owner treadmill, hacker treadmill, green skin" },
+	{ "/give <name> commands", "Give someone the commands" },
+	{ "/give <name> admin panel", "Give someone the ADMIN panel" },
+	{ "/give <name> clones <number>", "Give someone clones of themselves" },
+	{ "/take <name> commands", "Take the commands away" },
+	{ "/take <name> admin panel", "Take the ADMIN panel away" },
+	{ "/take <name> clones", "Take someone's clones away" },
+	{ "/privateserver", "Go to your private server", true },
+	{ "/infinitystrength <name>", "Infinite strength (no name: you)" },
+	{ "/infinitykick <name>", "Infinite kick (no name: you)" },
+	{ "/infinitystamina <name>", "Infinite stamina (no name: you)" },
+	{ "/infinitymoney <name>", "Infinite money (no name: you)" },
+	{ "/infinitywins <name>", "Infinite wins (no name: you)" },
+	{ "/infinitybeatthegame <name>", "Infinite beat the game (no name: you)" },
+	{ "/clone <number>", "Make clones of yourself" },
+	{ "/clone stop <number>", "Remove clones" },
+	{ "/clones follow", "Clones follow you (add a number for only some)", true },
+	{ "/clones stay", "Clones stay where they are", true },
+	{ "/clones dance", "Clones dance", true },
+	{ "/clones copy", "Clones copy what you do", true },
+	{ "/clones fly", "Clones fly behind you in a line", true },
+	{ "/clones stop", "Clones stop what they're doing", true },
+	{ "/clones remove", "Remove your clones", true },
+	{ "/clones beat the game", "Clones beat the game for you", true },
+	{ "/clones fight <name>", "Clones fight a player" },
+	{ "/clones kill <name>", "Clones kill a player" },
+	{ "/clones train strength", "Clones train strength (add vip floor for 2x)", true },
+	{ "/clones train kick", "Clones train kick (add vip floor for 2x)", true },
+	{ "/clones train both", "Clones train strength and kick", true },
+	{ "/clones train stamina", "Clones run on treadmills (add owner/hacker/admin/regular)", true },
+	{ "/clones train wins", "Clones box each other for wins", true },
+	{ "/every_clone owner treadmill", "Every clone runs on that treadmill (owner/hacker/admin/regular/any)", true },
+	{ "/force <name> <order>", "Order someone's clones (they stop listening to them)" },
+	{ "/force <name> release", "Give someone's clones back to them" },
+}
+
+local function buildCommandsPage(page)
+	local search = Instance.new("TextBox")
+	search.Size = UDim2.new(1, 0, 0, 32)
+	search.BackgroundColor3 = Color3.fromRGB(45, 45, 52)
+	search.TextColor3 = WHITE
+	search.PlaceholderText = "🔍 Search commands (e.g. clones, sky, ban)"
+	search.Text = ""
+	search.ClearTextOnFocus = false
+	search.TextScaled = true
+	search.Font = Enum.Font.Gotham
+	search.TextXAlignment = Enum.TextXAlignment.Left
+	search.Parent = page
+	corner(search, UDim.new(0, 6))
+	local searchPadding = Instance.new("UIPadding")
+	searchPadding.PaddingLeft = UDim.new(0, 8)
+	searchPadding.Parent = search
+
+	local list = Instance.new("ScrollingFrame")
+	list.Size = UDim2.new(1, 0, 1, -84)
+	list.Position = UDim2.new(0, 0, 0, 38)
+	list.BackgroundColor3 = Color3.fromRGB(32, 32, 40)
+	list.BorderSizePixel = 0
+	list.ScrollBarThickness = 6
+	list.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	list.CanvasSize = UDim2.new()
+	list.Parent = page
+	corner(list)
+	local layout = Instance.new("UIListLayout")
+	layout.Padding = UDim.new(0, 3)
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	layout.Parent = list
+	local listPadding = Instance.new("UIPadding")
+	listPadding.PaddingTop = UDim.new(0, 4)
+	listPadding.PaddingLeft = UDim.new(0, 4)
+	listPadding.PaddingRight = UDim.new(0, 8)
+	listPadding.Parent = list
+
+	local runBox = Instance.new("TextBox")
+	runBox.Size = UDim2.new(1, -86, 0, 38)
+	runBox.Position = UDim2.new(0, 0, 1, -40)
+	runBox.BackgroundColor3 = Color3.fromRGB(45, 45, 52)
+	runBox.TextColor3 = WHITE
+	runBox.PlaceholderText = "Pick a command above, or type one here"
+	runBox.Text = ""
+	runBox.ClearTextOnFocus = false
+	runBox.TextScaled = true
+	runBox.Font = Enum.Font.Code
+	runBox.TextXAlignment = Enum.TextXAlignment.Left
+	runBox.Parent = page
+	corner(runBox, UDim.new(0, 6))
+	local runPadding = Instance.new("UIPadding")
+	runPadding.PaddingLeft = UDim.new(0, 8)
+	runPadding.Parent = runBox
+	local runButton = text(page, { button = true, text = "RUN", size = UDim2.new(0, 80, 0, 38), position = UDim2.new(1, -80, 1, -40), background = Color3.fromRGB(40, 160, 70), font = Enum.Font.GothamBlack })
+	corner(runButton, UDim.new(0, 6))
+
+	local function run(command)
+		if string.find(command, "<") then
+			say("Fill in the <...> parts first.")
+			runBox:CaptureFocus()
+			return
+		end
+		local ok, answer = pcall(adminRunCommand.InvokeServer, adminRunCommand, command)
+		say(ok and answer or "That didn't work. Try again.")
+	end
+	runButton.Activated:Connect(function()
+		if string.find(runBox.Text, "%S") then
+			run(runBox.Text)
+		end
+	end)
+	runBox.FocusLost:Connect(function(enterPressed)
+		if enterPressed and string.find(runBox.Text, "%S") then
+			run(runBox.Text)
+		end
+	end)
+
+	local rows = {}
+	for order, item in ipairs(COMMAND_LIST) do
+		local row = text(list, {
+			button = true,
+			text = "",
+			size = UDim2.new(1, 0, 0, 34),
+			background = Color3.fromRGB(45, 45, 55),
+		})
+		row.LayoutOrder = order
+		corner(row, UDim.new(0, 6))
+		text(row, { text = item[1], size = UDim2.new(0.5, -8, 1, -8), position = UDim2.new(0, 8, 0, 4), color = GOLD, font = Enum.Font.Code, alignX = Enum.TextXAlignment.Left })
+		text(row, { text = item[2] .. (item[3] and "  ▶" or ""), size = UDim2.new(0.5, -8, 1, -10), position = UDim2.new(0.5, 0, 0, 5), color = Color3.fromRGB(200, 200, 210), font = Enum.Font.Gotham, alignX = Enum.TextXAlignment.Left })
+		row.Activated:Connect(function()
+			if item[3] then
+				run(item[1])
+			else
+				runBox.Text = item[1]
+				runBox:CaptureFocus()
+				say("Fill in the <...> parts, then press RUN.")
+			end
+		end)
+		rows[row] = string.lower(item[1] .. " " .. item[2])
+	end
+
+	-- Search: only show commands with every typed word in them
+	search:GetPropertyChangedSignal("Text"):Connect(function()
+		local words = string.split(string.lower(search.Text), " ")
+		for row, haystack in pairs(rows) do
+			local show = true
+			for _, word in ipairs(words) do
+				if word ~= "" and not string.find(haystack, word, 1, true) then
+					show = false
+					break
+				end
+			end
+			row.Visible = show
+		end
+		list.CanvasPosition = Vector2.new()
+	end)
+end
+
+-- Command results (the same messages you'd see in chat) also show on the panel
+adminNotice.OnClientEvent:Connect(function(message)
+	if panel.Visible then
+		say(tostring(message))
+	end
+end)
+
 -- ==================== MENU ====================
 local PAGES = { -- add more pages here later
 	{ name = "⚡ EVENTS", build = buildEventsPage },
@@ -757,6 +943,7 @@ local PAGES = { -- add more pages here later
 	{ name = "📨 MESSAGES", build = buildMessagesPage, onShow = function()
 		refreshMessages()
 	end },
+	{ name = "⌨️ COMMANDS", build = buildCommandsPage },
 }
 
 local pageFrames, menuButtons = {}, {}

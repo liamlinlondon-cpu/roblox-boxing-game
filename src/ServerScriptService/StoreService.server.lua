@@ -215,12 +215,51 @@ local function skinColor(sky, property)
 	return sky.color
 end
 
+-- The fiery aura (skins with `aura`): flames all over the body
+local AURA_PARTS = { "UpperTorso", "Torso", "LeftUpperArm", "RightUpperArm", "Left Arm", "Right Arm", "LeftUpperLeg", "RightUpperLeg", "Left Leg", "Right Leg" }
+local function removeAura(character)
+	for _, item in ipairs(character:GetDescendants()) do
+		if item.Name == "SkinAura" then
+			item:Destroy()
+		end
+	end
+end
+local function addAura(character)
+	for _, partName in ipairs(AURA_PARTS) do
+		local part = character:FindFirstChild(partName)
+		if part then
+			local fire = Instance.new("Fire")
+			fire.Name = "SkinAura"
+			fire.Size = 4
+			fire.Heat = 8
+			fire.Color = Color3.fromRGB(255, 140, 30)
+			fire.SecondaryColor = Color3.fromRGB(255, 40, 0)
+			fire.Parent = part
+		end
+	end
+	local root = character:FindFirstChild("HumanoidRootPart")
+	if root then
+		local glow = Instance.new("PointLight")
+		glow.Name = "SkinAura"
+		glow.Color = Color3.fromRGB(255, 120, 40)
+		glow.Range = 14
+		glow.Brightness = 2
+		glow.Parent = root
+	end
+end
+
 local function applySkin(player)
 	local data = FighterStats.GetPlayerData(player)
 	local character = player.Character
 	local sky = data.skin and Catalog.SkyColorById[data.skin]
+	if character then
+		removeAura(character)
+	end
 	if not character or not sky then
 		return
+	end
+	if sky.aura then
+		addAura(character)
 	end
 	for _, child in ipairs(character:GetChildren()) do
 		if child:IsA("Shirt") or child:IsA("Pants") or child:IsA("ShirtGraphic") then
@@ -245,6 +284,9 @@ end
 -- Puts the player's own avatar look back (body colors and clothing)
 local function restoreLook(player)
 	local character = player.Character
+	if character then
+		removeAura(character)
+	end
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 	if humanoid then
 		pcall(function()
@@ -564,7 +606,7 @@ Players.PlayerAdded:Connect(function(player)
 	end)
 end)
 
--- Skins with strengthPerSecond (the rainbow skin) give that much strength every second while worn
+-- Skins with strengthPerSecond give that much strength, kick and stamina every second while worn
 task.spawn(function()
 	while true do
 		task.wait(1)
@@ -573,6 +615,9 @@ task.spawn(function()
 			local sky = data.skin and Catalog.SkyColorById[data.skin]
 			if sky and sky.strengthPerSecond then
 				FighterStats.TrainStrength(data, sky.strengthPerSecond)
+				FighterStats.TrainKick(data, sky.strengthPerSecond)
+				data.maxStamina += sky.strengthPerSecond
+				data.stamina = data.maxStamina
 				sendStats(player)
 			end
 		end

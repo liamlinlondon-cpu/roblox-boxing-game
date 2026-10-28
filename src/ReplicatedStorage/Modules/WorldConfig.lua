@@ -80,8 +80,9 @@ WorldConfig.SkyEvents = {
 	FirstDelaySeconds = 60, -- first event this long after the server starts
 	IntervalSeconds = 60 * 60, -- one hour between the end of one event and the start of the next
 	DurationSeconds = 60, -- each event lasts one minute
-	-- Natural events follow this order, then repeat from the start. Colors not listed here (yellow and
-	-- orange are the rare ones) only appear when the owner starts them with a chat command.
+	-- Natural events follow this order, then repeat from the start. The rare colors (yellow, orange,
+	-- rainbow, green, cyan, pink, and fiery after a nuke) are never natural: only the owner spawns them,
+	-- and they're skipped even if listed here.
 	Schedule = {
 		"blue", "magenta", "red", "purple", "magenta", "purple", "magenta",
 		"red", "blue", "magenta", "purple", "red", "blue",
