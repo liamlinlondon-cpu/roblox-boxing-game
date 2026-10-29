@@ -573,7 +573,16 @@ matchResultEvent.OnClientEvent:Connect(function(data)
 		resultLabel.Text = "YOU WIN!"
 		resultLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
 		-- Winning pays game money, not Robux (games can't give out Robux)
+		-- The server works the reward out from how well the fight went (health left, win streak)
+		local why = {}
+		if data.streak and data.streak > 1 then
+			table.insert(why, "🔥 " .. data.streak .. " win streak")
+		end
+		if data.healthPercent then
+			table.insert(why, "💪 " .. data.healthPercent .. "% health")
+		end
 		rewardLabel.Text = "Reward: +$" .. Catalog.FormatWithCommas(data.moneyAward or 0) .. " money"
+			.. (#why > 0 and (" · " .. table.concat(why, " · ")) or "")
 	elseif data.type == "lose" then
 		resultFrame.Visible = true
 		resultLabel.Text = "YOU LOST!"

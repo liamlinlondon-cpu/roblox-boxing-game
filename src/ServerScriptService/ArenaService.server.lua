@@ -147,34 +147,54 @@ local function startArenaCountdown(player)
     })
 end
 
-local WIN_REWARD = 10
 local LOSS_PENALTY = 20
+-- Money for a win is worked out from how well the player did:
+local REWARD_MIN, REWARD_MAX = 50, 150 -- a random start
+local STREAK_BONUS = 0.1 -- +10% for every win in a row...
+local STREAK_MAX = 2 -- ...up to 2x
+-- Then times the health left (full health 1.5x, almost none 0.5x), the bought win multiplier, and 2x for
+-- every rebirth.
 
--- Money for a win: the base reward, times the bought win multiplier, times 2 for every rebirth
-local function winReward(data)
-    return WIN_REWARD * data.winMultiplier * FighterStats.MoneyMultiplier(data)
-end
+local winStreaks = {} -- [player] = wins in a row (a loss starts again)
 
+-- Pays a win and says why: { money, streak, healthPercent }
 local function awardWin(player)
     local data = getPlayerData(player)
-    data.money = data.money + winReward(data)
+    local streak = (winStreaks[player] or 0) + 1
+    winStreaks[player] = streak
+    local healthPercent = math.clamp((data.health or 0) / 100, 0, 1)
+    local amount = math.random(REWARD_MIN, REWARD_MAX)
+        * (0.5 + healthPercent)
+        * math.min(STREAK_MAX, 1 + STREAK_BONUS * (streak - 1))
+        * (data.winMultiplier or 1)
+        * FighterStats.MoneyMultiplier(data)
+    amount = math.floor(amount)
+    data.money = data.money + amount
     data.arenaWins += 1
+    return { money = amount, streak = streak, healthPercent = math.floor(healthPercent * 100 + 0.5) }
 end
 
 local function awardLoss(player)
     local data = getPlayerData(player)
     data.arenaLosses += 1
+    winStreaks[player] = nil
 end
+
+Players.PlayerRemoving:Connect(function(player)
+    winStreaks[player] = nil
+end)
 
 local function endBotFight(player, won, message)
     local data = getPlayerData(player)
     botFights[player] = nil
     data.isInMatch = false
     if won then
-        awardWin(player)
+        local reward = awardWin(player)
         matchResultEvent:FireClient(player, {
             type = "win",
-            moneyAward = winReward(data),
+            moneyAward = reward.money,
+            streak = reward.streak,
+            healthPercent = reward.healthPercent,
             remainingHealth = data.health,
         })
     else
@@ -353,7 +373,7 @@ local function endPvpMatch(winner, loser)
     local loserData = getPlayerData(loser)
     winnerData.opponent = nil
     loserData.opponent = nil
-    awardWin(winner)
+    local reward = awardWin(winner)
     awardLoss(loser)
     loserData.money = math.max(0, loserData.money - LOSS_PENALTY)
     winnerData.isInMatch = false
@@ -363,7 +383,9 @@ local function endPvpMatch(winner, loser)
 
     matchResultEvent:FireClient(winner, {
         type = "win",
-        moneyAward = winReward(winnerData),
+        moneyAward = reward.money,
+        streak = reward.streak,
+        healthPercent = reward.healthPercent,
         remainingHealth = winnerData.health,
     })
     matchResultEvent:FireClient(loser, {
