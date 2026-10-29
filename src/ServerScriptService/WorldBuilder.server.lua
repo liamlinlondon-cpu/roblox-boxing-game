@@ -834,10 +834,12 @@ local function buildSecretBase(world)
 	local room = config.InfinityRoom
 	local roomSize = Vector3.new(room.Size, room.Height, room.Size)
 	local roomMiddle = Vector3.new(center.X, room.FloorTop + room.Height / 2, center.Z)
-	sealedBox(model, "InfinityRoom", roomMiddle, roomSize, Color3.fromRGB(255, 215, 80), Enum.Material.Neon)
-	local roomSign = makePart(model, "InfinitySign", Vector3.new(24, 6, 0.5), CFrame.new(roomMiddle + Vector3.new(0, 4, -room.Size / 2 + 1)), Enum.Material.SmoothPlastic, Color3.fromRGB(30, 20, 5))
-	addSign(roomSign, Enum.NormalId.Back, "♾️ INFINITY ROOM", Color3.fromRGB(255, 220, 90))
-	addSign(roomSign, Enum.NormalId.Front, "♾️ INFINITY ROOM", Color3.fromRGB(255, 220, 90))
+	-- Dark blue, not glowing, so it isn't too bright; one dim lamp in the middle
+	sealedBox(model, "InfinityRoom", roomMiddle, roomSize, Color3.fromRGB(12, 22, 60), Enum.Material.SmoothPlastic)
+	ceilingLight(model, roomMiddle + Vector3.new(0, room.Height / 2 - 0.3, 0), Color3.fromRGB(70, 110, 220), 0.6)
+	local roomSign = makePart(model, "InfinitySign", Vector3.new(24, 6, 0.5), CFrame.new(roomMiddle + Vector3.new(0, 4, -room.Size / 2 + 1)), Enum.Material.SmoothPlastic, Color3.fromRGB(8, 14, 40))
+	addSign(roomSign, Enum.NormalId.Back, "♾️ INFINITY ROOM", Color3.fromRGB(110, 150, 255))
+	addSign(roomSign, Enum.NormalId.Front, "♾️ INFINITY ROOM", Color3.fromRGB(110, 150, 255))
 end
 
 local function buildWorld()
