@@ -132,73 +132,6 @@ button.MouseButton1Up:Connect(function()
 	bounceTo(1.1)
 end)
 
--- ==================== THE SKIP REBIRTH BUTTON ====================
--- Next to the rebirth button: buys a rebirth with Robux, without the strength, kick and stamina.
--- 137 Robux, then double every skip. Hidden once all rebirths are done.
-local skipButton = Instance.new("TextButton")
-skipButton.Name = "SkipRebirthButton"
-skipButton.AnchorPoint = Vector2.new(1, 0.5)
-skipButton.Size = UDim2.new(0, 68, 0, 68)
-skipButton.Position = UDim2.new(1, -28 - 68 - 14, 0.5, -170) -- just left of the rebirth button
-skipButton.BackgroundColor3 = Color3.fromRGB(255, 170, 30)
-skipButton.Text = ""
-skipButton.AutoButtonColor = false
-skipButton.Parent = screenGui
-local skipRound = Instance.new("UICorner")
-skipRound.CornerRadius = UDim.new(0.25, 0)
-skipRound.Parent = skipButton
-shine:Clone().Parent = skipButton
-local skipRing = Instance.new("UIStroke")
-skipRing.Color = Color3.fromRGB(150, 70, 0)
-skipRing.Thickness = 4
-skipRing.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-skipRing.Parent = skipButton
-
-local function skipText(text, y, height, font)
-	local l = Instance.new("TextLabel")
-	l.AnchorPoint = Vector2.new(0.5, 0)
-	l.Size = UDim2.fromScale(1.1, height)
-	l.Position = UDim2.fromScale(0.5, y)
-	l.BackgroundTransparency = 1
-	l.Text = text
-	l.TextColor3 = Color3.new(1, 1, 1)
-	l.TextStrokeColor3 = Color3.new(0, 0, 0)
-	l.TextStrokeTransparency = 0
-	l.TextScaled = true
-	l.Font = font
-	l.Parent = skipButton
-	return l
-end
-skipText("⏩", 0.04, 0.36, Enum.Font.GothamBlack)
-skipText("SKIP", 0.4, 0.26, Enum.Font.FredokaOne)
-local skipPrice = skipText("R$ 137", 0.68, 0.26, Enum.Font.GothamBlack)
-
-local skipBounce = Instance.new("UIScale")
-skipBounce.Parent = skipButton
-local function skipBounceTo(size)
-	TweenService:Create(skipBounce, TweenInfo.new(0.12, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = size }):Play()
-end
-skipButton.MouseEnter:Connect(function()
-	skipBounceTo(1.1)
-end)
-skipButton.MouseLeave:Connect(function()
-	skipBounceTo(1)
-end)
-skipButton.MouseButton1Down:Connect(function()
-	skipBounceTo(0.9)
-end)
-skipButton.MouseButton1Up:Connect(function()
-	skipBounceTo(1.1)
-end)
-
--- The price shown on the button (doubles every skip); gone after the last rebirth
-local function updateSkip(info)
-	skipButton.Visible = info.rebirths < info.max
-	if info.skipPrice then
-		skipPrice.Text = "R$ " .. Catalog.FormatNumber(info.skipPrice)
-	end
-end
-
 -- ==================== THE PANEL ====================
 local panel = Instance.new("Frame")
 panel.Name = "RebirthPanel"
@@ -237,14 +170,37 @@ local note = label("Rebirthing resets your strength, kick, stamina, wins and bea
 	UDim2.new(1, -24, 0, 36), UDim2.new(0, 12, 0, 184), Color3.fromRGB(170, 170, 170), Enum.Font.Gotham)
 note.TextWrapped = true
 
+-- REBIRTH on the left, SKIP on the right
 local rebirthButton = Instance.new("TextButton")
-rebirthButton.Size = UDim2.new(1, -24, 0, 44)
+rebirthButton.Size = UDim2.new(0.5, -18, 0, 44)
 rebirthButton.Position = UDim2.new(0, 12, 1, -56)
 rebirthButton.Font = Enum.Font.GothamBlack
 rebirthButton.TextScaled = true
 rebirthButton.TextColor3 = Color3.new(1, 1, 1)
 rebirthButton.Text = "REBIRTH"
 rebirthButton.Parent = panel
+
+-- Skip Rebirth: buys the next rebirth with Robux, without the strength, kick and stamina.
+-- 137 Robux, then double every skip. Hidden once all rebirths are done.
+local skipButton = Instance.new("TextButton")
+skipButton.Name = "SkipRebirthButton"
+skipButton.Size = UDim2.new(0.5, -18, 0, 44)
+skipButton.Position = UDim2.new(0.5, 6, 1, -56)
+skipButton.BackgroundColor3 = Color3.fromRGB(255, 170, 30)
+skipButton.Font = Enum.Font.GothamBlack
+skipButton.TextScaled = true
+skipButton.TextColor3 = Color3.new(1, 1, 1)
+skipButton.TextStrokeTransparency = 0.3
+skipButton.Text = "⏩ SKIP · R$ 137"
+skipButton.Parent = panel
+
+-- The price shown on the button (doubles every skip); gone after the last rebirth
+local function updateSkip(info)
+	skipButton.Visible = info.rebirths < info.max
+	if info.skipPrice then
+		skipButton.Text = "⏩ SKIP · R$ " .. Catalog.FormatNumber(info.skipPrice)
+	end
+end
 
 local closeButton = Instance.new("TextButton")
 closeButton.Size = UDim2.new(0, 36, 0, 36)

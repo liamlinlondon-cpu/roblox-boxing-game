@@ -351,10 +351,15 @@ shopBackBtn.MouseButton1Click:Connect(function()
 end)
 
 -- ==================== ARENA SCREEN ====================
+-- A see-through panel on the left side (not over the whole screen), so the fight itself can be watched.
+-- (The stats panel that's normally there is hidden during a fight.)
+-- The move buttons go down it in a zigzag.
 local arenaFrame = Instance.new("Frame")
 arenaFrame.Name = "ArenaFrame"
-arenaFrame.Size = UDim2.new(0.85, 0, 0.85, 0)
-arenaFrame.Position = UDim2.new(0.075, 0, 0.075, 0)
+arenaFrame.AnchorPoint = Vector2.new(0, 0.5)
+arenaFrame.Size = UDim2.new(0, 260, 0, 460)
+arenaFrame.Position = UDim2.new(0, 12, 0.5, 0)
+arenaFrame.BackgroundTransparency = 0.45
 arenaFrame.BackgroundColor3 = Color3.fromRGB(24, 24, 24)
 arenaFrame.BorderSizePixel = 2
 arenaFrame.BorderColor3 = Color3.fromRGB(255, 215, 0)
@@ -362,7 +367,8 @@ arenaFrame.Visible = false
 arenaFrame.Parent = screenGui
 
 local arenaTitle = Instance.new("TextLabel")
-arenaTitle.Size = UDim2.new(1, 0, 0.12, 0)
+arenaTitle.Size = UDim2.new(1, 0, 0.08, 0)
+arenaTitle.BackgroundTransparency = 0.3
 arenaTitle.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 arenaTitle.Text = "BOXING ARENA"
 arenaTitle.TextColor3 = Color3.fromRGB(255, 215, 0)
@@ -371,8 +377,9 @@ arenaTitle.TextScaled = true
 arenaTitle.Parent = arenaFrame
 
 local countdownLabel = Instance.new("TextLabel")
-countdownLabel.Size = UDim2.new(0.3, 0, 0.2, 0)
-countdownLabel.Position = UDim2.new(0.35, 0, 0.4, 0)
+countdownLabel.Size = UDim2.new(0.5, 0, 0.18, 0)
+countdownLabel.Position = UDim2.new(0.25, 0, 0.42, 0)
+countdownLabel.ZIndex = 3
 countdownLabel.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 countdownLabel.BackgroundTransparency = 0.35
 countdownLabel.Text = "3"
@@ -383,8 +390,9 @@ countdownLabel.Visible = false
 countdownLabel.Parent = arenaFrame
 
 local arenaYourHealth = Instance.new("TextLabel")
-arenaYourHealth.Size = UDim2.new(0.35, 0, 0.08, 0)
-arenaYourHealth.Position = UDim2.new(0.08, 0, 0.18, 0)
+arenaYourHealth.Size = UDim2.new(0.92, 0, 0.065, 0)
+arenaYourHealth.Position = UDim2.new(0.04, 0, 0.1, 0)
+arenaYourHealth.BackgroundTransparency = 0.3
 arenaYourHealth.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
 arenaYourHealth.Text = "Your Health: 100"
 arenaYourHealth.TextColor3 = Color3.fromRGB(0, 255, 0)
@@ -393,8 +401,9 @@ arenaYourHealth.TextScaled = true
 arenaYourHealth.Parent = arenaFrame
 
 local arenaEnemyHealth = Instance.new("TextLabel")
-arenaEnemyHealth.Size = UDim2.new(0.35, 0, 0.08, 0)
-arenaEnemyHealth.Position = UDim2.new(0.57, 0, 0.18, 0)
+arenaEnemyHealth.Size = UDim2.new(0.92, 0, 0.065, 0)
+arenaEnemyHealth.Position = UDim2.new(0.04, 0, 0.175, 0)
+arenaEnemyHealth.BackgroundTransparency = 0.3
 arenaEnemyHealth.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
 arenaEnemyHealth.Text = "Opponent: 100"
 arenaEnemyHealth.TextColor3 = Color3.fromRGB(255, 0, 0)
@@ -403,8 +412,9 @@ arenaEnemyHealth.TextScaled = true
 arenaEnemyHealth.Parent = arenaFrame
 
 local arenaStamina = Instance.new("TextLabel")
-arenaStamina.Size = UDim2.new(0.84, 0, 0.07, 0)
-arenaStamina.Position = UDim2.new(0.08, 0, 0.39, 0)
+arenaStamina.Size = UDim2.new(0.92, 0, 0.06, 0)
+arenaStamina.Position = UDim2.new(0.04, 0, 0.35, 0)
+arenaStamina.BackgroundTransparency = 0.3
 arenaStamina.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
 arenaStamina.Text = "Stamina: 100 / 100 | Max Stamina: 100"
 arenaStamina.TextColor3 = Color3.fromRGB(255, 200, 0)
@@ -419,8 +429,9 @@ local function setArenaStamina(stamina, maxStamina)
 end
 
 local arenaMessage = Instance.new("TextLabel")
-arenaMessage.Size = UDim2.new(0.9, 0, 0.1, 0)
-arenaMessage.Position = UDim2.new(0.05, 0, 0.28, 0)
+arenaMessage.Size = UDim2.new(0.92, 0, 0.09, 0)
+arenaMessage.Position = UDim2.new(0.04, 0, 0.25, 0)
+arenaMessage.BackgroundTransparency = 0.3
 arenaMessage.BackgroundColor3 = Color3.fromRGB(52, 52, 52)
 arenaMessage.Text = "Match starting..."
 arenaMessage.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -431,11 +442,25 @@ arenaMessage.Parent = arenaFrame
 local function createArenaButton(name, text, position, action)
 	local btn = Instance.new("TextButton")
 	btn.Name = name
-	btn.Size = UDim2.new(0.17, 0, 0.09, 0)
+	-- Round buttons with a gold ring
+	btn.Size = UDim2.new(0, 62, 0, 62)
 	btn.Position = position
 	btn.BackgroundColor3 = Color3.fromRGB(75, 110, 180)
-	btn.BorderSizePixel = 2
-	btn.BorderColor3 = Color3.fromRGB(255, 215, 0)
+	btn.BorderSizePixel = 0
+	local round = Instance.new("UICorner")
+	round.CornerRadius = UDim.new(0.5, 0)
+	round.Parent = btn
+	local ring = Instance.new("UIStroke")
+	ring.Color = Color3.fromRGB(255, 215, 0)
+	ring.Thickness = 2
+	ring.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	ring.Parent = btn
+	local padding = Instance.new("UIPadding") -- keeps the word inside the circle
+	padding.PaddingLeft = UDim.new(0, 8)
+	padding.PaddingRight = UDim.new(0, 8)
+	padding.PaddingTop = UDim.new(0, 16)
+	padding.PaddingBottom = UDim.new(0, 16)
+	padding.Parent = btn
 	btn.Text = text
 	btn.TextColor3 = Color3.fromRGB(255, 255, 255)
 	btn.Font = Enum.Font.GothamBold
@@ -447,20 +472,25 @@ local function createArenaButton(name, text, position, action)
 	return btn
 end
 
-createArenaButton("StartBtn", "START MATCH", UDim2.new(0.38, 0, 0.32, 0), "start_match")
-createArenaButton("PunchBtn", "PUNCH", UDim2.new(0.08, 0, 0.5, 0), "punch")
-createArenaButton("KickBtn", "KICK", UDim2.new(0.28, 0, 0.5, 0), "kick")
-createArenaButton("ComboBtn", "COMBO", UDim2.new(0.48, 0, 0.5, 0), "combo")
-createArenaButton("BlockBtn", "BLOCK", UDim2.new(0.68, 0, 0.5, 0), "block")
-
-createArenaButton("KneeBtn", "KNEE", UDim2.new(0.18, 0, 0.63, 0), "knee")
-createArenaButton("HomeBtn", "HOME", UDim2.new(0.55, 0, 0.63, 0), "go_home")
+-- START MATCH is a wide rounded bar; the moves are circles in a zigzag: left, right, left, right...
+local startButton = createArenaButton("StartBtn", "START MATCH", UDim2.new(0.04, 0, 0.42, 0), "start_match")
+startButton.Size = UDim2.new(0.92, 0, 0.07, 0)
+startButton:FindFirstChildOfClass("UIPadding"):Destroy()
+-- 35 pixels down each step, so circles on the same side are 70 apart and never touch
+local ZIGZAG = { { "PunchBtn", "PUNCH", "punch" }, { "KickBtn", "KICK", "kick" }, { "ComboBtn", "COMBO", "combo" },
+	{ "BlockBtn", "BLOCK", "block" }, { "KneeBtn", "KNEE", "knee" }, { "HomeBtn", "HOME", "go_home" } }
+for i, info in ipairs(ZIGZAG) do
+	local x = i % 2 == 1 and 0.12 or 0.58
+	createArenaButton(info[1], info[2], UDim2.new(x, 0, 0, 215 + (i - 1) * 35), info[3])
+end
 
 -- ==================== RESULT SCREEN ====================
 local resultFrame = Instance.new("Frame")
 resultFrame.Name = "ResultFrame"
-resultFrame.Size = UDim2.new(0.6, 0, 0.4, 0)
-resultFrame.Position = UDim2.new(0.2, 0, 0.3, 0)
+resultFrame.AnchorPoint = Vector2.new(0, 0.5)
+resultFrame.Size = UDim2.new(0, 260, 0, 200) -- on the side too, so the ring stays in view
+resultFrame.Position = UDim2.new(0, 12, 0.5, 0)
+resultFrame.BackgroundTransparency = 0.2
 resultFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 resultFrame.Visible = false
 resultFrame.Parent = screenGui

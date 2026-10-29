@@ -157,6 +157,62 @@ local STREAK_MAX = 2 -- ...up to 2x
 
 local winStreaks = {} -- [player] = wins in a row (a loss starts again)
 
+-- Above everyone's head: 🔥 and their win streak, and ⭐ their rating (the % of fights they've won)
+local function updateBadge(player)
+    local character = player.Character
+    local root = character and character:FindFirstChild("HumanoidRootPart")
+    if not root then
+        return
+    end
+    local badge = root:FindFirstChild("FightBadge")
+    if not badge then
+        badge = Instance.new("BillboardGui")
+        badge.Name = "FightBadge"
+        badge.Size = UDim2.new(5, 0, 1, 0) -- studs, so it shrinks with distance like the head
+        -- The owner's 👑 OWNER tag is at +4.5, so theirs goes above it
+        badge.StudsOffset = Vector3.new(0, player.UserId == WorldConfig.OwnerUserId and 6.2 or 3.6, 0)
+        badge.MaxDistance = 120
+        badge.Parent = root
+        local label = Instance.new("TextLabel")
+        label.Name = "Text"
+        label.Size = UDim2.fromScale(1, 1)
+        label.BackgroundTransparency = 1
+        label.TextColor3 = Color3.new(1, 1, 1)
+        label.TextStrokeTransparency = 0
+        label.Font = Enum.Font.GothamBlack
+        label.TextScaled = true
+        label.Parent = badge
+    end
+    local data = getPlayerData(player)
+    local parts = {}
+    local streak = winStreaks[player] or 0
+    if streak > 0 then
+        table.insert(parts, "🔥 " .. streak)
+    end
+    local wins, losses = tonumber(data.arenaWins) or 0, tonumber(data.arenaLosses) or 0
+    if wins + losses > 0 then
+        local rating = wins == math.huge and 100 or math.floor(wins / (wins + losses) * 100 + 0.5)
+        table.insert(parts, "⭐ " .. rating .. "%")
+    end
+    badge:FindFirstChild("Text").Text = table.concat(parts, "   ")
+    badge.Enabled = #parts > 0
+end
+
+Players.PlayerAdded:Connect(function(player)
+    player.CharacterAdded:Connect(function(character)
+        character:WaitForChild("HumanoidRootPart", 10)
+        updateBadge(player)
+    end)
+end)
+for _, player in ipairs(Players:GetPlayers()) do
+    player.CharacterAdded:Connect(function(character)
+        character:WaitForChild("HumanoidRootPart", 10)
+        updateBadge(player)
+    end)
+end
+-- Saved wins and losses arrive a moment after joining
+script.Parent:WaitForChild("PlayerDataService"):WaitForChild("DataLoaded").Event:Connect(updateBadge)
+
 -- Pays a win and says why: { money, streak, healthPercent }
 local function awardWin(player)
     local data = getPlayerData(player)
@@ -171,6 +227,7 @@ local function awardWin(player)
     amount = math.floor(amount)
     data.money = data.money + amount
     data.arenaWins += 1
+    updateBadge(player)
     return { money = amount, streak = streak, healthPercent = math.floor(healthPercent * 100 + 0.5) }
 end
 
@@ -178,6 +235,7 @@ local function awardLoss(player)
     local data = getPlayerData(player)
     data.arenaLosses += 1
     winStreaks[player] = nil
+    updateBadge(player)
 end
 
 Players.PlayerRemoving:Connect(function(player)
