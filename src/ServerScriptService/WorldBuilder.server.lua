@@ -938,8 +938,29 @@ local BUILT_BY_SCRIPTS = {
 	OwnerClones = true, -- AdminCommandService
 }
 
+-- Tools from the Toolbox (ban hammer, jetpack, pizza and other food...) saved in the StarterPack or lying
+-- in the world go too. The game's own tools (the Magic Carpet) are given by StoreService, not from there.
+local function clearLeftoverTools()
+	for _, tool in ipairs(game:GetService("StarterPack"):GetChildren()) do
+		tool:Destroy()
+	end
+	for _, player in ipairs(Players:GetPlayers()) do
+		local backpack = player:FindFirstChildOfClass("Backpack")
+		for _, tool in ipairs(backpack and backpack:GetChildren() or {}) do
+			if tool:IsA("Tool") and tool.Name ~= "Magic Carpet" then
+				tool:Destroy()
+			end
+		end
+	end
+end
+
 local function clearLeftovers()
+	clearLeftoverTools()
 	for _, child in ipairs(Workspace:GetChildren()) do
+		if child:IsA("Tool") then
+			child:Destroy() -- tools lying around in the world
+			continue
+		end
 		local keep = BUILT_BY_SCRIPTS[child.Name]
 			or child:IsA("LuaSourceContainer") -- scripts, and models with scripts (HD Admin, ...)
 			or child:FindFirstChildWhichIsA("LuaSourceContainer", true) ~= nil
