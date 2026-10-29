@@ -2,15 +2,21 @@
 -- rebirth info and asks to rebirth. Rebirthing needs the next rebirth's strength, kick and max stamina;
 -- it resets those three, wins and the beat the game count to a new player's values (money stays), adds +1x to
 -- training gains for good, and gives a walk
--- speed and jump boost (+15, doubling each rebirth). Max 5.
+-- speed and jump boost (+15, doubling each rebirth). Max FighterStats.MaxRebirths.
+--
+-- Skip Rebirth: the ⏩ button next to it buys a rebirth with Robux, without the strength, kick and stamina
+-- (FighterStats.SkipRebirthPrice: 137 Robux, doubling every skip). Otherwise it's a normal rebirth.
 
+local MarketplaceService = game:GetService("MarketplaceService")
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 
 local Modules = ReplicatedStorage:WaitForChild("Modules")
 local FighterStats = require(Modules:WaitForChild("FighterStats"))
 local Catalog = require(Modules:WaitForChild("Catalog"))
+local ReceiptRouter = require(script.Parent:WaitForChild("ReceiptRouter"))
 
 local eventsFolder = ReplicatedStorage:WaitForChild("Events")
 local matchResultEvent = eventsFolder:WaitForChild("MatchResult")
@@ -50,6 +56,7 @@ local function rebirthInfo(data)
 		strength = data.strength,
 		kick = data.kick,
 		stamina = data.maxStamina,
+		skipPrice = FighterStats.SkipRebirthPrice(data.rebirthSkips),
 	}
 end
 
@@ -73,7 +80,8 @@ local function meets(data, requirement)
 	return data.strength >= requirement.strength and data.kick >= requirement.kick and data.maxStamina >= requirement.stamina
 end
 
-local function rebirth(player)
+-- skip: a bought Skip Rebirth, which doesn't need the strength, kick and stamina
+local function rebirth(player, skip)
 	local data = FighterStats.GetPlayerData(player)
 	local rebirths = data.rebirths or 0
 	if rebirths >= FighterStats.MaxRebirths then
@@ -83,7 +91,7 @@ local function rebirth(player)
 		return false, "Finish your arena match first."
 	end
 	local requirement = FighterStats.RebirthRequirement(rebirths + 1)
-	if not meets(data, requirement) then
+	if not skip and not meets(data, requirement) then
 		return false, "You don't have enough strength, kick and stamina yet."
 	end
 
@@ -106,10 +114,73 @@ local function rebirth(player)
 		.. FighterStats.MaxMoveValue .. ")."
 end
 
+-- ==================== SKIP REBIRTH ====================
+local skipProducts = {} -- [productId] = true
+for _, productId in ipairs(FighterStats.SkipRebirthProductIds) do
+	if productId ~= 0 then
+		skipProducts[productId] = true
+	end
+end
+local processedReceipts = {}
+
+local function skipRebirth(player)
+	local data = FighterStats.GetPlayerData(player)
+	local ok, message = rebirth(player, true)
+	if ok then
+		data.rebirthSkips = (data.rebirthSkips or 0) + 1
+		message = "⏩ Skipped! " .. message
+	end
+	return ok, message
+end
+
+-- The ⏩ button: asks Roblox for the Robux (the receipt below does the rebirth)
+local function buySkip(player)
+	local data = FighterStats.GetPlayerData(player)
+	if (data.rebirths or 0) >= FighterStats.MaxRebirths then
+		return false, "You've reached the max of " .. FighterStats.MaxRebirths .. " rebirths!"
+	end
+	if data.isInMatch then
+		return false, "Finish your arena match first."
+	end
+	local skips = data.rebirthSkips or 0
+	local productId = FighterStats.SkipRebirthProductIds[skips + 1] or 0
+	if productId == 0 then
+		if RunService:IsStudio() then
+			local ok, message = skipRebirth(player)
+			return ok, message .. " (Studio test, no Robux)"
+		end
+		return false, "Skip Rebirth isn't for sale yet (no Developer Product ID)."
+	end
+	MarketplaceService:PromptProductPurchase(player, productId)
+	return nil, nil
+end
+
+ReceiptRouter.Register(function(receipt)
+	if not skipProducts[receipt.ProductId] then
+		return nil
+	end
+	if processedReceipts[receipt.PurchaseId] then
+		return Enum.ProductPurchaseDecision.PurchaseGranted
+	end
+	local player = Players:GetPlayerByUserId(receipt.PlayerId)
+	if not player then
+		return Enum.ProductPurchaseDecision.NotProcessedYet
+	end
+	local ok = skipRebirth(player)
+	if not ok then
+		return Enum.ProductPurchaseDecision.NotProcessedYet
+	end
+	processedReceipts[receipt.PurchaseId] = true
+	return Enum.ProductPurchaseDecision.PurchaseGranted
+end)
+
 rebirthFunction.OnServerInvoke = function(player, action)
 	local data = FighterStats.GetPlayerData(player)
 	if action == "rebirth" then
 		local ok, message = rebirth(player)
+		return { ok = ok, message = message, info = rebirthInfo(data) }
+	elseif action == "skip" then
+		local ok, message = buySkip(player)
 		return { ok = ok, message = message, info = rebirthInfo(data) }
 	end
 	return { info = rebirthInfo(data) }

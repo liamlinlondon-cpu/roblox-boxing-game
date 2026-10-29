@@ -47,6 +47,7 @@ function FighterStats.CreatePlayerData()
 		moneyGoal = nil, -- the current money goal at the top of the screen (MoneyGoalService)
 		luckExpiresAt = nil, -- os.time() when bought luck runs out (StoreService); nil = luck doesn't run out
 		permanentLuck = 1, -- what luck goes back to when bought luck runs out (VIP max luck, admin-set luck)
+		rebirthSkips = 0, -- rebirths skipped with Robux (each skip costs double the last)
 		robuxSpent = 0, -- real Robux spent on purchases in this game (counted when a receipt is granted)
 		soldTools = {}, -- [toolName] = true: backpack tools sold at the Sell Shop, removed if they come back
 		ownedSkins = {}, -- [colorId] = true, bought in the Color Shop during sky events
@@ -147,6 +148,15 @@ function FighterStats.RebirthRequirement(n)
 end
 
 -- Training gain boost from rebirths: 1x with none, 2x after one, ... 6x after five
+-- Skip Rebirth (Robux): a rebirth without the strength/kick/stamina needed. 137 Robux the first time,
+-- double every skip after (137, 274, 548, ...). One Developer Product per price, in order.
+FighterStats.SkipRebirthBasePrice = 137
+FighterStats.SkipRebirthProductIds = { 0, 0, 0, 0, 0, 0, 0, 0, 0 }
+
+function FighterStats.SkipRebirthPrice(skips)
+	return FighterStats.SkipRebirthBasePrice * 2 ^ (skips or 0)
+end
+
 -- Money from winning doubles with every rebirth: 1 rebirth = 2x, 2 = 4x, 3 = 8x, ...
 function FighterStats.MoneyMultiplier(data)
 	return 2 ^ (data.rebirths or 0)
