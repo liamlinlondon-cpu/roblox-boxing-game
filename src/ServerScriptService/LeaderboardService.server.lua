@@ -101,10 +101,24 @@ end
 local function savePlayer(player)
 	local data = FighterStats.GetPlayerData(player)
 	for _, board in ipairs(BOARDS) do
-		pcall(function()
+		local ok, err = pcall(function()
 			board.ordered:SetAsync("u_" .. player.UserId, storedValue(data[board.stat]))
 		end)
+		if not ok then
+			warn("Leaderboard " .. board.store .. " couldn't save " .. player.Name .. ": " .. tostring(err))
+		end
 	end
+end
+
+-- Turns Roblox's error into something the board can say (and the fix)
+local function loadProblem(err)
+	local text = string.lower(tostring(err))
+	if string.find(text, "publish") then
+		return "Publish the game to Roblox first (File > Publish to Roblox)"
+	elseif string.find(text, "studio") or string.find(text, "403") or string.find(text, "api") or string.find(text, "permission") then
+		return "Studio: turn on Game Settings > Security > Enable Studio Access to API Services"
+	end
+	return "Leaderboard can't load right now"
 end
 
 -- Reads the top players for every board and publishes them for LeaderboardClient
@@ -116,7 +130,8 @@ local function publishBoards()
 			return board.ordered:GetSortedAsync(false, TOP_COUNT):GetCurrentPage()
 		end)
 		if not ok then
-			entry.message = "Leaderboard can't load right now"
+			warn("Leaderboard " .. board.store .. " couldn't load: " .. tostring(page))
+			entry.message = loadProblem(page)
 		elseif #page == 0 then
 			entry.message = "No one yet. Be the first!"
 		else

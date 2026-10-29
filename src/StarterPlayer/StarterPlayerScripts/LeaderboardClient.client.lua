@@ -27,6 +27,14 @@ local function formatValue(value, format, max)
 	return text
 end
 
+-- The top three stand out: gold, silver and bronze
+local RANK_MEDALS = { "🥇", "🥈", "🥉" }
+local RANK_COLORS = {
+	Color3.fromRGB(255, 215, 60),
+	Color3.fromRGB(215, 220, 230),
+	Color3.fromRGB(225, 150, 80),
+}
+
 local boards = {} -- [index] = { title, list }
 
 local function buildBoard(panel)
@@ -89,31 +97,47 @@ local function render()
 			board.title.Text = entry.title
 			board.title.TextColor3 = color
 			for _, child in ipairs(board.list:GetChildren()) do
-				if child:IsA("TextLabel") then
+				if child:IsA("GuiObject") then
 					child:Destroy()
 				end
 			end
-			local lines = {}
 			if entry.message then
-				table.insert(lines, { text = entry.message, color = Color3.fromRGB(200, 200, 200) })
-			end
-			for rank, row in ipairs(entry.rows) do
-				table.insert(lines, {
-					text = string.format("#%d  %s  —  %s", rank, row.name, formatValue(row.value, entry.format, entry.max)),
-					color = rank == 1 and color or Color3.new(1, 1, 1),
-				})
-			end
-			for order, line in ipairs(lines) do
 				local label = Instance.new("TextLabel")
-				label.Size = UDim2.new(1, -14, 0, ROW_HEIGHT)
-				label.LayoutOrder = order
+				label.Size = UDim2.new(1, -14, 0, ROW_HEIGHT * 2)
 				label.BackgroundTransparency = 1
-				label.Text = line.text
-				label.TextColor3 = line.color
+				label.Text = entry.message
+				label.TextColor3 = Color3.fromRGB(200, 200, 200)
 				label.Font = Enum.Font.GothamBold
 				label.TextScaled = true
-				label.TextXAlignment = Enum.TextXAlignment.Left
+				label.TextWrapped = true
 				label.Parent = board.list
+			end
+			-- One line per player: place number on the left (1 at the top, down to 50), the name, then
+			-- the score on the right
+			for rank, row in ipairs(entry.rows) do
+				local line = Instance.new("Frame")
+				line.Size = UDim2.new(1, -14, 0, ROW_HEIGHT)
+				line.LayoutOrder = rank + 1
+				line.BackgroundColor3 = Color3.new(1, 1, 1)
+				line.BackgroundTransparency = rank % 2 == 0 and 0.94 or 1 -- every other line slightly lighter
+				line.BorderSizePixel = 0
+				line.Parent = board.list
+				local lineColor = RANK_COLORS[rank] or Color3.new(1, 1, 1)
+				local function cell(text, x, width, alignment, cellColor)
+					local label = Instance.new("TextLabel")
+					label.Size = UDim2.new(width, 0, 1, -6)
+					label.Position = UDim2.new(x, 0, 0, 3)
+					label.BackgroundTransparency = 1
+					label.Text = text
+					label.TextColor3 = cellColor
+					label.Font = Enum.Font.GothamBold
+					label.TextScaled = true
+					label.TextXAlignment = alignment
+					label.Parent = line
+				end
+				cell(RANK_MEDALS[rank] or ("#" .. rank), 0, 0.16, Enum.TextXAlignment.Left, lineColor)
+				cell(row.name, 0.17, 0.48, Enum.TextXAlignment.Left, lineColor)
+				cell(formatValue(row.value, entry.format, entry.max), 0.66, 0.34, Enum.TextXAlignment.Right, rank == 1 and color or lineColor)
 			end
 		end
 	end
