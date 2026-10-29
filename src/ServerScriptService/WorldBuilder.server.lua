@@ -750,14 +750,15 @@ local function sealedBox(model, name, center, size, wallColor, material)
 	end
 end
 
-local function ceilingLight(model, position, color)
-	local lamp = makePart(model, "SecretLamp", Vector3.new(8, 0.4, 8), CFrame.new(position), Enum.Material.Neon, color)
+-- brightness: how much the lamp lights the room (the secret base is kept dark and moody)
+local function ceilingLight(model, position, color, brightness)
+	local lamp = makePart(model, "SecretLamp", Vector3.new(4, 0.4, 4), CFrame.new(position), Enum.Material.Neon, color)
 	lamp.CanCollide = false
 	local light = Instance.new("SurfaceLight")
 	light.Face = Enum.NormalId.Bottom
-	light.Range = 40
-	light.Angle = 120
-	light.Brightness = 3
+	light.Range = 30
+	light.Angle = 90
+	light.Brightness = brightness
 	light.Color = color
 	light.Parent = lamp
 end
@@ -779,31 +780,31 @@ local function buildSecretBase(world)
 	model.Name = "SecretBase"
 	model.Parent = world
 	local center = ARENA.Center
-	local purple = Color3.fromRGB(45, 30, 70)
+	local purple = Color3.fromRGB(18, 12, 28) -- almost black
 
 	-- The base itself: as big as the whole map
 	local size = Vector3.new(WorldConfig.GroundSize, config.Height, WorldConfig.GroundSize)
 	local middle = Vector3.new(center.X, config.FloorTop + config.Height / 2, center.Z)
 	sealedBox(model, "SecretBase", middle, size, purple, Enum.Material.DiamondPlate)
 
-	-- Glowing trim along the floor edges and lamps over the training area
+	-- Faint glowing trim along the floor edges, dim lamps over the training area, and darker ones elsewhere
 	local trimY = config.FloorTop + 0.2
 	for _, side in ipairs({ -1, 1 }) do
 		local edge = WorldConfig.GroundSize / 2 - 0.5
-		makePart(model, "SecretTrim", Vector3.new(1, 0.4, WorldConfig.GroundSize), CFrame.new(center + Vector3.new(side * edge, trimY, 0)), Enum.Material.Neon, Color3.fromRGB(170, 70, 255)).CanCollide = false
-		makePart(model, "SecretTrim", Vector3.new(WorldConfig.GroundSize, 0.4, 1), CFrame.new(center + Vector3.new(0, trimY, side * edge)), Enum.Material.Neon, Color3.fromRGB(170, 70, 255)).CanCollide = false
+		makePart(model, "SecretTrim", Vector3.new(1, 0.4, WorldConfig.GroundSize), CFrame.new(center + Vector3.new(side * edge, trimY, 0)), Enum.Material.Neon, Color3.fromRGB(70, 25, 110)).CanCollide = false
+		makePart(model, "SecretTrim", Vector3.new(WorldConfig.GroundSize, 0.4, 1), CFrame.new(center + Vector3.new(0, trimY, side * edge)), Enum.Material.Neon, Color3.fromRGB(70, 25, 110)).CanCollide = false
 	end
 	local lampY = config.FloorTop + config.Height - 0.3
 	for _, x in ipairs({ -16, 0, 16 }) do
 		for _, z in ipairs({ -14, 4, 22 }) do
-			ceilingLight(model, center + Vector3.new(x, lampY, z), Color3.fromRGB(220, 190, 255))
+			ceilingLight(model, center + Vector3.new(x, lampY, z), Color3.fromRGB(150, 110, 200), 0.8)
 		end
 	end
-	-- Dim purple lamps across the rest of the base
+	-- Very dim purple lamps across the rest of the base
 	for x = -160, 160, 80 do
 		for z = -160, 160, 80 do
 			if math.abs(x) > 40 or math.abs(z) > 40 then
-				ceilingLight(model, center + Vector3.new(x, lampY, z), Color3.fromRGB(120, 60, 200))
+				ceilingLight(model, center + Vector3.new(x, lampY, z), Color3.fromRGB(60, 25, 100), 0.3)
 			end
 		end
 	end
