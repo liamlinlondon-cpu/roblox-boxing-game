@@ -64,7 +64,7 @@ homeStatFrame.Parent = homeFrame
 local homeMoneyLabel = Instance.new("TextLabel")
 homeMoneyLabel.Size = UDim2.new(1, 0, 1 / 9, 0)
 homeMoneyLabel.BackgroundTransparency = 1
-homeMoneyLabel.Text = "Robux: 0"
+homeMoneyLabel.Text = "Money: 0"
 homeMoneyLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 homeMoneyLabel.Font = Enum.Font.GothamBold
 homeMoneyLabel.TextScaled = true
@@ -572,7 +572,8 @@ matchResultEvent.OnClientEvent:Connect(function(data)
 		resultFrame.Visible = true
 		resultLabel.Text = "YOU WIN!"
 		resultLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
-		rewardLabel.Text = "Reward: +" .. tostring(data.moneyAward) .. " Robux"
+		-- Winning pays game money, not Robux (games can't give out Robux)
+		rewardLabel.Text = "Reward: +$" .. Catalog.FormatWithCommas(data.moneyAward or 0) .. " money"
 	elseif data.type == "lose" then
 		resultFrame.Visible = true
 		resultLabel.Text = "YOU LOST!"
