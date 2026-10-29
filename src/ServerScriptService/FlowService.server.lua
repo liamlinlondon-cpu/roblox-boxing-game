@@ -138,7 +138,15 @@ local TRAINING = WorldConfig.Training
 local PUNCH_BROADCAST_RADIUS = 150
 
 local trainingEvent = eventsFolder:WaitForChild("GymTraining")
-local trainingSessions = {} -- [player] = { pad, prompt, bag, mode, isVip, token, running, diedConnection }
+local trainingSessions = {} -- [player] = { pad, prompt, bag, mode, isVip, secret, token, running, diedConnection }
+
+-- The secret base's bags (under the map, WorldBuilder) hit with every weight combined: 1+2+5+10 per hit
+local SECRET_POWER = 0
+for _, weight in ipairs(TRAINING.Weights) do
+	SECRET_POWER += weight.power
+end
+-- The secret base's treadmill gives this times the VIP floor's stamina
+local SECRET_TREADMILL_MULTIPLIER = 2
 local stationOwners = {} -- [pad] = player
 
 local function getRoot(player)
@@ -196,6 +204,7 @@ local function claimStation(prompt, player)
 		bag = bag,
 		mode = TRAINING.Modes[mode] and mode or "punch",
 		isVip = prompt:GetAttribute("Vip") == true,
+		secret = prompt:GetAttribute("Secret") == true,
 		token = 0,
 		running = false,
 	}
@@ -246,7 +255,8 @@ end
 -- Awards one hit, plays it for nearby players and returns the set's running total
 local function landPunch(player, session, weight, punch, total, gained)
 	local data = getPlayerData(player)
-	local gain = weight.power * (session.isVip and TRAINING.VipMultiplier or 1) * FighterStats.RebirthMultiplier(data)
+	local power = session.secret and SECRET_POWER or weight.power -- secret bags: every weight at once
+	local gain = power * (session.isVip and TRAINING.VipMultiplier or 1) * FighterStats.RebirthMultiplier(data)
 	if session.mode == "kick" then
 		FighterStats.TrainKick(data, gain)
 	else
@@ -372,7 +382,9 @@ local stopRequested = {} -- [player] = true: end the run now
 
 -- Puts the player on the belt and plays the run animation. Every second on the belt pays the treadmill's
 -- stamina gain (e.g. +50/s on the regular one). A run lasts RUN_SECONDS, or until STOP with auto-run on.
-local function runOnTreadmill(player, deck, tierKey, isVip)
+-- secret: the secret base's treadmill (SECRET_TREADMILL_MULTIPLIER times the VIP floor)
+local function runOnTreadmill(player, deck, tierKey, isVip, secret)
+	local floorMultiplier = (isVip and TRAINING.VipMultiplier or 1) * (secret and SECRET_TREADMILL_MULTIPLIER or 1)
 	local character = player.Character
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 	local root = character and character:FindFirstChild("HumanoidRootPart")
@@ -405,7 +417,7 @@ local function runOnTreadmill(player, deck, tierKey, isVip)
 	treadmillEvent:FireClient(player, "start", {
 		tierName = tier.name,
 		auto = autoRun[player] == true,
-		gainPerSecond = tier.gain * FighterStats.RebirthMultiplier(getPlayerData(player)) * (isVip and TRAINING.VipMultiplier or 1),
+		gainPerSecond = tier.gain * FighterStats.RebirthMultiplier(getPlayerData(player)) * floorMultiplier,
 		runSeconds = RUN_SECONDS,
 	})
 
@@ -428,8 +440,8 @@ local function runOnTreadmill(player, deck, tierKey, isVip)
 
 		seconds += 1
 		local data = getPlayerData(player)
-		-- Rebirth boost, and 2x on the VIP floor's treadmills
-		local multiplier = FighterStats.RebirthMultiplier(data) * (isVip and TRAINING.VipMultiplier or 1)
+		-- Rebirth boost, 2x on the VIP floor's treadmills, and 2x that again in the secret base
+		local multiplier = FighterStats.RebirthMultiplier(data) * floorMultiplier
 		FighterStats.TrainStamina(data, tierKey, multiplier)
 		gained += tier.gain * multiplier
 		sendPlayerStats(player)
@@ -485,6 +497,12 @@ local function hookTreadmill(prompt)
 		local tierKey = prompt:GetAttribute("Tier")
 		local data = getPlayerData(player)
 		local tier = FighterStats.TreadmillTiers[tierKey]
+
+		-- The secret base's treadmill: anyone who found their way in can run on it
+		if prompt:GetAttribute("Secret") then
+			runOnTreadmill(player, prompt.Parent, tierKey, true, true)
+			return
+		end
 
 		-- The owner can use the Owner's Treadmill on any server without buying it, and so can players
 		-- the owner gave it to with /give

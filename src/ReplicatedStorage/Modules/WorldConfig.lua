@@ -102,6 +102,19 @@ WorldConfig.SkyEvents = {
 	ClearCommandAlias = "noncolor",
 }
 
+-- Secret base: a sealed room under the whole map, with no way in except flying down through the ground
+-- with /flynoclip. Secret bags hit with every weight at once, and the secret treadmill gives 2x the VIP
+-- floor's stamina. Under it is an even smaller sealed room: being inside gives infinity everything.
+WorldConfig.SecretBase = {
+	FloorTop = -40, -- the base's floor (the map's ground is at 0)
+	Height = 24, -- floor to ceiling inside
+	InfinityRoom = {
+		FloorTop = -80,
+		Size = 60, -- square
+		Height = 20,
+	},
+}
+
 -- Hulk Wheel: the first time a player turns Hulk (Strength strength), they get Spins spins of a color wheel.
 -- `chance` is each slice's share of the wheel (they add up to 100). Slices with `wasted` win nothing; the
 -- rainbow slice starts a Rainbow sky event for the whole server instead of giving the skin. Every other

@@ -733,6 +733,112 @@ local function buildBeatGameSign(world)
 	addSign(board, Enum.NormalId.Back, text, Color3.fromRGB(255, 70, 70))
 end
 
+-- ==================== SECRET BASE ====================
+-- A sealed room under the whole map (WorldConfig.SecretBase): floor, walls and ceiling all round, no
+-- door. The only way in is flying down through the ground with /flynoclip. Inside: secret punching and
+-- kicking bags (every weight combined per hit, FlowService) and a secret treadmill (2x the VIP floor).
+-- Under its middle is the Infinity Room, sealed too: being inside gives infinity everything
+-- (SecretBaseService).
+local function sealedBox(model, name, center, size, wallColor, material)
+	local thickness = 2
+	local half = size / 2
+	makePart(model, name .. "Floor", Vector3.new(size.X + thickness * 2, thickness, size.Z + thickness * 2), CFrame.new(center + Vector3.new(0, -half.Y - thickness / 2, 0)), material, wallColor)
+	makePart(model, name .. "Ceiling", Vector3.new(size.X + thickness * 2, thickness, size.Z + thickness * 2), CFrame.new(center + Vector3.new(0, half.Y + thickness / 2, 0)), material, wallColor)
+	for _, side in ipairs({ -1, 1 }) do
+		makePart(model, name .. "WallX", Vector3.new(thickness, size.Y, size.Z), CFrame.new(center + Vector3.new(side * (half.X + thickness / 2), 0, 0)), material, wallColor)
+		makePart(model, name .. "WallZ", Vector3.new(size.X + thickness * 2, size.Y, thickness), CFrame.new(center + Vector3.new(0, 0, side * (half.Z + thickness / 2))), material, wallColor)
+	end
+end
+
+local function ceilingLight(model, position, color)
+	local lamp = makePart(model, "SecretLamp", Vector3.new(8, 0.4, 8), CFrame.new(position), Enum.Material.Neon, color)
+	lamp.CanCollide = false
+	local light = Instance.new("SurfaceLight")
+	light.Face = Enum.NormalId.Bottom
+	light.Range = 40
+	light.Angle = 120
+	light.Brightness = 3
+	light.Color = color
+	light.Parent = lamp
+end
+
+local function markSecret(pad, objectText, actionText)
+	local prompt = pad and pad:FindFirstChildOfClass("ProximityPrompt")
+	if prompt then
+		prompt:SetAttribute("Secret", true)
+		prompt.ObjectText = objectText
+		if actionText then
+			prompt.ActionText = actionText
+		end
+	end
+end
+
+local function buildSecretBase(world)
+	local config = WorldConfig.SecretBase
+	local model = Instance.new("Model")
+	model.Name = "SecretBase"
+	model.Parent = world
+	local center = ARENA.Center
+	local purple = Color3.fromRGB(45, 30, 70)
+
+	-- The base itself: as big as the whole map
+	local size = Vector3.new(WorldConfig.GroundSize, config.Height, WorldConfig.GroundSize)
+	local middle = Vector3.new(center.X, config.FloorTop + config.Height / 2, center.Z)
+	sealedBox(model, "SecretBase", middle, size, purple, Enum.Material.DiamondPlate)
+
+	-- Glowing trim along the floor edges and lamps over the training area
+	local trimY = config.FloorTop + 0.2
+	for _, side in ipairs({ -1, 1 }) do
+		local edge = WorldConfig.GroundSize / 2 - 0.5
+		makePart(model, "SecretTrim", Vector3.new(1, 0.4, WorldConfig.GroundSize), CFrame.new(center + Vector3.new(side * edge, trimY, 0)), Enum.Material.Neon, Color3.fromRGB(170, 70, 255)).CanCollide = false
+		makePart(model, "SecretTrim", Vector3.new(WorldConfig.GroundSize, 0.4, 1), CFrame.new(center + Vector3.new(0, trimY, side * edge)), Enum.Material.Neon, Color3.fromRGB(170, 70, 255)).CanCollide = false
+	end
+	local lampY = config.FloorTop + config.Height - 0.3
+	for _, x in ipairs({ -16, 0, 16 }) do
+		for _, z in ipairs({ -14, 4, 22 }) do
+			ceilingLight(model, center + Vector3.new(x, lampY, z), Color3.fromRGB(220, 190, 255))
+		end
+	end
+	-- Dim purple lamps across the rest of the base
+	for x = -160, 160, 80 do
+		for z = -160, 160, 80 do
+			if math.abs(x) > 40 or math.abs(z) > 40 then
+				ceilingLight(model, center + Vector3.new(x, lampY, z), Color3.fromRGB(120, 60, 200))
+			end
+		end
+	end
+
+	-- The training area in the middle
+	local base = CFrame.new(center.X, config.FloorTop, center.Z)
+	for i, x in ipairs({ -15, -5, 5, 15 }) do
+		buildStation(model, base, 0, "SecretPunch" .. i, x, 0, -16, false, "punch")
+		markSecret(model:FindFirstChild("SecretPunch" .. i), "SECRET Punching Bag (every punch at once)")
+		buildStation(model, base, 0, "SecretKick" .. i, x, 0, 0, false, "kick")
+		markSecret(model:FindFirstChild("SecretKick" .. i), "SECRET Kicking Bag (every kick at once)")
+	end
+	-- A beam for the punching bags' chains to hang from
+	makePart(model, "SecretBagBeam", Vector3.new(38, 1, 1), base * CFrame.new(0, 15.5, -12.5), Enum.Material.Metal, Color3.fromRGB(120, 120, 130))
+
+	buildTreadmill(model, base, 0, "owner", 0, 18, 0, true)
+	local deck = model:FindFirstChild("ownerTreadmill")
+	local tier = FighterStats.TreadmillTiers.owner
+	local secretGain = tier.gain * WorldConfig.Training.VipMultiplier * 2
+	markSecret(deck, "SECRET Treadmill (2x the VIP floor)", "Run (+" .. string.format("%.0f", secretGain) .. " stamina/sec)")
+
+	local sign = makePart(model, "SecretSign", Vector3.new(30, 6, 0.5), base * CFrame.new(0, 19, -24), Enum.Material.SmoothPlastic, Color3.fromRGB(25, 15, 40))
+	addSign(sign, Enum.NormalId.Back, "🤫 SECRET BASE", Color3.fromRGB(200, 140, 255))
+	addSign(sign, Enum.NormalId.Front, "🤫 SECRET BASE", Color3.fromRGB(200, 140, 255))
+
+	-- The Infinity Room, sealed under the middle of the base
+	local room = config.InfinityRoom
+	local roomSize = Vector3.new(room.Size, room.Height, room.Size)
+	local roomMiddle = Vector3.new(center.X, room.FloorTop + room.Height / 2, center.Z)
+	sealedBox(model, "InfinityRoom", roomMiddle, roomSize, Color3.fromRGB(255, 215, 80), Enum.Material.Neon)
+	local roomSign = makePart(model, "InfinitySign", Vector3.new(24, 6, 0.5), CFrame.new(roomMiddle + Vector3.new(0, 4, -room.Size / 2 + 1)), Enum.Material.SmoothPlastic, Color3.fromRGB(30, 20, 5))
+	addSign(roomSign, Enum.NormalId.Back, "♾️ INFINITY ROOM", Color3.fromRGB(255, 220, 90))
+	addSign(roomSign, Enum.NormalId.Front, "♾️ INFINITY ROOM", Color3.fromRGB(255, 220, 90))
+end
+
 local function buildWorld()
 	local existing = Workspace:FindFirstChild(WORLD_NAME)
 	if existing then
@@ -768,6 +874,7 @@ local function buildWorld()
 
 	buildBeatGameCourse(world)
 	buildBeatGameSign(world)
+	buildSecretBase(world)
 
 	-- Normal shop kiosk, facing the arena
 	local shopPosition = center + WorldConfig.Shop.Position
