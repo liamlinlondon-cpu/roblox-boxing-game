@@ -3,8 +3,8 @@
 --                               they see the reason (optional), e.g. /ban Bob, exploiting
 --   /unban <username>           lifts the ban
 --   /fly, /unfly                toggles flying (FlyClient moves the character) / lands
---   /walls                      walk through walls and buildings, on/off (owner only)
---   /flywalls                   /fly and /walls together, on/off (owner only)
+--   /noclip                     walk through walls and buildings, on/off (owner only)
+--   /flynoclip                  /fly and /noclip together, on/off (owner only)
 --   /give <name> <item>         gives a player in the server an item, e.g. /give Bob owner treadmill;
 --                               "/give <name> commands" gives them the commands (owner only)
 --   /take <name> commands       removes commands given with /give (owner only)
@@ -270,7 +270,7 @@ local function unfly(admin)
 end
 
 -- ==================== WALK THROUGH WALLS ====================
--- /walls (owner only): walk straight through walls, buildings and anything else; /walls again to stop.
+-- /noclip (owner only): walk straight through walls, buildings and anything else; /noclip again to stop.
 -- The "WalkThroughWalls" attribute tells the owner's NoclipClient to stop their body bumping into things
 -- (they still stand on floors).
 local function walls(admin)
@@ -279,10 +279,10 @@ local function walls(admin)
 	end
 	local on = not admin:GetAttribute("WalkThroughWalls")
 	admin:SetAttribute("WalkThroughWalls", on)
-	notify(admin, on and "You can walk through walls now. Type /walls again to stop." or "Walls are solid again.")
+	notify(admin, on and "Noclip on: you can walk through walls. Type /noclip again to stop." or "Walls are solid again.")
 end
 
--- /flywalls (owner only): /fly and /walls together. Turns both on, or both off if both are already on.
+-- /flynoclip (owner only): /fly and /noclip together. Turns both on, or both off if both are already on.
 local function flyWalls(admin)
 	if not Admins.IsOwner(admin) then
 		return
@@ -290,7 +290,7 @@ local function flyWalls(admin)
 	local on = not (flying[admin] and admin:GetAttribute("WalkThroughWalls"))
 	setFlying(admin, on)
 	admin:SetAttribute("WalkThroughWalls", on)
-	notify(admin, on and "Flying through walls! Type /flywalls again to stop both." or "Landed, and walls are solid again.")
+	notify(admin, on and "Flying through walls! Type /flynoclip again to stop both." or "Landed, and walls are solid again.")
 end
 
 -- ==================== GIVE ====================
@@ -1711,8 +1711,8 @@ local COMMANDS = {
 	ban = { run = ban, minArgs = 1, usage = "/ban <username> ,reason:<reason>" },
 	unban = { run = unban, minArgs = 1, usage = "/unban <username>" },
 	fly = { run = fly },
-	walls = { run = walls }, -- owner only
-	flywalls = { run = flyWalls }, -- owner only: /fly + /walls
+	noclip = { run = walls }, -- owner only: walk through walls
+	flynoclip = { run = flyWalls }, -- owner only: /fly + /noclip
 	unfly = { run = unfly },
 	give = { run = give, minArgs = 2, usage = "/give <name> <item>, e.g. /give Bob owner treadmill" },
 	take = { run = take, minArgs = 2, usage = "/take <name> commands" },

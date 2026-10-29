@@ -1,4 +1,4 @@
--- Walk through walls (/walls, owner only; AdminCommandService sets the player's "WalkThroughWalls"
+-- Walk through walls (/noclip, owner only; AdminCommandService sets the player's "WalkThroughWalls"
 -- attribute). While it's on, the character's body parts don't bump into anything, so walls, buildings
 -- and the map edge can be walked straight through. The Humanoid still stands on floors, so you don't fall
 -- through the ground. Turned off, the body is solid again.

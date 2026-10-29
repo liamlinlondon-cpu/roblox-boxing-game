@@ -770,9 +770,9 @@ end
 -- anything to fill in run straight away.
 local COMMAND_LIST = {
 	-- { what you type, what it does, runs straight away? }
-	{ "/flywalls", "Fly AND go through walls together (on/off)", true },
+	{ "/flynoclip", "Fly AND go through walls together (on/off)", true },
 	{ "/fly", "Fly around (on/off)", true },
-	{ "/walls", "Walk through walls and buildings (on/off)", true },
+	{ "/noclip", "Walk through walls and buildings (on/off)", true },
 	{ "/unfly", "Land", true },
 	{ "/disco", "Disco party on/off (or /none to stop)", true },
 	{ "/nuke", "Nuke the server (10 s countdown; again to call off)", true },
