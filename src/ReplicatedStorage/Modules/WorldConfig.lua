@@ -160,6 +160,16 @@ function WorldConfig.HulkWheelSlices(luck)
 	return list
 end
 
+-- Private servers (PrivateServerService): bought with Robux in the game, each gets its own 6-digit
+-- number. Anyone who types the number joins that server. Robux pays for Days; buying again adds Days
+-- more and keeps the same number. Create a Developer Product priced at Robux and paste its ID into
+-- ProductId (0 = free test in Studio only).
+WorldConfig.PrivateServers = {
+	Robux = 100,
+	Days = 30, -- 100 Robux = 1 month
+	ProductId = 0,
+}
+
 -- The only account that can use the chat commands (sky events, /ban, /unban): Liantw1.
 -- Everyone else, including test players in Studio, gets nothing when they type them.
 WorldConfig.OwnerUserId = 11702564473

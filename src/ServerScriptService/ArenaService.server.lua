@@ -355,8 +355,19 @@ local function resolveAttack(player, actionType)
     sendPlayerStats(player)
 end
 
+-- Fights need two real players (private servers too): no more fights against a bot. START MATCH points
+-- players to the red and blue corners instead.
+local BOT_FIGHTS = false
+
 local function handleBotAction(player, actionType)
     if actionType == "start_match" then
+        if not BOT_FIGHTS then
+            matchResultEvent:FireClient(player, {
+                type = "block",
+                message = "Fights need 2 players! Stand in the RED or BLUE corner and wait for someone in the other one.",
+            })
+            return
+        end
         startArenaCountdown(player)
         return
     end

@@ -48,6 +48,8 @@ function FighterStats.CreatePlayerData()
 		luckExpiresAt = nil, -- os.time() when bought luck runs out (StoreService); nil = luck doesn't run out
 		permanentLuck = 1, -- what luck goes back to when bought luck runs out (VIP max luck, admin-set luck)
 		rebirthSkips = 0, -- rebirths skipped with Robux (each skip costs double the last)
+		privateServerNumber = nil, -- the number of the private server they bought (PrivateServerService)
+		privateServerExpiresAt = nil, -- os.time() when it runs out (buying again adds a month)
 		robuxSpent = 0, -- real Robux spent on purchases in this game (counted when a receipt is granted)
 		soldTools = {}, -- [toolName] = true: backpack tools sold at the Sell Shop, removed if they come back
 		ownedSkins = {}, -- [colorId] = true, bought in the Color Shop during sky events

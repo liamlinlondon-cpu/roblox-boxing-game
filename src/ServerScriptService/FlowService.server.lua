@@ -476,10 +476,11 @@ treadmillEvent.OnServerEvent:Connect(function(player, action, value)
 	end
 end)
 
--- Private (VIP) servers bought by a player have a PrivateServerOwnerId; reserved servers don't.
--- Studio counts as private so the Owner's Treadmill can still be tested there.
+-- Any private server counts: Roblox's own (with a PrivateServerOwnerId) and the game's numbered ones
+-- (reserved servers, PrivateServerService). Studio counts as private so the Owner's Treadmill can still
+-- be tested there.
 local function isPrivateServer()
-	return game.PrivateServerOwnerId ~= 0 or RunService:IsStudio()
+	return game.PrivateServerId ~= "" or game.PrivateServerOwnerId ~= 0 or RunService:IsStudio()
 end
 
 local function hookTreadmill(prompt)
